@@ -177,11 +177,11 @@ fn measure_columnar_delete_of_one_day() {
     assert!(store.database().wait_for_compaction(std::time::Duration::from_secs(600)));
     println!("compaction finished in {:?}", t.elapsed());
     let t = Instant::now();
-    let (n, _) = delete_columnar_range(&conn, p, start, start + Duration::days(1)).unwrap();
+    let n = delete_events_range(&conn, p, start, start + Duration::days(1)).unwrap();
     println!("deleted one day ({n} events) in {:?}", t.elapsed());
     assert_eq!(n, per_day as u64);
     let t = Instant::now();
-    let (n, _) = delete_columnar_range(&conn, p, start + Duration::days(5), start + Duration::days(6)).unwrap();
+    let n = delete_events_range(&conn, p, start + Duration::days(5), start + Duration::days(6)).unwrap();
     println!("deleted a day in the middle ({n} events) in {:?}", t.elapsed());
     let left: i64 = conn.query_one("SELECT count(*) FROM events", &[]).unwrap().get(0);
     assert_eq!(left, 400_000);

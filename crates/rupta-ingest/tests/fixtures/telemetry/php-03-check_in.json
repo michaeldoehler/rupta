@@ -1,0 +1,9 @@
+{
+ "path": "/api/1/envelope/",
+ "query": "",
+ "headers": {
+  "user-agent": "sentry.php/4.37.0",
+  "content-type": "application/x-sentry-envelope",
+  "x-sentry-auth": "Sentry sentry_version=7, sentry_client=sentry.php/4.37.0, sentry_key=0123456789abcdef0123456789abcdef"
+ }
+}

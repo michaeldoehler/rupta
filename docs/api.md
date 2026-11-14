@@ -96,6 +96,11 @@ Grouped as in the OpenAPI document.
 | Releases | `GET /orgs/{org}/releases`, `GET /orgs/{org}/releases/{version}`, `GET /projects/{org}/{project}/health` |
 | Alerts | `GET/POST /projects/{org}/{project}/alert-rules`, `GET/PATCH/DELETE .../alert-rules/{id}`, `GET/POST /orgs/{org}/channels`, `PATCH/DELETE /orgs/{org}/channels/{id}`, `POST /orgs/{org}/channels/{id}/test` |
 | Cron monitors | `GET/POST /projects/{org}/{project}/monitors`, `GET/PATCH/DELETE .../monitors/{slug}`, `GET .../monitors/{slug}/checkins` |
+| Performance | `GET /orgs/{org}/performance/transactions`, `GET /orgs/{org}/performance/transactions/summary`, `GET /orgs/{org}/traces/{trace_id}`, `GET /orgs/{org}/spans` ([performance](performance.md)) |
+| Logs | `GET /orgs/{org}/logs`, `GET /orgs/{org}/logs/histogram`, `GET /orgs/{org}/logs/stream` (Server-Sent Events) ([logs](logs.md)) |
+| Metrics | `GET /orgs/{org}/metrics/names`, `GET /orgs/{org}/metrics/query`, `GET/POST /orgs/{org}/dashboards`, `GET/PATCH/DELETE /orgs/{org}/dashboards/{id}` ([metrics](metrics.md)) |
+| Profiling | `GET /orgs/{org}/profiles`, `GET /orgs/{org}/profiles/{project}/{profile_id}/flamegraph`, `GET .../raw`, `GET /orgs/{org}/profiles/aggregate-flamegraph` ([profiling](profiling.md)) |
+| Replays | `GET /orgs/{org}/replays`, `GET /orgs/{org}/replays/{project}/{replay_id}`, `GET .../recording-segments`, `GET /issues/{id}/replays` ([session replay](session-replay.md)) |
 
 Notes on some of them:
 
@@ -114,7 +119,9 @@ Notes on some of them:
   flags `is_bookmarked` and `has_seen`. At most 100 ids; ids of other
   organizations are skipped. Viewers may only change the per-user flags.
 - **Event documents** are the normalized events as stored by ingestion,
-  plus `previous_event_id` and `next_event_id` within the issue. Event ids
+  plus `previous_event_id` and `next_event_id` within the issue, and
+  `replay_id` and `trace_id` (from the replay and trace contexts, `null`
+  when the event has none). Event ids
   are 32 lowercase hex digits. When the stored document has been removed by
   retention but the event row still exists, a summary is returned.
 - **Tag distributions** combine first-class event attributes (`level`,
@@ -129,6 +136,23 @@ Notes on some of them:
   users cannot be derived from them and are always `null`. Adoption is the
   release's share of the project's sessions in the last 24 hours (in the
   release list) or in the requested period (project health).
+- **Telemetry endpoints** (performance, logs, metrics, profiles,
+  replays) share the scope parameters `project` (ids or slugs,
+  comma-separated; default all projects of the organization),
+  `environment`, `period` (default 24 hours, 7 days for metric names,
+  profiles aggregation and replays) or `start`/`end` (RFC 3339), at most
+  366 days. Their `query` parameter uses the syntax of the [search
+  language](search.md) (free text, `key:value`, `key:[a,b]`, `!key:value`,
+  `key:>n`) with the keys listed on each endpoint; keys that are not
+  columns match attributes, tags or span data. Time series are filled with
+  a point per bucket (`interval` seconds: a minute up to 3 hours, an hour
+  up to 3 days, a day beyond; `interval=1m|1h|1d` to choose).
+  Percentiles are estimates (`approx_percentile`).
+- **Project settings** also hold `retention` (`logs`, `spans`, `metrics`,
+  `profiles`, `replays`, days, 1 to 3650), `sampling` (`transactions`,
+  `spans`, `logs`, 0 to 1) and `data_types` (`traces`, `logs`, `metrics`,
+  `profiles`, `replays`, booleans); a patch may change single fields of
+  each.
 - **Event query** (`GET /orgs/{org}/events`) is deliberately small: a filter
   in the search language (event keys only), up to 1,000 rows of chosen
   columns, or counts grouped by one column, over at most 90 days.

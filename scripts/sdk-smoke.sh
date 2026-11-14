@@ -2,12 +2,15 @@
 # End-to-end check with the official open-source SDKs: starts a rupta
 # server on a free port with a temporary data directory, seeds a project
 # and key, runs the example programs in scripts/sdk-smoke/ (Node, PHP,
-# Python, and the browser SDK in headless Chrome when Chrome is found),
-# stops the server and checks what was stored.
+# Python, and the browser SDK in headless Chromium driven by Playwright
+# when it is installed), sends hand-written statsd and metric bucket
+# envelopes, stops the server and checks what was stored: errors,
+# transactions, spans, logs, metrics, profiles and session replays.
 #
 # Requirements: a built server (cargo build -p rupta-server), node + npm,
-# php + composer, python3. Missing language toolchains are skipped with a
-# warning unless SMOKE_REQUIRE_ALL=1.
+# php + composer, python3, and for the browser the `playwright` Node
+# module with its Chromium (PLAYWRIGHT_BROWSERS_PATH). Missing language
+# toolchains are skipped with a warning unless SMOKE_REQUIRE_ALL=1.
 #
 # Environment:
 #   RUPTA_BIN            server binary (default target/debug/rupta)
@@ -95,15 +98,15 @@ if command -v node >/dev/null && command -v npm >/dev/null; then
   if [ ! -d "$SDK_DIR/js/node_modules/@sentry/node" ]; then
     log "installing the JavaScript SDKs"
     (cd "$SDK_DIR/js" && npm init -y >/dev/null && npm install --silent --no-audit --no-fund \
-      "@sentry/node@${NODE_SDK_VERSION:-latest}" "@sentry/browser@${BROWSER_SDK_VERSION:-latest}" esbuild puppeteer-core >/dev/null)
+      "@sentry/node@${NODE_SDK_VERSION:-latest}" "@sentry/profiling-node@${NODE_SDK_VERSION:-latest}" \
+      "@sentry/browser@${BROWSER_SDK_VERSION:-latest}" esbuild >/dev/null)
   fi
-  cp "$EXAMPLES/node.mjs" "$EXAMPLES/browser.js" "$EXAMPLES/run-browser.mjs" "$SDK_DIR/js/"
+  cp "$EXAMPLES/node.mjs" "$EXAMPLES/browser.js" "$EXAMPLES/run-browser.cjs" "$SDK_DIR/js/"
   log "running the Node SDK example"
   (cd "$SDK_DIR/js" && node node.mjs) || fail "Node example failed"
   RAN+=(node)
 
-  CHROME="${CHROME:-$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)}"
-  if [ -n "$CHROME" ]; then
+  if node -e 'require("playwright")' 2>/dev/null; then
     WEB="$WORK/web"
     mkdir -p "$WEB"
     (cd "$SDK_DIR/js" && npx esbuild browser.js --bundle --format=iife --outfile="$WEB/bundle.js" --log-level=warning)
@@ -113,12 +116,11 @@ if command -v node >/dev/null && command -v npm >/dev/null; then
     python3 -m http.server "$WEB_PORT" --bind 127.0.0.1 --directory "$WEB" >/dev/null 2>&1 &
     STATIC_PID=$!
     wait_http "http://127.0.0.1:$WEB_PORT/index.html" || fail "static server did not start"
-    log "running the browser SDK example in headless Chrome"
-    # Chrome needs a short temporary path for its profile socket.
-    (cd "$SDK_DIR/js" && TMPDIR=/tmp node run-browser.mjs "$CHROME" "http://127.0.0.1:$WEB_PORT/index.html") || fail "browser example failed"
+    log "running the browser SDK example in headless Chromium (Playwright)"
+    (cd "$SDK_DIR/js" && node run-browser.cjs "http://127.0.0.1:$WEB_PORT/index.html") || fail "browser example failed"
     RAN+=(browser)
   else
-    skip_or_fail "no Chrome or Chromium found for the browser SDK"
+    skip_or_fail "the playwright Node module is not installed (browser SDK)"
   fi
 else
   skip_or_fail "node/npm not installed"
@@ -148,8 +150,28 @@ if command -v python3 >/dev/null; then
   fi
   log "running the Python SDK example"
   "$SDK_DIR/py/venv/bin/python" "$EXAMPLES/python.py" || fail "Python example failed"
+  log "running the Python continuous profiling example"
+  "$SDK_DIR/py/venv/bin/python" "$EXAMPLES/python-continuous.py" || fail "Python continuous profiling example failed"
   RAN+=(python)
 fi
+
+# --- Deprecated metric formats (no current SDK sends them) -----------------
+log "sending statsd and metric_buckets envelopes"
+python3 - "$TARGET_PORT" "$PROJECT" "$KEY" <<'PY' || fail "statsd envelope rejected"
+import json, sys, time, urllib.request
+port, project, key = sys.argv[1:4]
+now = int(time.time())
+statsd = f"smoke.statsd.requests@none:1:2|c|#route:/a,environment:smoke|T{now}\nsmoke.statsd.latency@millisecond:10:20:30|d|T{now}\nsmoke.statsd.users:alice:bob|s|T{now}".encode()
+buckets = json.dumps([{"timestamp": now, "width": 10, "name": "g:custom/smoke.statsd.queue@none", "type": "g",
+                       "value": {"last": 3, "min": 1, "max": 5, "sum": 9, "count": 3}, "tags": {"environment": "smoke"}}]).encode()
+body = b"{}\n" + json.dumps({"type": "statsd", "length": len(statsd)}).encode() + b"\n" + statsd + b"\n" \
+     + json.dumps({"type": "metric_buckets", "length": len(buckets)}).encode() + b"\n" + buckets + b"\n"
+req = urllib.request.Request(f"http://127.0.0.1:{port}/api/{project}/envelope/", data=body, method="POST",
+    headers={"content-type": "application/x-sentry-envelope", "user-agent": "statsd-smoke/1.0",
+             "x-sentry-auth": f"Sentry sentry_version=7, sentry_client=statsd-smoke/1.0, sentry_key={key}"})
+with urllib.request.urlopen(req, timeout=10) as r:
+    assert r.status == 200, r.status
+PY
 
 # --- Results ----------------------------------------------------------------
 curl -fs "http://127.0.0.1:$PORT/metrics" >"$WORK/metrics.txt" || true
@@ -183,7 +205,29 @@ at_least("feedback", len(ran & {"node", "browser"}), "feedback entries")
 at_least("feedback_linked", len(ran & {"node", "browser"}), "linked feedback entries")
 if ran & {"node", "browser", "python"}:
     at_least("sessions", 1, "sessions")
-bad = [o for o in s["outcomes"] if o[1] == "invalid"]
+# Telemetry: spans and logs from every SDK, metrics from every SDK plus
+# the hand-written statsd and metric_buckets envelopes.
+at_least("spans", 2 * len(ran), "spans")
+at_least("logs", 2 * len(ran), "logs")
+at_least("logs_with_trace", len(ran), "logs with a trace id")
+sdk_log_names = {"node": "sentry.javascript.node", "browser": "sentry.javascript.browser", "php": "sentry.php", "python": "sentry.python"}
+for lang in ran:
+    if sdk_names[lang] not in s["log_sdks"]:
+        errors.append(f"{lang}: no logs (log sdks: {s['log_sdks']})")
+    prefix = f"smoke.{lang}."
+    if not any(n.startswith(prefix) for n in s["metric_names"]):
+        errors.append(f"{lang}: no metrics (names: {s['metric_names']})")
+at_least("statsd_metrics", 7, "statsd and metric_buckets values")
+if "python" in ran:
+    at_least("profiles", 1, "transaction profiles")
+if ran & {"node", "python"}:
+    at_least("profile_chunks", len(ran & {"node", "python"}), "continuous profiling chunks")
+if "browser" in ran:
+    at_least("replays", 1, "replays")
+    at_least("replay_segments", 1, "replay segments")
+    at_least("replay_clicks", 1, "recorded clicks")
+    at_least("issue_replays", 1, "errors linked to a replay")
+bad = [o for o in s["outcomes"] if o[1] in ("invalid", "dropped_unsupported")]
 if bad:
     errors.append(f"invalid items: {bad}")
 if errors:

@@ -343,18 +343,27 @@ async fn every_item_type_is_accepted() {
     assert_eq!(t.get::<Option<String>>(1).as_deref(), Some("http.server"));
     assert_eq!(t.get::<Option<f64>>(3), Some(250.0));
     assert_eq!(t.get::<Option<i32>>(4), Some(2));
-    for (category, n) in
-        [("replay", 2), ("profile", 2), ("metric_bucket", 2), ("span", 1), ("log_item", 1), ("unknown", 1)]
-    {
-        let q = h.count(&format!(
-            "SELECT coalesce(sum(quantity), 0)::bigint FROM outcomes WHERE outcome = 'dropped_unsupported' AND category = '{category}'"
-        ));
-        assert_eq!(q, n, "{category}");
+    // Malformed telemetry items are counted as invalid; only unknown item
+    // types are acknowledged without being stored.
+    let outcome = |outcome: &str, category: &str| {
+        h.count(&format!(
+            "SELECT coalesce(sum(quantity), 0)::bigint FROM outcomes WHERE outcome = '{outcome}' AND category = '{category}'"
+        ))
+    };
+    for (category, n) in [("replay", 2), ("profile", 2), ("span", 3), ("metric_bucket", 0), ("log_item", 0)] {
+        assert_eq!(outcome("invalid", category), n, "{category}");
     }
-    assert_eq!(h.ingest.outcome_count(Category::Replay, Outcome::DroppedUnsupported), 2);
+    assert_eq!(outcome("dropped_unsupported", "unknown"), 1);
+    assert_eq!(h.count("SELECT count(*) FROM outcomes WHERE outcome = 'dropped_unsupported'"), 1);
+    assert_eq!(outcome("accepted", "metric_bucket"), 1);
+    assert_eq!(h.count("SELECT count(*) FROM metrics WHERE name = 'a' AND type = 'counter' AND value = 1"), 1);
+    // The transaction's root span is stored; its two spans without ids are not.
+    assert_eq!(h.count("SELECT count(*) FROM spans WHERE is_segment AND description = 'GET /checkout'"), 1);
+    assert_eq!(h.ingest.outcome_count(Category::Replay, Outcome::Invalid), 2);
+    assert_eq!(h.ingest.outcome_count(Category::Unknown, Outcome::DroppedUnsupported), 1);
     let mut metrics = String::new();
     h.ingest.render_metrics(&mut metrics);
-    assert!(metrics.contains("rupta_ingest_events_total{category=\"replay\",outcome=\"dropped_unsupported\"} 2"));
+    assert!(metrics.contains("rupta_ingest_events_total{category=\"replay\",outcome=\"invalid\"} 2"));
     assert!(metrics.contains("rupta_ingest_batches_total"));
 }
 

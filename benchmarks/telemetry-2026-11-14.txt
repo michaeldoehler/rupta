@@ -1,0 +1,32 @@
+# rupta telemetry query benchmark, 2026-11-14
+# command: cargo run --release -p rupta-api --example telemetry_bench
+# machine: 4 vCPU, 15 GB RAM, shared with two other build jobs; load average before run: 1.33 2.24 2.15
+# rustc: rustc 1.100.0 (0ef1bc386 2026-11-09)
+# data: one project, 7 days, 100,000 transactions, 1,000,000 spans, 1,000,000 logs,
+#       1,000,000 metric values (3 names), compacted (VACUUM); local disk, warm cache.
+# times: through the HTTP router (authentication, JSON), first request and median of 5.
+
+generated 100000 transactions, 1000000 spans, 1000000 logs, 1000000 metric values over 7 days in 33.7s
+query                               first     median      bytes
+transactions, 24h                   7.2ms      4.9ms       1695
+transactions, 7d                   16.0ms     15.2ms       1666
+transaction summary, 7d           151.8ms    118.9ms       5441
+trace by id                        11.7ms     10.0ms       4936
+spans by op, 7d                    13.6ms     12.7ms       1016
+spans by description, 24h           4.6ms      4.5ms       6802
+logs, newest 100, 24h              13.8ms     14.1ms      46529
+logs, level:error, 7d               4.4ms      4.8ms      46668
+logs, attribute filter, 7d         29.2ms     25.8ms      46251
+logs, body text, 7d                12.4ms     12.0ms      46529
+logs by trace                       8.6ms      6.9ms       4698
+log histogram, 7d                  10.5ms      8.4ms       1004
+log histogram, 24h                  3.6ms      2.5ms       2627
+metric names, 7d                   18.0ms     17.2ms        343
+metric p95, 7d                     17.9ms     18.6ms        416
+metric sum by route, 7d            16.7ms     14.2ms       1880
+
+# before paging logs by time windows and replacing the metric metadata
+# LIMIT 1 scan (same data): logs newest 100, 24h 418 ms; logs level:error,
+# 7d 548 ms; logs body text, 7d 398 ms; metric p95, 7d 556 ms; metric sum
+# by route, 7d 535 ms. `ORDER BY timestamp LIMIT n` over a columnar range
+# sorts every row of the range in the row engine.

@@ -7,6 +7,7 @@
 
 pub mod ingest;
 mod migrations;
+pub mod telemetry;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

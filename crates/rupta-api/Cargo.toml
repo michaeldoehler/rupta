@@ -39,8 +39,12 @@ zip.workspace = true
 flate2.workspace = true
 url.workspace = true
 form_urlencoded.workspace = true
+futures-util = { version = "0.3", default-features = false }
+bytes = "1"
 
 [dev-dependencies]
+rupta-ingest.workspace = true
+tempfile = "3"
 tower = { workspace = true, features = ["util"] }
 http-body-util = "0.1"
 tracing-subscriber.workspace = true
