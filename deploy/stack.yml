@@ -1,0 +1,82 @@
+# rupta on Docker Swarm, with an existing Garage cluster as durable storage.
+#
+#   printf '%s' "$(openssl rand -hex 32)" | docker secret create rupta_secret_key -
+#   printf '%s' 'GK...'                     | docker secret create rupta_s3_access_key_id -
+#   printf '%s' '...'                       | docker secret create rupta_s3_secret_access_key -
+#   printf '%s' '...'                       | docker secret create rupta_oidc_client_secret -
+#   docker stack deploy -c deploy/stack.yml rupta
+#
+# See docs/deployment.md for the reasoning behind each setting.
+version: "3.9"
+
+services:
+  rupta:
+    image: ghcr.io/michaeldoehler/rupta:0.1.0
+    environment:
+      RUPTA_PUBLIC_URL: https://errors.example.com
+      RUPTA_SECRET_KEY_FILE: /run/secrets/rupta_secret_key
+      RUPTA_STORAGE_URL: s3://rupta/production?endpoint=http://garage:3900&region=garage&path_style=true
+      RUPTA_S3_ACCESS_KEY_ID_FILE: /run/secrets/rupta_s3_access_key_id
+      RUPTA_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/rupta_s3_secret_access_key
+      RUPTA_REMOTE_SYNC: sync
+      RUPTA_OIDC_ISSUER: https://auth.example.com
+      RUPTA_OIDC_CLIENT_ID: "000000000000000000@rupta"
+      RUPTA_OIDC_CLIENT_SECRET_FILE: /run/secrets/rupta_oidc_client_secret
+      RUPTA_OIDC_NAME: Zitadel
+      RUPTA_OIDC_ROLE_MAPPING: rupta-owner:owner,rupta-admin:admin,rupta-member:member,rupta-viewer:viewer
+      RUPTA_TRUSTED_PROXIES: 10.0.0.0/8
+    secrets:
+      - rupta_secret_key
+      - rupta_s3_access_key_id
+      - rupta_s3_secret_access_key
+      - rupta_oidc_client_secret
+    volumes:
+      # A local volume on the node is a cache; the bucket is the durable copy.
+      - rupta-data:/data
+    networks:
+      - rupta
+      - garage
+    deploy:
+      # Exactly one writer per database.
+      replicas: 1
+      update_config:
+        order: stop-first
+        failure_action: rollback
+        monitor: 60s
+      rollback_config:
+        order: stop-first
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "rupta", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+
+volumes:
+  rupta-data:
+    driver: local
+
+networks:
+  rupta:
+    driver: overlay
+  garage:
+    external: true
+
+secrets:
+  rupta_secret_key:
+    external: true
+  rupta_s3_access_key_id:
+    external: true
+  rupta_s3_secret_access_key:
+    external: true
+  rupta_oidc_client_secret:
+    external: true

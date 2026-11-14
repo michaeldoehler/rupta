@@ -1,0 +1,72 @@
+# rupta with a single-node Garage as durable storage.
+#
+#   cp .env.example .env      # then fill in the secrets (see the file)
+#   docker compose up -d
+#   open http://localhost:8080
+#
+# The database works on the local volume `rupta-data`; every commit is
+# also stored in the Garage bucket, from which a lost volume is restored.
+name: rupta
+
+services:
+  rupta:
+    image: ghcr.io/michaeldoehler/rupta:${RUPTA_VERSION:-0.1.0}
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${RUPTA_PORT:-8080}:8080"
+    environment:
+      RUPTA_PUBLIC_URL: ${RUPTA_PUBLIC_URL:-http://localhost:8080}
+      RUPTA_SECRET_KEY: ${RUPTA_SECRET_KEY:?set RUPTA_SECRET_KEY in .env}
+      RUPTA_ADMIN_EMAIL: ${RUPTA_ADMIN_EMAIL:-}
+      RUPTA_ADMIN_PASSWORD: ${RUPTA_ADMIN_PASSWORD:-}
+      RUPTA_STORAGE_URL: s3://${RUPTA_BUCKET:-rupta}/rupta?endpoint=http://garage:3900&region=garage&path_style=true
+      RUPTA_S3_ACCESS_KEY_ID: ${RUPTA_S3_ACCESS_KEY_ID:?set RUPTA_S3_ACCESS_KEY_ID in .env}
+      RUPTA_S3_SECRET_ACCESS_KEY: ${RUPTA_S3_SECRET_ACCESS_KEY:?set RUPTA_S3_SECRET_ACCESS_KEY in .env}
+      RUPTA_REMOTE_SYNC: ${RUPTA_REMOTE_SYNC:-sync}
+      RUPTA_OIDC_ISSUER: ${RUPTA_OIDC_ISSUER:-}
+      RUPTA_OIDC_CLIENT_ID: ${RUPTA_OIDC_CLIENT_ID:-}
+      RUPTA_OIDC_CLIENT_SECRET: ${RUPTA_OIDC_CLIENT_SECRET:-}
+      RUPTA_OIDC_NAME: ${RUPTA_OIDC_NAME:-Zitadel}
+      RUPTA_OIDC_ROLE_MAPPING: ${RUPTA_OIDC_ROLE_MAPPING:-}
+      RUPTA_SMTP_URL: ${RUPTA_SMTP_URL:-}
+      RUPTA_SMTP_FROM: ${RUPTA_SMTP_FROM:-}
+      RUPTA_RETENTION_DAYS: ${RUPTA_RETENTION_DAYS:-90}
+      RUPTA_LOG: ${RUPTA_LOG:-info}
+    volumes:
+      - rupta-data:/data
+    depends_on:
+      garage-init:
+        condition: service_completed_successfully
+    stop_grace_period: 60s
+
+  garage:
+    image: dxflrs/garage:v2.5.0
+    restart: unless-stopped
+    command: ["/garage", "-c", "/etc/garage.toml", "server"]
+    environment:
+      GARAGE_RPC_SECRET: ${GARAGE_RPC_SECRET:?set GARAGE_RPC_SECRET in .env}
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN:?set GARAGE_ADMIN_TOKEN in .env}
+    volumes:
+      - ./deploy/garage/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+
+  garage-init:
+    image: curlimages/curl:8.17.0
+    entrypoint: ["sh", "/init.sh"]
+    environment:
+      GARAGE_ADMIN_TOKEN: ${GARAGE_ADMIN_TOKEN}
+      RUPTA_BUCKET: ${RUPTA_BUCKET:-rupta}
+      RUPTA_S3_ACCESS_KEY_ID: ${RUPTA_S3_ACCESS_KEY_ID}
+      RUPTA_S3_SECRET_ACCESS_KEY: ${RUPTA_S3_SECRET_ACCESS_KEY}
+    volumes:
+      - ./deploy/garage/init.sh:/init.sh:ro
+    depends_on:
+      - garage
+    restart: "no"
+
+volumes:
+  rupta-data:
+  garage-meta:
+  garage-data:
