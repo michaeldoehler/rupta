@@ -22,10 +22,20 @@ import { Route as AuthOrgSettingsRouteImport } from './routes/_auth/$org/setting
 import { Route as AuthOrgAlertsIndexRouteImport } from './routes/_auth/$org/alerts/index'
 import { Route as AuthOrgAlertsNewRouteImport } from './routes/_auth/$org/alerts/new'
 import { Route as AuthOrgCronsIndexRouteImport } from './routes/_auth/$org/crons/index'
+import { Route as AuthOrgDashboardsIndexRouteImport } from './routes/_auth/$org/dashboards/index'
+import { Route as AuthOrgDashboardsDashboardIdRouteImport } from './routes/_auth/$org/dashboards/$dashboardId'
 import { Route as AuthOrgIssuesIndexRouteImport } from './routes/_auth/$org/issues/index'
 import { Route as AuthOrgIssuesIssueIdRouteImport } from './routes/_auth/$org/issues/$issueId'
+import { Route as AuthOrgLogsIndexRouteImport } from './routes/_auth/$org/logs/index'
+import { Route as AuthOrgMetricsIndexRouteImport } from './routes/_auth/$org/metrics/index'
+import { Route as AuthOrgPerformanceIndexRouteImport } from './routes/_auth/$org/performance/index'
+import { Route as AuthOrgPerformanceSummaryRouteImport } from './routes/_auth/$org/performance/summary'
+import { Route as AuthOrgProfilesIndexRouteImport } from './routes/_auth/$org/profiles/index'
+import { Route as AuthOrgProfilesAggregateRouteImport } from './routes/_auth/$org/profiles/aggregate'
+import { Route as AuthOrgProfilesTransactionsRouteImport } from './routes/_auth/$org/profiles/transactions'
 import { Route as AuthOrgReleasesIndexRouteImport } from './routes/_auth/$org/releases/index'
 import { Route as AuthOrgReleasesVersionRouteImport } from './routes/_auth/$org/releases/$version'
+import { Route as AuthOrgReplaysIndexRouteImport } from './routes/_auth/$org/replays/index'
 import { Route as AuthOrgSettingsIndexRouteImport } from './routes/_auth/$org/settings/index'
 import { Route as AuthOrgSettingsAuditLogRouteImport } from './routes/_auth/$org/settings/audit-log'
 import { Route as AuthOrgSettingsChannelsRouteImport } from './routes/_auth/$org/settings/channels'
@@ -33,6 +43,8 @@ import { Route as AuthOrgSettingsMembersRouteImport } from './routes/_auth/$org/
 import { Route as AuthOrgSettingsSsoRouteImport } from './routes/_auth/$org/settings/sso'
 import { Route as AuthOrgSettingsTeamsRouteImport } from './routes/_auth/$org/settings/teams'
 import { Route as AuthOrgSettingsTokensRouteImport } from './routes/_auth/$org/settings/tokens'
+import { Route as AuthOrgTracesIndexRouteImport } from './routes/_auth/$org/traces/index'
+import { Route as AuthOrgTracesTraceIdRouteImport } from './routes/_auth/$org/traces/$traceId'
 import { Route as OrganizationsOrgIssuesIssueIdRouteImport } from './routes/organizations.$org.issues.$issueId'
 import { Route as AuthOrgAlertsProjectRuleIdRouteImport } from './routes/_auth/$org/alerts/$project.$ruleId'
 import { Route as AuthOrgCronsProjectSlugRouteImport } from './routes/_auth/$org/crons/$project.$slug'
@@ -40,6 +52,9 @@ import { Route as AuthOrgIssuesIssueIdIndexRouteImport } from './routes/_auth/$o
 import { Route as AuthOrgIssuesIssueIdActivityRouteImport } from './routes/_auth/$org/issues/$issueId/activity'
 import { Route as AuthOrgIssuesIssueIdEventsRouteImport } from './routes/_auth/$org/issues/$issueId/events'
 import { Route as AuthOrgIssuesIssueIdFeedbackRouteImport } from './routes/_auth/$org/issues/$issueId/feedback'
+import { Route as AuthOrgIssuesIssueIdReplaysRouteImport } from './routes/_auth/$org/issues/$issueId/replays'
+import { Route as AuthOrgProfilesProjectProfileIdRouteImport } from './routes/_auth/$org/profiles/$project.$profileId'
+import { Route as AuthOrgReplaysProjectReplayIdRouteImport } from './routes/_auth/$org/replays/$project.$replayId'
 import { Route as AuthOrgSettingsAccountIndexRouteImport } from './routes/_auth/$org/settings/account/index'
 import { Route as AuthOrgSettingsAccountNotificationsRouteImport } from './routes/_auth/$org/settings/account/notifications'
 import { Route as AuthOrgSettingsAccountSecurityRouteImport } from './routes/_auth/$org/settings/account/security'
@@ -54,6 +69,7 @@ import { Route as AuthOrgSettingsProjectsProjectLimitsRouteImport } from './rout
 import { Route as AuthOrgSettingsProjectsProjectScrubbingRouteImport } from './routes/_auth/$org/settings/projects/$project/scrubbing'
 import { Route as AuthOrgSettingsProjectsProjectSecurityRouteImport } from './routes/_auth/$org/settings/projects/$project/security'
 import { Route as AuthOrgSettingsProjectsProjectSourceMapsRouteImport } from './routes/_auth/$org/settings/projects/$project/source-maps'
+import { Route as AuthOrgSettingsProjectsProjectTelemetryRouteImport } from './routes/_auth/$org/settings/projects/$project/telemetry'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -119,6 +135,17 @@ const AuthOrgCronsIndexRoute = AuthOrgCronsIndexRouteImport.update({
   path: '/crons/',
   getParentRoute: () => AuthOrgRoute,
 } as any)
+const AuthOrgDashboardsIndexRoute = AuthOrgDashboardsIndexRouteImport.update({
+  id: '/dashboards/',
+  path: '/dashboards/',
+  getParentRoute: () => AuthOrgRoute,
+} as any)
+const AuthOrgDashboardsDashboardIdRoute =
+  AuthOrgDashboardsDashboardIdRouteImport.update({
+    id: '/dashboards/$dashboardId',
+    path: '/dashboards/$dashboardId',
+    getParentRoute: () => AuthOrgRoute,
+  } as any)
 const AuthOrgIssuesIndexRoute = AuthOrgIssuesIndexRouteImport.update({
   id: '/issues/',
   path: '/issues/',
@@ -129,6 +156,44 @@ const AuthOrgIssuesIssueIdRoute = AuthOrgIssuesIssueIdRouteImport.update({
   path: '/issues/$issueId',
   getParentRoute: () => AuthOrgRoute,
 } as any)
+const AuthOrgLogsIndexRoute = AuthOrgLogsIndexRouteImport.update({
+  id: '/logs/',
+  path: '/logs/',
+  getParentRoute: () => AuthOrgRoute,
+} as any)
+const AuthOrgMetricsIndexRoute = AuthOrgMetricsIndexRouteImport.update({
+  id: '/metrics/',
+  path: '/metrics/',
+  getParentRoute: () => AuthOrgRoute,
+} as any)
+const AuthOrgPerformanceIndexRoute = AuthOrgPerformanceIndexRouteImport.update({
+  id: '/performance/',
+  path: '/performance/',
+  getParentRoute: () => AuthOrgRoute,
+} as any)
+const AuthOrgPerformanceSummaryRoute =
+  AuthOrgPerformanceSummaryRouteImport.update({
+    id: '/performance/summary',
+    path: '/performance/summary',
+    getParentRoute: () => AuthOrgRoute,
+  } as any)
+const AuthOrgProfilesIndexRoute = AuthOrgProfilesIndexRouteImport.update({
+  id: '/profiles/',
+  path: '/profiles/',
+  getParentRoute: () => AuthOrgRoute,
+} as any)
+const AuthOrgProfilesAggregateRoute =
+  AuthOrgProfilesAggregateRouteImport.update({
+    id: '/profiles/aggregate',
+    path: '/profiles/aggregate',
+    getParentRoute: () => AuthOrgRoute,
+  } as any)
+const AuthOrgProfilesTransactionsRoute =
+  AuthOrgProfilesTransactionsRouteImport.update({
+    id: '/profiles/transactions',
+    path: '/profiles/transactions',
+    getParentRoute: () => AuthOrgRoute,
+  } as any)
 const AuthOrgReleasesIndexRoute = AuthOrgReleasesIndexRouteImport.update({
   id: '/releases/',
   path: '/releases/',
@@ -137,6 +202,11 @@ const AuthOrgReleasesIndexRoute = AuthOrgReleasesIndexRouteImport.update({
 const AuthOrgReleasesVersionRoute = AuthOrgReleasesVersionRouteImport.update({
   id: '/releases/$version',
   path: '/releases/$version',
+  getParentRoute: () => AuthOrgRoute,
+} as any)
+const AuthOrgReplaysIndexRoute = AuthOrgReplaysIndexRouteImport.update({
+  id: '/replays/',
+  path: '/replays/',
   getParentRoute: () => AuthOrgRoute,
 } as any)
 const AuthOrgSettingsIndexRoute = AuthOrgSettingsIndexRouteImport.update({
@@ -173,6 +243,16 @@ const AuthOrgSettingsTokensRoute = AuthOrgSettingsTokensRouteImport.update({
   id: '/tokens',
   path: '/tokens',
   getParentRoute: () => AuthOrgSettingsRoute,
+} as any)
+const AuthOrgTracesIndexRoute = AuthOrgTracesIndexRouteImport.update({
+  id: '/traces/',
+  path: '/traces/',
+  getParentRoute: () => AuthOrgRoute,
+} as any)
+const AuthOrgTracesTraceIdRoute = AuthOrgTracesTraceIdRouteImport.update({
+  id: '/traces/$traceId',
+  path: '/traces/$traceId',
+  getParentRoute: () => AuthOrgRoute,
 } as any)
 const OrganizationsOrgIssuesIssueIdRoute =
   OrganizationsOrgIssuesIssueIdRouteImport.update({
@@ -214,6 +294,24 @@ const AuthOrgIssuesIssueIdFeedbackRoute =
     id: '/feedback',
     path: '/feedback',
     getParentRoute: () => AuthOrgIssuesIssueIdRoute,
+  } as any)
+const AuthOrgIssuesIssueIdReplaysRoute =
+  AuthOrgIssuesIssueIdReplaysRouteImport.update({
+    id: '/replays',
+    path: '/replays',
+    getParentRoute: () => AuthOrgIssuesIssueIdRoute,
+  } as any)
+const AuthOrgProfilesProjectProfileIdRoute =
+  AuthOrgProfilesProjectProfileIdRouteImport.update({
+    id: '/profiles/$project/$profileId',
+    path: '/profiles/$project/$profileId',
+    getParentRoute: () => AuthOrgRoute,
+  } as any)
+const AuthOrgReplaysProjectReplayIdRoute =
+  AuthOrgReplaysProjectReplayIdRouteImport.update({
+    id: '/replays/$project/$replayId',
+    path: '/replays/$project/$replayId',
+    getParentRoute: () => AuthOrgRoute,
   } as any)
 const AuthOrgSettingsAccountIndexRoute =
   AuthOrgSettingsAccountIndexRouteImport.update({
@@ -299,6 +397,12 @@ const AuthOrgSettingsProjectsProjectSourceMapsRoute =
     path: '/source-maps',
     getParentRoute: () => AuthOrgSettingsProjectsProjectRoute,
   } as any)
+const AuthOrgSettingsProjectsProjectTelemetryRoute =
+  AuthOrgSettingsProjectsProjectTelemetryRouteImport.update({
+    id: '/telemetry',
+    path: '/telemetry',
+    getParentRoute: () => AuthOrgSettingsProjectsProjectRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -311,7 +415,11 @@ export interface FileRoutesByFullPath {
   '/$org/settings': typeof AuthOrgSettingsRouteWithChildren
   '/$org/': typeof AuthOrgIndexRoute
   '/$org/alerts/new': typeof AuthOrgAlertsNewRoute
+  '/$org/dashboards/$dashboardId': typeof AuthOrgDashboardsDashboardIdRoute
   '/$org/issues/$issueId': typeof AuthOrgIssuesIssueIdRouteWithChildren
+  '/$org/performance/summary': typeof AuthOrgPerformanceSummaryRoute
+  '/$org/profiles/aggregate': typeof AuthOrgProfilesAggregateRoute
+  '/$org/profiles/transactions': typeof AuthOrgProfilesTransactionsRoute
   '/$org/releases/$version': typeof AuthOrgReleasesVersionRoute
   '/$org/settings/audit-log': typeof AuthOrgSettingsAuditLogRoute
   '/$org/settings/channels': typeof AuthOrgSettingsChannelsRoute
@@ -319,17 +427,28 @@ export interface FileRoutesByFullPath {
   '/$org/settings/sso': typeof AuthOrgSettingsSsoRoute
   '/$org/settings/teams': typeof AuthOrgSettingsTeamsRoute
   '/$org/settings/tokens': typeof AuthOrgSettingsTokensRoute
+  '/$org/traces/$traceId': typeof AuthOrgTracesTraceIdRoute
   '/organizations/$org/issues/$issueId': typeof OrganizationsOrgIssuesIssueIdRoute
   '/$org/alerts/': typeof AuthOrgAlertsIndexRoute
   '/$org/crons/': typeof AuthOrgCronsIndexRoute
+  '/$org/dashboards/': typeof AuthOrgDashboardsIndexRoute
   '/$org/issues/': typeof AuthOrgIssuesIndexRoute
+  '/$org/logs/': typeof AuthOrgLogsIndexRoute
+  '/$org/metrics/': typeof AuthOrgMetricsIndexRoute
+  '/$org/performance/': typeof AuthOrgPerformanceIndexRoute
+  '/$org/profiles/': typeof AuthOrgProfilesIndexRoute
   '/$org/releases/': typeof AuthOrgReleasesIndexRoute
+  '/$org/replays/': typeof AuthOrgReplaysIndexRoute
   '/$org/settings/': typeof AuthOrgSettingsIndexRoute
+  '/$org/traces/': typeof AuthOrgTracesIndexRoute
   '/$org/alerts/$project/$ruleId': typeof AuthOrgAlertsProjectRuleIdRoute
   '/$org/crons/$project/$slug': typeof AuthOrgCronsProjectSlugRoute
   '/$org/issues/$issueId/activity': typeof AuthOrgIssuesIssueIdActivityRoute
   '/$org/issues/$issueId/events': typeof AuthOrgIssuesIssueIdEventsRoute
   '/$org/issues/$issueId/feedback': typeof AuthOrgIssuesIssueIdFeedbackRoute
+  '/$org/issues/$issueId/replays': typeof AuthOrgIssuesIssueIdReplaysRoute
+  '/$org/profiles/$project/$profileId': typeof AuthOrgProfilesProjectProfileIdRoute
+  '/$org/replays/$project/$replayId': typeof AuthOrgReplaysProjectReplayIdRoute
   '/$org/settings/account/notifications': typeof AuthOrgSettingsAccountNotificationsRoute
   '/$org/settings/account/security': typeof AuthOrgSettingsAccountSecurityRoute
   '/$org/settings/projects/$project': typeof AuthOrgSettingsProjectsProjectRouteWithChildren
@@ -343,6 +462,7 @@ export interface FileRoutesByFullPath {
   '/$org/settings/projects/$project/scrubbing': typeof AuthOrgSettingsProjectsProjectScrubbingRoute
   '/$org/settings/projects/$project/security': typeof AuthOrgSettingsProjectsProjectSecurityRoute
   '/$org/settings/projects/$project/source-maps': typeof AuthOrgSettingsProjectsProjectSourceMapsRoute
+  '/$org/settings/projects/$project/telemetry': typeof AuthOrgSettingsProjectsProjectTelemetryRoute
   '/$org/issues/$issueId/tags/': typeof AuthOrgIssuesIssueIdTagsIndexRoute
   '/$org/settings/projects/$project/': typeof AuthOrgSettingsProjectsProjectIndexRoute
 }
@@ -355,6 +475,10 @@ export interface FileRoutesByTo {
   '/$org/feedback': typeof AuthOrgFeedbackRoute
   '/$org': typeof AuthOrgIndexRoute
   '/$org/alerts/new': typeof AuthOrgAlertsNewRoute
+  '/$org/dashboards/$dashboardId': typeof AuthOrgDashboardsDashboardIdRoute
+  '/$org/performance/summary': typeof AuthOrgPerformanceSummaryRoute
+  '/$org/profiles/aggregate': typeof AuthOrgProfilesAggregateRoute
+  '/$org/profiles/transactions': typeof AuthOrgProfilesTransactionsRoute
   '/$org/releases/$version': typeof AuthOrgReleasesVersionRoute
   '/$org/settings/audit-log': typeof AuthOrgSettingsAuditLogRoute
   '/$org/settings/channels': typeof AuthOrgSettingsChannelsRoute
@@ -362,17 +486,28 @@ export interface FileRoutesByTo {
   '/$org/settings/sso': typeof AuthOrgSettingsSsoRoute
   '/$org/settings/teams': typeof AuthOrgSettingsTeamsRoute
   '/$org/settings/tokens': typeof AuthOrgSettingsTokensRoute
+  '/$org/traces/$traceId': typeof AuthOrgTracesTraceIdRoute
   '/organizations/$org/issues/$issueId': typeof OrganizationsOrgIssuesIssueIdRoute
   '/$org/alerts': typeof AuthOrgAlertsIndexRoute
   '/$org/crons': typeof AuthOrgCronsIndexRoute
+  '/$org/dashboards': typeof AuthOrgDashboardsIndexRoute
   '/$org/issues': typeof AuthOrgIssuesIndexRoute
+  '/$org/logs': typeof AuthOrgLogsIndexRoute
+  '/$org/metrics': typeof AuthOrgMetricsIndexRoute
+  '/$org/performance': typeof AuthOrgPerformanceIndexRoute
+  '/$org/profiles': typeof AuthOrgProfilesIndexRoute
   '/$org/releases': typeof AuthOrgReleasesIndexRoute
+  '/$org/replays': typeof AuthOrgReplaysIndexRoute
   '/$org/settings': typeof AuthOrgSettingsIndexRoute
+  '/$org/traces': typeof AuthOrgTracesIndexRoute
   '/$org/alerts/$project/$ruleId': typeof AuthOrgAlertsProjectRuleIdRoute
   '/$org/crons/$project/$slug': typeof AuthOrgCronsProjectSlugRoute
   '/$org/issues/$issueId/activity': typeof AuthOrgIssuesIssueIdActivityRoute
   '/$org/issues/$issueId/events': typeof AuthOrgIssuesIssueIdEventsRoute
   '/$org/issues/$issueId/feedback': typeof AuthOrgIssuesIssueIdFeedbackRoute
+  '/$org/issues/$issueId/replays': typeof AuthOrgIssuesIssueIdReplaysRoute
+  '/$org/profiles/$project/$profileId': typeof AuthOrgProfilesProjectProfileIdRoute
+  '/$org/replays/$project/$replayId': typeof AuthOrgReplaysProjectReplayIdRoute
   '/$org/settings/account/notifications': typeof AuthOrgSettingsAccountNotificationsRoute
   '/$org/settings/account/security': typeof AuthOrgSettingsAccountSecurityRoute
   '/$org/issues/$issueId': typeof AuthOrgIssuesIssueIdIndexRoute
@@ -385,6 +520,7 @@ export interface FileRoutesByTo {
   '/$org/settings/projects/$project/scrubbing': typeof AuthOrgSettingsProjectsProjectScrubbingRoute
   '/$org/settings/projects/$project/security': typeof AuthOrgSettingsProjectsProjectSecurityRoute
   '/$org/settings/projects/$project/source-maps': typeof AuthOrgSettingsProjectsProjectSourceMapsRoute
+  '/$org/settings/projects/$project/telemetry': typeof AuthOrgSettingsProjectsProjectTelemetryRoute
   '/$org/issues/$issueId/tags': typeof AuthOrgIssuesIssueIdTagsIndexRoute
   '/$org/settings/projects/$project': typeof AuthOrgSettingsProjectsProjectIndexRoute
 }
@@ -401,7 +537,11 @@ export interface FileRoutesById {
   '/_auth/$org/settings': typeof AuthOrgSettingsRouteWithChildren
   '/_auth/$org/': typeof AuthOrgIndexRoute
   '/_auth/$org/alerts/new': typeof AuthOrgAlertsNewRoute
+  '/_auth/$org/dashboards/$dashboardId': typeof AuthOrgDashboardsDashboardIdRoute
   '/_auth/$org/issues/$issueId': typeof AuthOrgIssuesIssueIdRouteWithChildren
+  '/_auth/$org/performance/summary': typeof AuthOrgPerformanceSummaryRoute
+  '/_auth/$org/profiles/aggregate': typeof AuthOrgProfilesAggregateRoute
+  '/_auth/$org/profiles/transactions': typeof AuthOrgProfilesTransactionsRoute
   '/_auth/$org/releases/$version': typeof AuthOrgReleasesVersionRoute
   '/_auth/$org/settings/audit-log': typeof AuthOrgSettingsAuditLogRoute
   '/_auth/$org/settings/channels': typeof AuthOrgSettingsChannelsRoute
@@ -409,17 +549,28 @@ export interface FileRoutesById {
   '/_auth/$org/settings/sso': typeof AuthOrgSettingsSsoRoute
   '/_auth/$org/settings/teams': typeof AuthOrgSettingsTeamsRoute
   '/_auth/$org/settings/tokens': typeof AuthOrgSettingsTokensRoute
+  '/_auth/$org/traces/$traceId': typeof AuthOrgTracesTraceIdRoute
   '/organizations/$org/issues/$issueId': typeof OrganizationsOrgIssuesIssueIdRoute
   '/_auth/$org/alerts/': typeof AuthOrgAlertsIndexRoute
   '/_auth/$org/crons/': typeof AuthOrgCronsIndexRoute
+  '/_auth/$org/dashboards/': typeof AuthOrgDashboardsIndexRoute
   '/_auth/$org/issues/': typeof AuthOrgIssuesIndexRoute
+  '/_auth/$org/logs/': typeof AuthOrgLogsIndexRoute
+  '/_auth/$org/metrics/': typeof AuthOrgMetricsIndexRoute
+  '/_auth/$org/performance/': typeof AuthOrgPerformanceIndexRoute
+  '/_auth/$org/profiles/': typeof AuthOrgProfilesIndexRoute
   '/_auth/$org/releases/': typeof AuthOrgReleasesIndexRoute
+  '/_auth/$org/replays/': typeof AuthOrgReplaysIndexRoute
   '/_auth/$org/settings/': typeof AuthOrgSettingsIndexRoute
+  '/_auth/$org/traces/': typeof AuthOrgTracesIndexRoute
   '/_auth/$org/alerts/$project/$ruleId': typeof AuthOrgAlertsProjectRuleIdRoute
   '/_auth/$org/crons/$project/$slug': typeof AuthOrgCronsProjectSlugRoute
   '/_auth/$org/issues/$issueId/activity': typeof AuthOrgIssuesIssueIdActivityRoute
   '/_auth/$org/issues/$issueId/events': typeof AuthOrgIssuesIssueIdEventsRoute
   '/_auth/$org/issues/$issueId/feedback': typeof AuthOrgIssuesIssueIdFeedbackRoute
+  '/_auth/$org/issues/$issueId/replays': typeof AuthOrgIssuesIssueIdReplaysRoute
+  '/_auth/$org/profiles/$project/$profileId': typeof AuthOrgProfilesProjectProfileIdRoute
+  '/_auth/$org/replays/$project/$replayId': typeof AuthOrgReplaysProjectReplayIdRoute
   '/_auth/$org/settings/account/notifications': typeof AuthOrgSettingsAccountNotificationsRoute
   '/_auth/$org/settings/account/security': typeof AuthOrgSettingsAccountSecurityRoute
   '/_auth/$org/settings/projects/$project': typeof AuthOrgSettingsProjectsProjectRouteWithChildren
@@ -433,6 +584,7 @@ export interface FileRoutesById {
   '/_auth/$org/settings/projects/$project/scrubbing': typeof AuthOrgSettingsProjectsProjectScrubbingRoute
   '/_auth/$org/settings/projects/$project/security': typeof AuthOrgSettingsProjectsProjectSecurityRoute
   '/_auth/$org/settings/projects/$project/source-maps': typeof AuthOrgSettingsProjectsProjectSourceMapsRoute
+  '/_auth/$org/settings/projects/$project/telemetry': typeof AuthOrgSettingsProjectsProjectTelemetryRoute
   '/_auth/$org/issues/$issueId/tags/': typeof AuthOrgIssuesIssueIdTagsIndexRoute
   '/_auth/$org/settings/projects/$project/': typeof AuthOrgSettingsProjectsProjectIndexRoute
 }
@@ -449,7 +601,11 @@ export interface FileRouteTypes {
     | '/$org/settings'
     | '/$org/'
     | '/$org/alerts/new'
+    | '/$org/dashboards/$dashboardId'
     | '/$org/issues/$issueId'
+    | '/$org/performance/summary'
+    | '/$org/profiles/aggregate'
+    | '/$org/profiles/transactions'
     | '/$org/releases/$version'
     | '/$org/settings/audit-log'
     | '/$org/settings/channels'
@@ -457,17 +613,28 @@ export interface FileRouteTypes {
     | '/$org/settings/sso'
     | '/$org/settings/teams'
     | '/$org/settings/tokens'
+    | '/$org/traces/$traceId'
     | '/organizations/$org/issues/$issueId'
     | '/$org/alerts/'
     | '/$org/crons/'
+    | '/$org/dashboards/'
     | '/$org/issues/'
+    | '/$org/logs/'
+    | '/$org/metrics/'
+    | '/$org/performance/'
+    | '/$org/profiles/'
     | '/$org/releases/'
+    | '/$org/replays/'
     | '/$org/settings/'
+    | '/$org/traces/'
     | '/$org/alerts/$project/$ruleId'
     | '/$org/crons/$project/$slug'
     | '/$org/issues/$issueId/activity'
     | '/$org/issues/$issueId/events'
     | '/$org/issues/$issueId/feedback'
+    | '/$org/issues/$issueId/replays'
+    | '/$org/profiles/$project/$profileId'
+    | '/$org/replays/$project/$replayId'
     | '/$org/settings/account/notifications'
     | '/$org/settings/account/security'
     | '/$org/settings/projects/$project'
@@ -481,6 +648,7 @@ export interface FileRouteTypes {
     | '/$org/settings/projects/$project/scrubbing'
     | '/$org/settings/projects/$project/security'
     | '/$org/settings/projects/$project/source-maps'
+    | '/$org/settings/projects/$project/telemetry'
     | '/$org/issues/$issueId/tags/'
     | '/$org/settings/projects/$project/'
   fileRoutesByTo: FileRoutesByTo
@@ -493,6 +661,10 @@ export interface FileRouteTypes {
     | '/$org/feedback'
     | '/$org'
     | '/$org/alerts/new'
+    | '/$org/dashboards/$dashboardId'
+    | '/$org/performance/summary'
+    | '/$org/profiles/aggregate'
+    | '/$org/profiles/transactions'
     | '/$org/releases/$version'
     | '/$org/settings/audit-log'
     | '/$org/settings/channels'
@@ -500,17 +672,28 @@ export interface FileRouteTypes {
     | '/$org/settings/sso'
     | '/$org/settings/teams'
     | '/$org/settings/tokens'
+    | '/$org/traces/$traceId'
     | '/organizations/$org/issues/$issueId'
     | '/$org/alerts'
     | '/$org/crons'
+    | '/$org/dashboards'
     | '/$org/issues'
+    | '/$org/logs'
+    | '/$org/metrics'
+    | '/$org/performance'
+    | '/$org/profiles'
     | '/$org/releases'
+    | '/$org/replays'
     | '/$org/settings'
+    | '/$org/traces'
     | '/$org/alerts/$project/$ruleId'
     | '/$org/crons/$project/$slug'
     | '/$org/issues/$issueId/activity'
     | '/$org/issues/$issueId/events'
     | '/$org/issues/$issueId/feedback'
+    | '/$org/issues/$issueId/replays'
+    | '/$org/profiles/$project/$profileId'
+    | '/$org/replays/$project/$replayId'
     | '/$org/settings/account/notifications'
     | '/$org/settings/account/security'
     | '/$org/issues/$issueId'
@@ -523,6 +706,7 @@ export interface FileRouteTypes {
     | '/$org/settings/projects/$project/scrubbing'
     | '/$org/settings/projects/$project/security'
     | '/$org/settings/projects/$project/source-maps'
+    | '/$org/settings/projects/$project/telemetry'
     | '/$org/issues/$issueId/tags'
     | '/$org/settings/projects/$project'
   id:
@@ -538,7 +722,11 @@ export interface FileRouteTypes {
     | '/_auth/$org/settings'
     | '/_auth/$org/'
     | '/_auth/$org/alerts/new'
+    | '/_auth/$org/dashboards/$dashboardId'
     | '/_auth/$org/issues/$issueId'
+    | '/_auth/$org/performance/summary'
+    | '/_auth/$org/profiles/aggregate'
+    | '/_auth/$org/profiles/transactions'
     | '/_auth/$org/releases/$version'
     | '/_auth/$org/settings/audit-log'
     | '/_auth/$org/settings/channels'
@@ -546,17 +734,28 @@ export interface FileRouteTypes {
     | '/_auth/$org/settings/sso'
     | '/_auth/$org/settings/teams'
     | '/_auth/$org/settings/tokens'
+    | '/_auth/$org/traces/$traceId'
     | '/organizations/$org/issues/$issueId'
     | '/_auth/$org/alerts/'
     | '/_auth/$org/crons/'
+    | '/_auth/$org/dashboards/'
     | '/_auth/$org/issues/'
+    | '/_auth/$org/logs/'
+    | '/_auth/$org/metrics/'
+    | '/_auth/$org/performance/'
+    | '/_auth/$org/profiles/'
     | '/_auth/$org/releases/'
+    | '/_auth/$org/replays/'
     | '/_auth/$org/settings/'
+    | '/_auth/$org/traces/'
     | '/_auth/$org/alerts/$project/$ruleId'
     | '/_auth/$org/crons/$project/$slug'
     | '/_auth/$org/issues/$issueId/activity'
     | '/_auth/$org/issues/$issueId/events'
     | '/_auth/$org/issues/$issueId/feedback'
+    | '/_auth/$org/issues/$issueId/replays'
+    | '/_auth/$org/profiles/$project/$profileId'
+    | '/_auth/$org/replays/$project/$replayId'
     | '/_auth/$org/settings/account/notifications'
     | '/_auth/$org/settings/account/security'
     | '/_auth/$org/settings/projects/$project'
@@ -570,6 +769,7 @@ export interface FileRouteTypes {
     | '/_auth/$org/settings/projects/$project/scrubbing'
     | '/_auth/$org/settings/projects/$project/security'
     | '/_auth/$org/settings/projects/$project/source-maps'
+    | '/_auth/$org/settings/projects/$project/telemetry'
     | '/_auth/$org/issues/$issueId/tags/'
     | '/_auth/$org/settings/projects/$project/'
   fileRoutesById: FileRoutesById
@@ -676,6 +876,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthOrgCronsIndexRouteImport
       parentRoute: typeof AuthOrgRoute
     }
+    '/_auth/$org/dashboards/': {
+      id: '/_auth/$org/dashboards/'
+      path: '/dashboards'
+      fullPath: '/$org/dashboards/'
+      preLoaderRoute: typeof AuthOrgDashboardsIndexRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/dashboards/$dashboardId': {
+      id: '/_auth/$org/dashboards/$dashboardId'
+      path: '/dashboards/$dashboardId'
+      fullPath: '/$org/dashboards/$dashboardId'
+      preLoaderRoute: typeof AuthOrgDashboardsDashboardIdRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
     '/_auth/$org/issues/': {
       id: '/_auth/$org/issues/'
       path: '/issues'
@@ -690,6 +904,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthOrgIssuesIssueIdRouteImport
       parentRoute: typeof AuthOrgRoute
     }
+    '/_auth/$org/logs/': {
+      id: '/_auth/$org/logs/'
+      path: '/logs'
+      fullPath: '/$org/logs/'
+      preLoaderRoute: typeof AuthOrgLogsIndexRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/metrics/': {
+      id: '/_auth/$org/metrics/'
+      path: '/metrics'
+      fullPath: '/$org/metrics/'
+      preLoaderRoute: typeof AuthOrgMetricsIndexRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/performance/': {
+      id: '/_auth/$org/performance/'
+      path: '/performance'
+      fullPath: '/$org/performance/'
+      preLoaderRoute: typeof AuthOrgPerformanceIndexRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/performance/summary': {
+      id: '/_auth/$org/performance/summary'
+      path: '/performance/summary'
+      fullPath: '/$org/performance/summary'
+      preLoaderRoute: typeof AuthOrgPerformanceSummaryRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/profiles/': {
+      id: '/_auth/$org/profiles/'
+      path: '/profiles'
+      fullPath: '/$org/profiles/'
+      preLoaderRoute: typeof AuthOrgProfilesIndexRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/profiles/aggregate': {
+      id: '/_auth/$org/profiles/aggregate'
+      path: '/profiles/aggregate'
+      fullPath: '/$org/profiles/aggregate'
+      preLoaderRoute: typeof AuthOrgProfilesAggregateRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/profiles/transactions': {
+      id: '/_auth/$org/profiles/transactions'
+      path: '/profiles/transactions'
+      fullPath: '/$org/profiles/transactions'
+      preLoaderRoute: typeof AuthOrgProfilesTransactionsRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
     '/_auth/$org/releases/': {
       id: '/_auth/$org/releases/'
       path: '/releases'
@@ -702,6 +965,13 @@ declare module '@tanstack/react-router' {
       path: '/releases/$version'
       fullPath: '/$org/releases/$version'
       preLoaderRoute: typeof AuthOrgReleasesVersionRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/replays/': {
+      id: '/_auth/$org/replays/'
+      path: '/replays'
+      fullPath: '/$org/replays/'
+      preLoaderRoute: typeof AuthOrgReplaysIndexRouteImport
       parentRoute: typeof AuthOrgRoute
     }
     '/_auth/$org/settings/': {
@@ -753,6 +1023,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthOrgSettingsTokensRouteImport
       parentRoute: typeof AuthOrgSettingsRoute
     }
+    '/_auth/$org/traces/': {
+      id: '/_auth/$org/traces/'
+      path: '/traces'
+      fullPath: '/$org/traces/'
+      preLoaderRoute: typeof AuthOrgTracesIndexRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/traces/$traceId': {
+      id: '/_auth/$org/traces/$traceId'
+      path: '/traces/$traceId'
+      fullPath: '/$org/traces/$traceId'
+      preLoaderRoute: typeof AuthOrgTracesTraceIdRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
     '/organizations/$org/issues/$issueId': {
       id: '/organizations/$org/issues/$issueId'
       path: '/organizations/$org/issues/$issueId'
@@ -801,6 +1085,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/$org/issues/$issueId/feedback'
       preLoaderRoute: typeof AuthOrgIssuesIssueIdFeedbackRouteImport
       parentRoute: typeof AuthOrgIssuesIssueIdRoute
+    }
+    '/_auth/$org/issues/$issueId/replays': {
+      id: '/_auth/$org/issues/$issueId/replays'
+      path: '/replays'
+      fullPath: '/$org/issues/$issueId/replays'
+      preLoaderRoute: typeof AuthOrgIssuesIssueIdReplaysRouteImport
+      parentRoute: typeof AuthOrgIssuesIssueIdRoute
+    }
+    '/_auth/$org/profiles/$project/$profileId': {
+      id: '/_auth/$org/profiles/$project/$profileId'
+      path: '/profiles/$project/$profileId'
+      fullPath: '/$org/profiles/$project/$profileId'
+      preLoaderRoute: typeof AuthOrgProfilesProjectProfileIdRouteImport
+      parentRoute: typeof AuthOrgRoute
+    }
+    '/_auth/$org/replays/$project/$replayId': {
+      id: '/_auth/$org/replays/$project/$replayId'
+      path: '/replays/$project/$replayId'
+      fullPath: '/$org/replays/$project/$replayId'
+      preLoaderRoute: typeof AuthOrgReplaysProjectReplayIdRouteImport
+      parentRoute: typeof AuthOrgRoute
     }
     '/_auth/$org/settings/account/': {
       id: '/_auth/$org/settings/account/'
@@ -900,6 +1205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthOrgSettingsProjectsProjectSourceMapsRouteImport
       parentRoute: typeof AuthOrgSettingsProjectsProjectRoute
     }
+    '/_auth/$org/settings/projects/$project/telemetry': {
+      id: '/_auth/$org/settings/projects/$project/telemetry'
+      path: '/telemetry'
+      fullPath: '/$org/settings/projects/$project/telemetry'
+      preLoaderRoute: typeof AuthOrgSettingsProjectsProjectTelemetryRouteImport
+      parentRoute: typeof AuthOrgSettingsProjectsProjectRoute
+    }
   }
 }
 
@@ -910,6 +1222,7 @@ interface AuthOrgSettingsProjectsProjectRouteChildren {
   AuthOrgSettingsProjectsProjectScrubbingRoute: typeof AuthOrgSettingsProjectsProjectScrubbingRoute
   AuthOrgSettingsProjectsProjectSecurityRoute: typeof AuthOrgSettingsProjectsProjectSecurityRoute
   AuthOrgSettingsProjectsProjectSourceMapsRoute: typeof AuthOrgSettingsProjectsProjectSourceMapsRoute
+  AuthOrgSettingsProjectsProjectTelemetryRoute: typeof AuthOrgSettingsProjectsProjectTelemetryRoute
   AuthOrgSettingsProjectsProjectIndexRoute: typeof AuthOrgSettingsProjectsProjectIndexRoute
 }
 
@@ -927,6 +1240,8 @@ const AuthOrgSettingsProjectsProjectRouteChildren: AuthOrgSettingsProjectsProjec
       AuthOrgSettingsProjectsProjectSecurityRoute,
     AuthOrgSettingsProjectsProjectSourceMapsRoute:
       AuthOrgSettingsProjectsProjectSourceMapsRoute,
+    AuthOrgSettingsProjectsProjectTelemetryRoute:
+      AuthOrgSettingsProjectsProjectTelemetryRoute,
     AuthOrgSettingsProjectsProjectIndexRoute:
       AuthOrgSettingsProjectsProjectIndexRoute,
   }
@@ -976,6 +1291,7 @@ interface AuthOrgIssuesIssueIdRouteChildren {
   AuthOrgIssuesIssueIdActivityRoute: typeof AuthOrgIssuesIssueIdActivityRoute
   AuthOrgIssuesIssueIdEventsRoute: typeof AuthOrgIssuesIssueIdEventsRoute
   AuthOrgIssuesIssueIdFeedbackRoute: typeof AuthOrgIssuesIssueIdFeedbackRoute
+  AuthOrgIssuesIssueIdReplaysRoute: typeof AuthOrgIssuesIssueIdReplaysRoute
   AuthOrgIssuesIssueIdIndexRoute: typeof AuthOrgIssuesIssueIdIndexRoute
   AuthOrgIssuesIssueIdTagsTagKeyRoute: typeof AuthOrgIssuesIssueIdTagsTagKeyRoute
   AuthOrgIssuesIssueIdTagsIndexRoute: typeof AuthOrgIssuesIssueIdTagsIndexRoute
@@ -985,6 +1301,7 @@ const AuthOrgIssuesIssueIdRouteChildren: AuthOrgIssuesIssueIdRouteChildren = {
   AuthOrgIssuesIssueIdActivityRoute: AuthOrgIssuesIssueIdActivityRoute,
   AuthOrgIssuesIssueIdEventsRoute: AuthOrgIssuesIssueIdEventsRoute,
   AuthOrgIssuesIssueIdFeedbackRoute: AuthOrgIssuesIssueIdFeedbackRoute,
+  AuthOrgIssuesIssueIdReplaysRoute: AuthOrgIssuesIssueIdReplaysRoute,
   AuthOrgIssuesIssueIdIndexRoute: AuthOrgIssuesIssueIdIndexRoute,
   AuthOrgIssuesIssueIdTagsTagKeyRoute: AuthOrgIssuesIssueIdTagsTagKeyRoute,
   AuthOrgIssuesIssueIdTagsIndexRoute: AuthOrgIssuesIssueIdTagsIndexRoute,
@@ -998,14 +1315,28 @@ interface AuthOrgRouteChildren {
   AuthOrgSettingsRoute: typeof AuthOrgSettingsRouteWithChildren
   AuthOrgIndexRoute: typeof AuthOrgIndexRoute
   AuthOrgAlertsNewRoute: typeof AuthOrgAlertsNewRoute
+  AuthOrgDashboardsDashboardIdRoute: typeof AuthOrgDashboardsDashboardIdRoute
   AuthOrgIssuesIssueIdRoute: typeof AuthOrgIssuesIssueIdRouteWithChildren
+  AuthOrgPerformanceSummaryRoute: typeof AuthOrgPerformanceSummaryRoute
+  AuthOrgProfilesAggregateRoute: typeof AuthOrgProfilesAggregateRoute
+  AuthOrgProfilesTransactionsRoute: typeof AuthOrgProfilesTransactionsRoute
   AuthOrgReleasesVersionRoute: typeof AuthOrgReleasesVersionRoute
+  AuthOrgTracesTraceIdRoute: typeof AuthOrgTracesTraceIdRoute
   AuthOrgAlertsIndexRoute: typeof AuthOrgAlertsIndexRoute
   AuthOrgCronsIndexRoute: typeof AuthOrgCronsIndexRoute
+  AuthOrgDashboardsIndexRoute: typeof AuthOrgDashboardsIndexRoute
   AuthOrgIssuesIndexRoute: typeof AuthOrgIssuesIndexRoute
+  AuthOrgLogsIndexRoute: typeof AuthOrgLogsIndexRoute
+  AuthOrgMetricsIndexRoute: typeof AuthOrgMetricsIndexRoute
+  AuthOrgPerformanceIndexRoute: typeof AuthOrgPerformanceIndexRoute
+  AuthOrgProfilesIndexRoute: typeof AuthOrgProfilesIndexRoute
   AuthOrgReleasesIndexRoute: typeof AuthOrgReleasesIndexRoute
+  AuthOrgReplaysIndexRoute: typeof AuthOrgReplaysIndexRoute
+  AuthOrgTracesIndexRoute: typeof AuthOrgTracesIndexRoute
   AuthOrgAlertsProjectRuleIdRoute: typeof AuthOrgAlertsProjectRuleIdRoute
   AuthOrgCronsProjectSlugRoute: typeof AuthOrgCronsProjectSlugRoute
+  AuthOrgProfilesProjectProfileIdRoute: typeof AuthOrgProfilesProjectProfileIdRoute
+  AuthOrgReplaysProjectReplayIdRoute: typeof AuthOrgReplaysProjectReplayIdRoute
 }
 
 const AuthOrgRouteChildren: AuthOrgRouteChildren = {
@@ -1013,14 +1344,28 @@ const AuthOrgRouteChildren: AuthOrgRouteChildren = {
   AuthOrgSettingsRoute: AuthOrgSettingsRouteWithChildren,
   AuthOrgIndexRoute: AuthOrgIndexRoute,
   AuthOrgAlertsNewRoute: AuthOrgAlertsNewRoute,
+  AuthOrgDashboardsDashboardIdRoute: AuthOrgDashboardsDashboardIdRoute,
   AuthOrgIssuesIssueIdRoute: AuthOrgIssuesIssueIdRouteWithChildren,
+  AuthOrgPerformanceSummaryRoute: AuthOrgPerformanceSummaryRoute,
+  AuthOrgProfilesAggregateRoute: AuthOrgProfilesAggregateRoute,
+  AuthOrgProfilesTransactionsRoute: AuthOrgProfilesTransactionsRoute,
   AuthOrgReleasesVersionRoute: AuthOrgReleasesVersionRoute,
+  AuthOrgTracesTraceIdRoute: AuthOrgTracesTraceIdRoute,
   AuthOrgAlertsIndexRoute: AuthOrgAlertsIndexRoute,
   AuthOrgCronsIndexRoute: AuthOrgCronsIndexRoute,
+  AuthOrgDashboardsIndexRoute: AuthOrgDashboardsIndexRoute,
   AuthOrgIssuesIndexRoute: AuthOrgIssuesIndexRoute,
+  AuthOrgLogsIndexRoute: AuthOrgLogsIndexRoute,
+  AuthOrgMetricsIndexRoute: AuthOrgMetricsIndexRoute,
+  AuthOrgPerformanceIndexRoute: AuthOrgPerformanceIndexRoute,
+  AuthOrgProfilesIndexRoute: AuthOrgProfilesIndexRoute,
   AuthOrgReleasesIndexRoute: AuthOrgReleasesIndexRoute,
+  AuthOrgReplaysIndexRoute: AuthOrgReplaysIndexRoute,
+  AuthOrgTracesIndexRoute: AuthOrgTracesIndexRoute,
   AuthOrgAlertsProjectRuleIdRoute: AuthOrgAlertsProjectRuleIdRoute,
   AuthOrgCronsProjectSlugRoute: AuthOrgCronsProjectSlugRoute,
+  AuthOrgProfilesProjectProfileIdRoute: AuthOrgProfilesProjectProfileIdRoute,
+  AuthOrgReplaysProjectReplayIdRoute: AuthOrgReplaysProjectReplayIdRoute,
 }
 
 const AuthOrgRouteWithChildren =

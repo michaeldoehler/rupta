@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { PERIOD_LABEL, PERIODS, type Period } from '@/lib/search-params'
+import { ISSUE_PERIODS, PERIOD_LABEL, type Period } from '@/lib/search-params'
 import { cn } from '@/lib/utils'
 import { useGlobalFilters } from './use-global-filters'
 
@@ -120,7 +120,7 @@ export function EnvironmentSelector() {
   )
 }
 
-export function PeriodSelector({ className }: { className?: string }) {
+export function PeriodSelector({ className, options = ISSUE_PERIODS }: { className?: string; options?: readonly Period[] }) {
   const { period, update } = useGlobalFilters()
   return (
     <DropdownMenu>
@@ -135,7 +135,7 @@ export function PeriodSelector({ className }: { className?: string }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuRadioGroup value={period} onValueChange={(v) => update({ period: v as Period })}>
-          {PERIODS.map((p) => (
+          {options.map((p) => (
             <DropdownMenuRadioItem key={p} value={p}>
               {PERIOD_LABEL[p]}
             </DropdownMenuRadioItem>

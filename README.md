@@ -14,10 +14,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
 </p>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/issues-dark.png">
-  <img src="docs/images/issues-light.png" alt="The issue stream of rupta">
-</picture>
+<img src="docs/images/issues.png" alt="The issue stream of rupta">
 
 rupta (from *rupture*) collects errors, traces, logs, metrics, profiles and
 session replays from your applications, groups errors into issues and
@@ -77,10 +74,18 @@ Kafka, no ClickHouse, no Redis, no PostgreSQL to operate.
   aggregations over a million rows answer in milliseconds.
   → [ingestion](docs/ingestion.md)
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/stacktrace-dark.png">
-  <img src="docs/images/stacktrace-light.png" alt="A stack trace with source context and breadcrumbs">
-</picture>
+<img src="docs/images/issue-detail.png" alt="An issue with stack trace, source context and the context panel">
+
+<table>
+  <tr>
+    <td><img src="docs/images/trace.png" alt="Trace waterfall"></td>
+    <td><img src="docs/images/logs.png" alt="Logs explorer"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/flamegraph.png" alt="Profile flamegraph"></td>
+    <td><img src="docs/images/replay.png" alt="Session replay"></td>
+  </tr>
+</table>
 
 ## Quick start
 

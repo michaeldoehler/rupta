@@ -19,7 +19,7 @@ export function CodeBlock({ code, lang, className, title }: { code: string; lang
             <span key={i} className="block">
               {tokens?.[i]
                 ? tokens[i].map((t, j) => (
-                    <span key={j} style={{ '--shiki-light': t.light, '--shiki-dark': t.dark } as React.CSSProperties}>
+                    <span key={j} style={{ color: t.color }}>
                       {t.content}
                     </span>
                   ))

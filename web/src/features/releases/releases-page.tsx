@@ -96,7 +96,7 @@ export function ReleasesPage() {
               <TableRow key={r.version}>
                 <TableCell className="pl-4 sm:pl-6">
                   <Link to="/$org/releases/$version" params={{ org, version: r.version }} className="group block">
-                    <span className="font-mono text-[13px] font-medium group-hover:text-brand-text group-hover:underline">{shortVersion(r.version)}</span>
+                    <span className="font-mono text-[13px] font-medium group-hover:text-brand group-hover:underline">{shortVersion(r.version)}</span>
                     <span className="block text-xs text-muted-foreground">
                       <RelativeTime date={r.date_created} suffix />
                     </span>

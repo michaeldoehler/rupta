@@ -50,6 +50,7 @@ import type {
   TagValue,
   TokenScope,
   User,
+  UserPreferences,
   UserProfile,
 } from './types'
 
@@ -87,8 +88,43 @@ async function eventValues(org: string, column: string, project?: string[]): Pro
     .map((row) => ({ value: String(row[column]), count: Number(row.count ?? 0) }))
 }
 
-function profile(u: User & Partial<UserProfile>): UserProfile {
-  return { created_at: '', last_login_at: null, has_password: true, identities: [], ...u, preferences: readPreferences() }
+interface ServerPreferences {
+  timezone?: string | null
+  clock?: '24h' | '12h'
+  theme?: 'system' | 'light' | 'dark'
+  notifications?: { issue_alerts?: boolean; workflow?: 'all' | 'participating' | 'none'; weekly_report?: boolean }
+}
+
+/**
+ * Preferences come from the server (`GET /user`); deploy notifications,
+ * which the server does not store, and servers without preferences fall
+ * back to this browser's copy.
+ */
+function profile(u: User & Partial<Omit<UserProfile, 'preferences'>> & { preferences?: ServerPreferences | null }): UserProfile {
+  const local = readPreferences()
+  const sp = u.preferences
+  const preferences: UserPreferences = sp
+    ? {
+        ...local,
+        timezone: sp.timezone ?? 'browser',
+        clock_24h: sp.clock ? sp.clock === '24h' : local.clock_24h,
+        theme: sp.theme ?? local.theme,
+        notifications: { ...local.notifications, ...sp.notifications },
+      }
+    : local
+  return { created_at: '', last_login_at: null, has_password: true, identities: [], ...u, preferences }
+}
+
+function serverPreferences(p: UserPreferences): ServerPreferences {
+  const out: ServerPreferences = {}
+  if (p.timezone !== undefined) out.timezone = p.timezone === 'browser' ? null : p.timezone
+  if (p.clock_24h !== undefined) out.clock = p.clock_24h ? '24h' : '12h'
+  if (p.theme !== undefined) out.theme = p.theme
+  if (p.notifications) {
+    const { deploys: _local, ...n } = p.notifications
+    out.notifications = n
+  }
+  return out
 }
 
 export const api = {
@@ -110,11 +146,12 @@ export const api = {
 
   user: {
     get: () => request<User>('/user').then(profile),
-    /** Name and avatar go to the server; display preferences stay in this browser. */
+    /** Name, avatar and preferences go to the server (a copy of the preferences stays in this browser). */
     update: async (body: Partial<Pick<UserProfile, 'name' | 'avatar_url' | 'preferences'>>): Promise<UserProfile> => {
       const { preferences, ...rest } = body
       if (preferences) writePreferences(preferences)
-      const u = Object.keys(rest).length ? await request<User>('/user', { method: 'PATCH', body: rest }) : await request<User>('/user')
+      const patch = { ...rest, ...(preferences ? { preferences: serverPreferences(preferences) } : {}) }
+      const u = Object.keys(patch).length ? await request<User>('/user', { method: 'PATCH', body: patch }) : await request<User>('/user')
       return profile(u)
     },
     changePassword: (body: { current_password: string; new_password: string }) => request<unknown>('/user', { method: 'PATCH', body }),
@@ -156,8 +193,24 @@ export const api = {
       }),
     saveSso: (org: string, body: Partial<SsoConfig>) => request<SsoConfig>(`/orgs/${e(org)}/sso`, { method: 'PUT', body }),
     deleteSso: (org: string) => request<void>(`/orgs/${e(org)}/sso`, { method: 'DELETE' }),
-    // beyond the API: a server-side connection test (the page falls back to a browser check)
-    testSso: (org: string, body: Partial<SsoConfig>) => request<SsoTestResult>(`/orgs/${e(org)}/sso/test`, { method: 'POST', body }),
+    /** Server-side discovery check of the issuer (the page falls back to a browser check on servers without it). */
+    testSso: (org: string, body: Partial<SsoConfig>) =>
+      request<Partial<SsoTestResult> & { problems?: string[] }>(`/orgs/${e(org)}/sso/test`, {
+        method: 'POST',
+        body: { issuer: body.issuer, client_id: body.client_id || undefined, client_secret: body.client_secret || undefined },
+      }).then((r): SsoTestResult => ({
+        ok: Boolean(r?.ok),
+        issuer: r?.issuer,
+        authorization_endpoint: r?.authorization_endpoint,
+        problems: r?.problems ?? [],
+        message:
+          r?.message ??
+          (r?.problems?.length
+            ? r.problems.join(' ')
+            : r?.ok
+              ? 'The server loaded the discovery document and found the endpoints it needs.'
+              : 'The check failed.'),
+      })),
 
     tokens: (org: string) => requestList<ApiToken>(`/orgs/${e(org)}/tokens`),
     createToken: (org: string, body: { name: string; scopes: TokenScope[]; expires_in_days?: number | null }) =>

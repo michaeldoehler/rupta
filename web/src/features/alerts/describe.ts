@@ -30,6 +30,8 @@ export function describeCondition(c: AlertCondition): string {
       return 'A resolved issue comes back'
     case 'reappeared':
       return 'An ignored issue reappears'
+    case 'escalating':
+      return 'An issue starts escalating'
     case 'event_frequency':
       return `An issue is seen more than ${c.count.toLocaleString()} times in ${intervalLabel(c.interval)}`
     case 'user_frequency':

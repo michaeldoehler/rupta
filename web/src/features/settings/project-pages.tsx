@@ -194,6 +194,7 @@ const PROJECT_TABS = [
   ['/$org/settings/projects/$project/scrubbing', 'Data scrubbing'],
   ['/$org/settings/projects/$project/security', 'Security'],
   ['/$org/settings/projects/$project/limits', 'Rate limits & retention'],
+  ['/$org/settings/projects/$project/telemetry', 'Telemetry data'],
   ['/$org/settings/projects/$project/source-maps', 'Source maps'],
 ] as const
 
@@ -235,7 +236,7 @@ export function ProjectLayout({ org, project, children }: { org: string; project
   )
 }
 
-function useSaveSettings(org: string, project: string) {
+export function useSaveSettings(org: string, project: string) {
   const qc = useQueryClient()
   return useApiMutation((settings: Partial<ProjectSettings>) => api.projects.update(org, project, { settings }), {
     success: 'Settings saved',
