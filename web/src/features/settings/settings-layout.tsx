@@ -21,6 +21,7 @@ const SECTIONS = [
       { to: '/$org/settings/teams', label: 'Teams' },
       { to: '/$org/settings/sso', label: 'Single sign-on' },
       { to: '/$org/settings/tokens', label: 'API tokens' },
+      { to: '/$org/settings/integrations', label: 'Integrations' },
       { to: '/$org/settings/channels', label: 'Notification channels' },
       { to: '/$org/settings/audit-log', label: 'Audit log' },
     ],
@@ -108,7 +109,7 @@ export function SettingsCard({
   footer,
   danger,
 }: {
-  title?: string
+  title?: ReactNode
   description?: ReactNode
   children: ReactNode
   footer?: ReactNode
