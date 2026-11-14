@@ -9,8 +9,10 @@
 # 1. Web app.
 FROM node:26-bookworm-slim AS web
 WORKDIR /web
-RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.pnpmfile.cjs ./
+# Node 25 and later no longer ship corepack; install the pnpm version that
+# package.json pins in `packageManager`.
+RUN npm install -g --no-fund --no-audit "$(node -p "require('./package.json').packageManager")"
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 COPY web/ ./
 RUN pnpm build
