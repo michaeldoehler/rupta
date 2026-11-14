@@ -190,12 +190,12 @@ async fn sdk_envelopes_are_stored() {
     assert_eq!(sessions, vec!["smoke-browser@1.0.0:1:1:1", "smoke-node@1.0.0:2:1:0", "smoke-python@1.0.0:1:1:0"]);
     assert_eq!(h.count("SELECT count(*) FROM releases"), 4);
 
-    // Nothing was rejected as invalid; child spans are counted as not supported.
-    assert_eq!(h.count("SELECT count(*) FROM outcomes WHERE outcome = 'invalid'"), 0);
-    assert!(
-        h.count(
-            "SELECT sum(quantity)::bigint FROM outcomes WHERE outcome = 'dropped_unsupported' AND category = 'span'"
-        ) > 0
-    );
+    // Nothing was rejected as invalid or dropped as unsupported; every
+    // span (streamed or inside a transaction) is stored.
+    let invalid = query_strings(&h, "SELECT category || ':' || reason FROM outcomes WHERE outcome = 'invalid'");
+    assert!(invalid.is_empty(), "{invalid:?}");
+    assert_eq!(h.count("SELECT count(*) FROM outcomes WHERE outcome = 'dropped_unsupported'"), 0);
+    assert_eq!(h.count("SELECT count(*) FROM spans WHERE is_segment"), 4);
+    assert!(h.count("SELECT count(*) FROM spans WHERE NOT is_segment") >= 18);
     let _ = json!(null);
 }

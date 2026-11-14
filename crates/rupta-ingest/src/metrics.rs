@@ -20,10 +20,11 @@ pub enum Category {
     Span,
     LogItem,
     MetricBucket,
+    TraceMetric,
     Unknown,
 }
 
-pub const CATEGORIES: [Category; 15] = [
+pub const CATEGORIES: [Category; 16] = [
     Category::Error,
     Category::Default,
     Category::Security,
@@ -38,6 +39,7 @@ pub const CATEGORIES: [Category; 15] = [
     Category::Span,
     Category::LogItem,
     Category::MetricBucket,
+    Category::TraceMetric,
     Category::Unknown,
 ];
 
@@ -58,6 +60,7 @@ impl Category {
             Category::Span => "span",
             Category::LogItem => "log_item",
             Category::MetricBucket => "metric_bucket",
+            Category::TraceMetric => "trace_metric",
             Category::Unknown => "unknown",
         }
     }
@@ -88,6 +91,7 @@ impl Category {
             "span" | "otel_span" => Category::Span,
             "log" | "otel_log" => Category::LogItem,
             "statsd" | "metric_buckets" | "metric_meta" => Category::MetricBucket,
+            "trace_metric" => Category::TraceMetric,
             _ => Category::Unknown,
         }
     }
@@ -141,7 +145,7 @@ const BATCH_BUCKETS: [f64; 10] = [0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 
 
 #[derive(Default)]
 pub struct Metrics {
-    events: [[AtomicU64; 7]; 15],
+    events: [[AtomicU64; 7]; 16],
     batches: AtomicU64,
     batch_buckets: [AtomicU64; 10],
     batch_count_over: AtomicU64,

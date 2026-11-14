@@ -5,7 +5,12 @@
 //! | item | result |
 //! | --- | --- |
 //! | `event` | normalized, filtered, symbolicated, scrubbed, grouped; row in `events`, payload in `event_payloads` |
-//! | `transaction` | row in `transactions` |
+//! | `transaction` | row in `transactions`, its spans in `spans` (see `traces`) |
+//! | `span` | rows in `spans`; segment spans also in `transactions` |
+//! | `log`, `otel_log` | rows in `logs` (see `logs`) |
+//! | `trace_metric`, `statsd`, `metric_buckets` | rows in `metrics` (see `custom_metrics`) |
+//! | `profile`, `profile_chunk` | document in the object store, row in `profiles` (see `profiles`) |
+//! | `replay_event`, `replay_recording` | segments in the object store, rows in `replays` and `replay_segments` (see `replays`) |
 //! | `attachment` | bytes to the object store, row in `attachments` |
 //! | `session`, `sessions` | release health counts in `session_counts` |
 //! | `client_report` | `outcomes` with outcome `client_discard` |
@@ -109,6 +114,13 @@ pub(crate) struct Processed {
     pub feedback: Vec<PendingFeedback>,
     pub checkins: Vec<CheckIn>,
     pub outcomes: Vec<(OutcomeKey, i64)>,
+    /// `spans`, `logs` and `metrics` rows as values, in table column order.
+    pub spans: Vec<Vec<rupta_store::squad::Value>>,
+    pub logs: Vec<Vec<rupta_store::squad::Value>>,
+    pub metrics: Vec<Vec<rupta_store::squad::Value>>,
+    pub profiles: Vec<rupta_store::telemetry::ProfileRow>,
+    pub replays: Vec<rupta_store::telemetry::ReplayUpdate>,
+    pub issue_replays: Vec<rupta_store::telemetry::IssueReplay>,
     pub ack: Option<tokio::sync::oneshot::Sender<bool>>,
     /// Counts as one in-flight envelope until committed.
     pub counted: bool,
@@ -141,37 +153,42 @@ pub(crate) fn worker(
     }
 }
 
-fn parse_id(v: Option<&Value>) -> Option<uuid::Uuid> {
+pub(crate) fn parse_id(v: Option<&Value>) -> Option<uuid::Uuid> {
     v.and_then(Value::as_str).and_then(|s| uuid::Uuid::try_parse(s.trim()).ok())
 }
 
-fn hex(id: uuid::Uuid) -> String {
+pub(crate) fn hex(id: uuid::Uuid) -> String {
     id.simple().to_string()
 }
 
 /// State of one envelope while its items are handled. Every handler gets
 /// it together with its item (raw bytes and item headers).
 pub(crate) struct EnvelopeState<'a> {
-    inner: &'a Inner,
-    conn: &'a rupta_store::squad::Connection,
-    project: &'a crate::auth::ProjectInfo,
+    pub inner: &'a Inner,
+    pub conn: &'a rupta_store::squad::Connection,
+    pub project: &'a crate::auth::ProjectInfo,
     /// The envelope headers (`event_id`, `dsn`, `sdk`, `trace`, `sent_at`, ...).
-    headers: &'a Map<String, Value>,
-    project_id: i64,
-    org_id: i64,
-    received: DateTime<Utc>,
-    client_ip: Option<std::net::IpAddr>,
-    user_agent: Option<&'a str>,
-    header_event_id: Option<uuid::Uuid>,
+    pub headers: &'a Map<String, Value>,
+    pub project_id: i64,
+    pub org_id: i64,
+    pub received: DateTime<Utc>,
+    pub client_ip: Option<std::net::IpAddr>,
+    pub user_agent: Option<&'a str>,
+    pub header_event_id: Option<uuid::Uuid>,
     /// The id of the envelope's event: links attachments to it.
-    event_id: Option<uuid::Uuid>,
+    pub event_id: Option<uuid::Uuid>,
     /// Why the envelope's event was not stored; its attachments follow it.
-    event_dropped: Option<&'static str>,
-    out: Processed,
+    pub event_dropped: Option<&'static str>,
+    /// The `replay_event` of the envelope, read before its recording.
+    pub replay_event: Option<crate::replays::ReplayEventInfo>,
+    pub out: Processed,
 }
 
 impl EnvelopeState<'_> {
-    fn outcome(&mut self, category: Category, outcome: Outcome, reason: &str, n: u64) {
+    pub(crate) fn outcome(&mut self, category: Category, outcome: Outcome, reason: &str, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.inner.metrics.count(category, outcome, n);
         let key = crate::writer::outcome_key(self.project_id, self.received, category, outcome.as_str(), reason);
         self.out.outcomes.push((key, n as i64));
@@ -182,7 +199,7 @@ impl EnvelopeState<'_> {
 /// the same envelope can refer to the event.
 fn handling_order(ty: &str) -> u8 {
     match ty {
-        "event" | "security" | "transaction" | "feedback" => 0,
+        "event" | "security" | "transaction" | "feedback" | "replay_event" => 0,
         _ => 1,
     }
 }
@@ -203,6 +220,7 @@ pub(crate) fn process(inner: &Inner, conn: &rupta_store::squad::Connection, job:
         header_event_id,
         event_id: header_event_id,
         event_dropped: None,
+        replay_event: None,
         out: Processed { ack, counted: true, ..Processed::default() },
     };
     let mut order: Vec<&Item> = envelope.items.iter().collect();
@@ -226,15 +244,18 @@ fn handle_item(st: &mut EnvelopeState<'_>, item: &Item) {
         "client_report" => client_report(st, item),
         "user_report" => user_report(st, item),
         "check_in" => check_in(st, item),
-        // Streamed spans: segment (root) spans are kept as transactions,
-        // child spans are not stored yet.
-        "span" => span(st, item),
-        // Acknowledged but not stored yet: replays, profiles, metrics,
-        // OpenTelemetry spans and logs. Handlers for them plug in here.
-        "replay_event" | "replay_recording" | "replay_video" | "profile" | "profile_chunk" | "statsd"
-        | "metric_buckets" | "metric_meta" | "trace_metric" | "otel_span" | "log" | "otel_log" => {
-            unsupported(st, item, &item.ty.clone())
-        }
+        "span" => crate::traces::span_item(st, item),
+        "log" => crate::logs::log_item(st, item),
+        "otel_log" => crate::logs::otel_log_item(st, item),
+        "trace_metric" => crate::custom_metrics::trace_metric_item(st, item),
+        "statsd" => crate::custom_metrics::statsd_item(st, item),
+        "metric_buckets" => crate::custom_metrics::metric_buckets_item(st, item),
+        "profile" | "profile_chunk" => crate::profiles::profile_item(st, item),
+        "replay_event" => crate::replays::replay_event_item(st, item),
+        "replay_recording" => crate::replays::replay_recording_item(st, item),
+        // Acknowledged but not stored: mobile replay videos, metric
+        // metadata and OpenTelemetry spans.
+        "replay_video" | "metric_meta" | "otel_span" => unsupported(st, item, &item.ty.clone()),
         _ => unsupported(st, item, "unknown_item"),
     }
 }
@@ -359,7 +380,22 @@ fn event(
         url: ev.request.as_ref().and_then(|r| r.url.clone()),
         tags: Value::Object(tags),
         contexts: Value::Null,
+        trace_id: opt_str(ev.contexts.get("trace").and_then(|t| t.get("trace_id")), 64),
+        span_id: opt_str(ev.contexts.get("trace").and_then(|t| t.get("span_id")), 32),
     };
+    // Errors recorded during a session replay name the replay in their
+    // replay context (or, from older SDKs, the `replayId` tag).
+    let replay_id = parse_id(ev.contexts.get("replay").and_then(|r| r.get("replay_id")))
+        .or_else(|| ev.tags.iter().find(|(k, _)| k == "replayId").and_then(|(_, v)| uuid::Uuid::try_parse(v).ok()));
+    if let Some(replay_id) = replay_id {
+        env.out.issue_replays.push(rupta_store::telemetry::IssueReplay {
+            project_id: project.id,
+            event_id,
+            issue_id,
+            replay_id: *replay_id.as_bytes(),
+            timestamp: ev.timestamp,
+        });
+    }
     let json = serde_json::to_vec(&ev).unwrap_or_default();
     let data = compress(&json);
     let payload =
@@ -445,12 +481,21 @@ fn resolve_issue(
     Err(rupta_store::StoreError::Invalid("could not create the issue".into()))
 }
 
-fn opt_str(v: Option<&Value>, max: usize) -> Option<String> {
+pub(crate) fn opt_str(v: Option<&Value>, max: usize) -> Option<String> {
     v.and_then(scalar_string).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).map(|s| truncate(&s, max))
 }
 
 fn transaction(env: &mut EnvelopeState<'_>, raw: &Value, id: uuid::Uuid) {
     let trace = raw.get("contexts").and_then(|c| c.get("trace"));
+    if !env.project.settings.data_types.traces {
+        env.outcome(Category::Transaction, Outcome::Filtered, "disabled", 1);
+        return;
+    }
+    let trace_id = opt_str(trace.and_then(|t| t.get("trace_id")), 64);
+    if !crate::traces::sampled(env.project.settings.sampling.transactions, trace_id.as_deref()) {
+        env.outcome(Category::Transaction, Outcome::Filtered, "sample_rate", 1);
+        return;
+    }
     let timestamp = raw.get("timestamp").and_then(parse_timestamp).unwrap_or(env.received);
     let start = raw.get("start_timestamp").and_then(parse_timestamp);
     let tags: Map<String, Value> = match raw.get("tags") {
@@ -474,7 +519,7 @@ fn transaction(env: &mut EnvelopeState<'_>, raw: &Value, id: uuid::Uuid) {
     let row = TransactionRow {
         project_id: env.project_id,
         event_id: *id.as_bytes(),
-        trace_id: opt_str(trace.and_then(|t| t.get("trace_id")), 64),
+        trace_id,
         span_id: opt_str(trace.and_then(|t| t.get("span_id")), 32),
         parent_span_id: opt_str(trace.and_then(|t| t.get("parent_span_id")), 32),
         name: opt_str(raw.get("transaction"), 200),
@@ -492,93 +537,16 @@ fn transaction(env: &mut EnvelopeState<'_>, raw: &Value, id: uuid::Uuid) {
         span_count: raw.get("spans").and_then(Value::as_array).map(|s| s.len().min(i32::MAX as usize) as i32),
         tags: Value::Object(tags).to_string(),
         measurements: raw.get("measurements").filter(|m| m.is_object()).map_or_else(|| "{}".into(), |m| m.to_string()),
+        profile_id: opt_str(raw.get("contexts").and_then(|c| c.get("profile")).and_then(|p| p.get("profile_id")), 64),
+        profiler_id: opt_str(raw.get("contexts").and_then(|c| c.get("profile")).and_then(|p| p.get("profiler_id")), 64),
+        ..TransactionRow::default()
     };
+    let vitals = crate::traces::vitals_from_measurements(raw.get("measurements"));
+    let row =
+        TransactionRow { lcp: vitals.lcp, fcp: vitals.fcp, cls: vitals.cls, inp: vitals.inp, ttfb: vitals.ttfb, ..row };
+    crate::traces::transaction_spans(env, raw, &row, vitals);
     env.out.transactions.push(row);
     env.outcome(Category::Transaction, Outcome::Accepted, "", 1);
-}
-
-/// A span attribute's value (`{"value": ..., "type": ...}` or a plain value).
-fn attribute<'v>(span: &'v Value, key: &str) -> Option<&'v Value> {
-    let a = span.get("attributes")?.get(key)?;
-    match a.get("value") {
-        Some(v) => Some(v),
-        None => Some(a),
-    }
-}
-
-/// `span` items: a single span, or a v2 container `{"items": [...]}` as
-/// sent by SDKs that stream spans. Segment spans (the root of a trace
-/// segment) are stored as transactions; child spans are counted as
-/// `dropped_unsupported`.
-fn span(st: &mut EnvelopeState<'_>, item: &Item) {
-    let raw: Value = match serde_json::from_slice(&item.payload) {
-        Ok(v) => v,
-        Err(_) => {
-            st.outcome(Category::Span, Outcome::Invalid, "invalid_json", 1);
-            return;
-        }
-    };
-    let spans: Vec<&Value> = match raw.get("items").and_then(Value::as_array) {
-        Some(items) => items.iter().collect(),
-        None => vec![&raw],
-    };
-    let trace = st.headers.get("trace");
-    let mut children = 0;
-    for s in &spans {
-        let parent = opt_str(s.get("parent_span_id"), 32);
-        let segment = s.get("is_segment").and_then(Value::as_bool).unwrap_or(parent.is_none());
-        if !segment {
-            children += 1;
-            continue;
-        }
-        let span_id = opt_str(s.get("span_id"), 32);
-        let start = s.get("start_timestamp").and_then(parse_timestamp);
-        let end = s.get("end_timestamp").or(s.get("timestamp")).and_then(parse_timestamp).unwrap_or(st.received);
-        let attr = |k: &str| opt_str(attribute(s, k), 250);
-        let tags: Map<String, Value> = s
-            .get("attributes")
-            .and_then(Value::as_object)
-            .into_iter()
-            .flatten()
-            .filter(|(k, _)| !k.starts_with("sentry."))
-            .filter_map(|(k, _)| Some((k.clone(), Value::String(opt_str(attribute(s, k), 200)?))))
-            .take(50)
-            .collect();
-        let span_count = spans
-            .iter()
-            .filter(|c| {
-                span_id.is_some()
-                    && opt_str(attribute(c, "sentry.segment.id"), 32) == span_id
-                    && c.get("is_segment").and_then(Value::as_bool) != Some(true)
-            })
-            .count();
-        st.out.transactions.push(TransactionRow {
-            project_id: st.project_id,
-            event_id: *uuid::Uuid::new_v4().as_bytes(),
-            trace_id: opt_str(s.get("trace_id"), 64),
-            span_id,
-            parent_span_id: parent,
-            name: opt_str(s.get("name"), 200).or_else(|| attr("sentry.segment.name")),
-            op: attr("sentry.op"),
-            status: opt_str(s.get("status"), 32),
-            timestamp: end,
-            start_timestamp: start,
-            duration_ms: start.map(|b| (end - b).num_microseconds().unwrap_or(0) as f64 / 1000.0),
-            received: st.received,
-            environment: attr("sentry.environment").or_else(|| opt_str(trace.and_then(|t| t.get("environment")), 64)),
-            release: attr("sentry.release").or_else(|| opt_str(trace.and_then(|t| t.get("release")), 250)),
-            platform: attr("sentry.platform"),
-            sdk: attr("sentry.sdk.name"),
-            user_hash: attr("user.id").or_else(|| attr("user.email")).map(|u| xxh3_64(u.as_bytes()) as i64),
-            span_count: Some(span_count.min(i32::MAX as usize) as i32),
-            tags: Value::Object(tags).to_string(),
-            measurements: "{}".into(),
-        });
-        st.outcome(Category::Transaction, Outcome::Accepted, "", 1);
-    }
-    if children > 0 {
-        st.outcome(Category::Span, Outcome::DroppedUnsupported, "span", children);
-    }
 }
 
 fn feedback(env: &mut EnvelopeState<'_>, raw: &Value, _id: uuid::Uuid) {

@@ -109,6 +109,16 @@ struct Batch {
     keys: Vec<(i64, [u8; 16])>,
     event_values: Vec<Vec<rupta_store::squad::Value>>,
     payload_values: Vec<Vec<rupta_store::squad::Value>>,
+    /// `spans`, `logs` and `metrics` rows of all parts, collected once.
+    span_values: Vec<Vec<rupta_store::squad::Value>>,
+    log_values: Vec<Vec<rupta_store::squad::Value>>,
+    metric_values: Vec<Vec<rupta_store::squad::Value>>,
+}
+
+/// How much of a batch an envelope fills: its events, plus one for every
+/// 50 span, log or metric rows.
+fn weight(p: &Processed) -> usize {
+    (p.events.len() + (p.spans.len() + p.logs.len() + p.metrics.len()) / 50).max(1)
 }
 
 /// State shared by the writer threads.
@@ -146,7 +156,7 @@ pub(crate) fn run(inner: Arc<Inner>, rx: crossbeam_channel::Receiver<Processed>)
         // Wait for the first part (or, periodically, for pending outcomes).
         match rx.recv_timeout(interval.max(std::time::Duration::from_millis(1)) * 20) {
             Ok(p) => {
-                batch.events += p.events.len().max(1);
+                batch.events += weight(&p);
                 batch.parts.push(p);
                 inner.collected.fetch_add(1, Ordering::AcqRel);
             }
@@ -163,7 +173,7 @@ pub(crate) fn run(inner: Arc<Inner>, rx: crossbeam_channel::Receiver<Processed>)
             let until = if all_in { deadline.min(started + linger) } else { deadline };
             match rx.recv_deadline(until) {
                 Ok(p) => {
-                    batch.events += p.events.len().max(1);
+                    batch.events += weight(&p);
                     batch.parts.push(p);
                     inner.collected.fetch_add(1, Ordering::AcqRel);
                 }
@@ -222,6 +232,9 @@ impl Writer {
                 batch.event_values.push(std::mem::take(&mut e.values));
                 batch.payload_values.push(std::mem::take(&mut e.payload));
             }
+            batch.span_values.append(&mut p.spans);
+            batch.log_values.append(&mut p.logs);
+            batch.metric_values.append(&mut p.metrics);
         }
         for p in &batch.parts {
             for u in &p.sessions {
@@ -394,6 +407,9 @@ impl Writer {
         append_values(&conn, "event_payloads", &batch.payload_values)?;
         append_values(&conn, "events", &batch.event_values)?;
         append_transactions(&conn, &transactions)?;
+        append_values(&conn, "spans", &batch.span_values)?;
+        append_values(&conn, "logs", &batch.log_values)?;
+        append_values(&conn, "metrics", &batch.metric_values)?;
 
         // Issues: counters, regressions, ignore conditions.
         let ids: Vec<i64> = issues.keys().copied().collect();
@@ -552,6 +568,30 @@ impl Writer {
             }
             for c in &p.checkins {
                 record_checkin(&conn, c)?;
+            }
+            for pr in &p.profiles {
+                rupta_store::telemetry::insert_profile(&conn, pr)?;
+            }
+        }
+        // Replays in key order (concurrent writers lock rows in the same
+        // order); within one replay in arrival order.
+        let mut replays: Vec<&rupta_store::telemetry::ReplayUpdate> =
+            batch.parts.iter().flat_map(|p| p.replays.iter()).collect();
+        replays.sort_by_key(|u| (u.project_id, u.replay_id));
+        for u in replays {
+            rupta_store::telemetry::apply_replay_update(&conn, u)?;
+        }
+        let mut links: Vec<&rupta_store::telemetry::IssueReplay> = batch
+            .parts
+            .iter()
+            .flat_map(|p| p.issue_replays.iter())
+            .filter(|l| issues.contains_key(&l.issue_id))
+            .collect();
+        links.sort_by_key(|l| (l.project_id, l.replay_id));
+        for l in links {
+            // Events dropped as duplicates were linked when first stored.
+            if batch.keys.contains(&(l.project_id, l.event_id)) {
+                rupta_store::telemetry::link_issue_replay(&conn, l)?;
             }
         }
         conn.commit()?;
