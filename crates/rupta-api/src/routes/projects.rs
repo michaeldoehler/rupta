@@ -429,6 +429,8 @@ pub struct KeyRequest {
     pub label: Option<String>,
     pub is_active: Option<bool>,
     /// Events per minute for this key; `null` = unlimited.
+    #[serde(default, deserialize_with = "crate::extract::double_option")]
+    #[schema(value_type = Option<i32>)]
     pub rate_limit_per_min: Option<Option<i32>>,
 }
 

@@ -3,9 +3,11 @@
 //! redirects under `/auth`, and the alert engine.
 
 pub mod access;
+pub mod alerts;
 pub mod error;
 pub mod extract;
 pub mod mail;
+pub mod notify;
 pub mod routes;
 pub mod sql;
 pub mod state;

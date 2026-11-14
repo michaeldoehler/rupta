@@ -289,3 +289,10 @@ impl<T> Page<T> {
         Page { data: rows, next_cursor }
     }
 }
+
+/// For `Option<Option<T>>` fields: absent = `None`, `null` = `Some(None)`.
+pub fn double_option<'de, T: Deserialize<'de>, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<Option<T>>, D::Error> {
+    Option::<T>::deserialize(d).map(Some)
+}

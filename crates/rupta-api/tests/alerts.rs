@@ -1,0 +1,324 @@
+mod common;
+
+use std::sync::{Arc, Mutex};
+
+use axum::http::{HeaderMap, StatusCode};
+use chrono::Utc;
+use common::TestApp;
+use rupta_core::role::Role;
+use rupta_core::signal::IssueSignal;
+use serde_json::{Value, json};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+#[derive(Clone, Default)]
+struct Received(Arc<Mutex<Vec<(String, HeaderMap, Value, Vec<u8>)>>>);
+
+/// A local HTTP server recording every POST.
+async fn receiver() -> (String, Received) {
+    let got = Received::default();
+    let g = got.clone();
+    let app = axum::Router::new().route(
+        "/{*path}",
+        axum::routing::post(move |uri: axum::http::Uri, headers: HeaderMap, body: axum::body::Bytes| {
+            let g = g.clone();
+            async move {
+                let v = serde_json::from_slice(&body).unwrap_or(Value::Null);
+                g.0.lock().unwrap().push((uri.path().to_string(), headers, v, body.to_vec()));
+                if uri.path() == "/fail" { StatusCode::INTERNAL_SERVER_ERROR } else { StatusCode::OK }
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    (format!("http://{addr}"), got)
+}
+
+/// A minimal SMTP server that accepts every message.
+async fn smtp_sink() -> (String, Arc<Mutex<Vec<(Vec<String>, String)>>>) {
+    let messages: Arc<Mutex<Vec<(Vec<String>, String)>>> = Arc::default();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let m = messages.clone();
+    tokio::spawn(async move {
+        loop {
+            let (sock, _) = listener.accept().await.unwrap();
+            let m = m.clone();
+            tokio::spawn(async move {
+                let (r, mut w) = sock.into_split();
+                let mut lines = BufReader::new(r).lines();
+                w.write_all(b"220 sink ESMTP\r\n").await.unwrap();
+                let mut rcpt = Vec::new();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let upper = line.to_ascii_uppercase();
+                    if upper.starts_with("EHLO") || upper.starts_with("HELO") {
+                        w.write_all(b"250-sink\r\n250 OK\r\n").await.unwrap();
+                    } else if upper.starts_with("RCPT TO:") {
+                        rcpt.push(line[8..].trim().trim_matches(|c| c == '<' || c == '>').to_string());
+                        w.write_all(b"250 OK\r\n").await.unwrap();
+                    } else if upper.starts_with("DATA") {
+                        w.write_all(b"354 go ahead\r\n").await.unwrap();
+                        let mut data = String::new();
+                        while let Ok(Some(l)) = lines.next_line().await {
+                            if l == "." {
+                                break;
+                            }
+                            data.push_str(&l);
+                            data.push('\n');
+                        }
+                        m.lock().unwrap().push((std::mem::take(&mut rcpt), data));
+                        w.write_all(b"250 OK queued\r\n").await.unwrap();
+                    } else if upper.starts_with("QUIT") {
+                        w.write_all(b"221 bye\r\n").await.unwrap();
+                        break;
+                    } else {
+                        w.write_all(b"250 OK\r\n").await.unwrap();
+                    }
+                }
+            });
+        }
+    });
+    (format!("smtp://{addr}"), messages)
+}
+
+async fn wait_for<T>(f: impl Fn() -> Option<T>) -> T {
+    for _ in 0..200 {
+        if let Some(v) = f() {
+            return v;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    panic!("timed out");
+}
+
+#[tokio::test]
+async fn channels_crud_secrets_and_test_delivery() {
+    let (url, got) = receiver().await;
+    let app = TestApp::new();
+    let org = app.org("acme");
+    let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
+    let r = app
+        .post(
+            "/api/v1/orgs/acme/channels",
+            &admin,
+            json!({"kind": "webhook", "name": "Hook", "config": {"url": format!("{url}/hook"), "secret": "s3cret"}}),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::CREATED, "{:?}", r.body);
+    assert_eq!(r.body["config"]["has_secret"], true);
+    assert!(r.body["config"].get("secret").is_none() && r.body["config"].get("secret_enc").is_none());
+    let stored: Value = app.conn().query_one("SELECT config FROM notification_channels", &[]).unwrap().get(0);
+    assert!(!stored.to_string().contains("s3cret"), "the secret is stored encrypted");
+    let id = r.body["id"].as_str().unwrap().to_string();
+
+    let t = app.post(&format!("/api/v1/orgs/acme/channels/{id}/test"), &admin, json!({})).await;
+    assert_eq!(t.status, StatusCode::OK, "{:?}", t.body);
+    let (path, headers, body, raw) = got.0.lock().unwrap()[0].clone();
+    assert_eq!(path, "/hook");
+    assert_eq!(body["trigger"], "test");
+    let ts: i64 = headers["x-rupta-timestamp"].to_str().unwrap().parse().unwrap();
+    assert_eq!(headers["x-rupta-signature"].to_str().unwrap(), rupta_api::notify::sign("s3cret", ts, &raw));
+
+    // Renaming keeps the secret.
+    let r = app
+        .patch(
+            &format!("/api/v1/orgs/acme/channels/{id}"),
+            &admin,
+            json!({"name": "Renamed", "config": {"url": format!("{url}/fail")}}),
+        )
+        .await;
+    assert_eq!(r.body["config"]["has_secret"], true);
+    let t = app.post(&format!("/api/v1/orgs/acme/channels/{id}/test"), &admin, json!({})).await;
+    assert_eq!(t.status, StatusCode::BAD_GATEWAY);
+    assert_eq!(t.code(), "delivery_failed");
+
+    for bad in [
+        json!({"kind": "pager", "name": "x", "config": {}}),
+        json!({"kind": "slack", "name": "x", "config": {"webhook_url": "ftp://x"}}),
+        json!({"kind": "email", "name": "x", "config": {"to": ["nope"]}}),
+    ] {
+        assert_eq!(app.post("/api/v1/orgs/acme/channels", &admin, bad).await.status, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    let list = app.get("/api/v1/orgs/acme/channels", &admin).await;
+    assert_eq!(list.body.as_array().unwrap().len(), 1);
+    assert_eq!(app.delete(&format!("/api/v1/orgs/acme/channels/{id}"), &admin).await.status, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn rules_fire_on_signals_with_filters_and_rate_limits() {
+    let (url, got) = receiver().await;
+    let (smtp, mails) = smtp_sink().await;
+    let app = TestApp::with_config(|c| {
+        c.smtp_url = Some(smtp.clone());
+        c.smtp_from = Some("rupta <rupta@example.com>".into());
+    });
+    let org = app.org("acme");
+    let project = app.project(org, "web");
+    let (admin_id, admin) = app.member(org, "admin@example.com", Role::Admin);
+    let mk = |kind: &str, cfg: Value| json!({"kind": kind, "name": kind, "config": cfg});
+    let slack = app
+        .post("/api/v1/orgs/acme/channels", &admin, mk("slack", json!({"webhook_url": format!("{url}/slack")})))
+        .await
+        .body["id"]
+        .clone();
+    let teams = app
+        .post("/api/v1/orgs/acme/channels", &admin, mk("teams", json!({"webhook_url": format!("{url}/teams")})))
+        .await
+        .body["id"]
+        .clone();
+    let hook =
+        app.post("/api/v1/orgs/acme/channels", &admin, mk("webhook", json!({"url": format!("{url}/hook")}))).await.body
+            ["id"]
+            .clone();
+
+    let rule = app
+        .post(
+            "/api/v1/projects/acme/web/alert-rules",
+            &admin,
+            json!({
+                "name": "New errors",
+                "conditions": [{"type": "first_seen"}, {"type": "regression"}],
+                "filters": [{"type": "level", "level": "error", "match": "gte"}],
+                "actions": [{"type": "channel", "channel_id": slack}, {"type": "channel", "channel_id": teams},
+                            {"type": "channel", "channel_id": hook}, {"type": "email", "user_ids": [admin_id.to_string()]}],
+                "frequency_minutes": 60
+            }),
+        )
+        .await;
+    assert_eq!(rule.status, StatusCode::CREATED, "{:?}", rule.body);
+    let warn_issue = app.issue(project, "Just a warning", "warning");
+    let issue = app.issue(project, "TypeError: boom", "error");
+    app.event(project, issue, Utc::now(), json!({"environment": "production", "level": "error"}));
+
+    // A warning does not pass the level filter.
+    rupta_api::alerts::handle(&app.state, &IssueSignal::New { project_id: project, issue_id: warn_issue })
+        .await
+        .unwrap();
+    assert!(got.0.lock().unwrap().is_empty());
+
+    let (tx, rx) = tokio::sync::broadcast::channel(16);
+    let engine = rupta_api::alerts::spawn(app.state.clone(), rx);
+    tx.send(IssueSignal::New { project_id: project, issue_id: issue }).unwrap();
+    let posts = wait_for(|| {
+        let g = got.0.lock().unwrap();
+        (g.len() >= 3).then(|| g.clone())
+    })
+    .await;
+    let by_path = |p: &str| posts.iter().find(|x| x.0 == p).map(|x| x.2.clone()).unwrap();
+    let issue_url = format!("http://rupta.test/organizations/acme/issues/{issue}");
+    assert!(by_path("/slack")["blocks"].to_string().contains(&issue_url));
+    assert_eq!(by_path("/teams")["attachments"][0]["content"]["actions"][0]["url"], issue_url);
+    let h = by_path("/hook");
+    assert_eq!(h["trigger"], "first_seen");
+    assert_eq!(h["issue"]["url"], issue_url);
+    assert_eq!(h["issue"]["short_id"], "WEB-2");
+    let mail = wait_for(|| mails.lock().unwrap().first().cloned()).await;
+    assert_eq!(mail.0, vec!["admin@example.com"]);
+    assert!(mail.1.contains("TypeError: boom"), "{}", mail.1);
+
+    // Rate limit: a regression right after does not notify again.
+    tx.send(IssueSignal::Regressed { project_id: project, issue_id: issue }).unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    assert_eq!(got.0.lock().unwrap().len(), 3);
+    let fires: i64 = app.conn().query_one("SELECT count(*) FROM alert_fires", &[]).unwrap().get(0);
+    assert_eq!(fires, 1);
+    drop(tx);
+    engine.await.unwrap();
+}
+
+#[tokio::test]
+async fn frequency_conditions_count_events() {
+    let (url, got) = receiver().await;
+    let app = TestApp::new();
+    let org = app.org("acme");
+    let project = app.project(org, "web");
+    let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
+    let hook = app
+        .post(
+            "/api/v1/orgs/acme/channels",
+            &admin,
+            json!({"kind": "webhook", "name": "h", "config": {"url": format!("{url}/hook")}}),
+        )
+        .await
+        .body["id"]
+        .clone();
+    let r = app
+        .post(
+            "/api/v1/projects/acme/web/alert-rules",
+            &admin,
+            json!({"name": "Busy", "conditions": [{"type": "event_frequency", "count": 3, "interval": "1h"}],
+                   "filters": [{"type": "environment", "value": "production"}, {"type": "tag", "key": "region", "value": "eu"}],
+                   "actions": [{"type": "channel", "channel_id": hook}]}),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::CREATED, "{:?}", r.body);
+    let issue = app.issue(project, "Busy issue", "error");
+    let seen = |n| IssueSignal::Seen {
+        project_id: project,
+        issue_id: issue,
+        count: n,
+        environment: Some("production".into()),
+        level: Some("error".into()),
+    };
+    for _ in 0..2 {
+        app.event(project, issue, Utc::now(), json!({"environment": "production", "tags": {"region": "eu"}}));
+    }
+    rupta_api::alerts::handle(&app.state, &seen(2)).await.unwrap();
+    assert!(got.0.lock().unwrap().is_empty(), "2 < 3");
+    app.event(project, issue, Utc::now(), json!({"environment": "production", "tags": {"region": "eu"}}));
+    rupta_api::alerts::handle(&app.state, &seen(1)).await.unwrap();
+    assert_eq!(got.0.lock().unwrap().len(), 1);
+    assert_eq!(got.0.lock().unwrap()[0].2["trigger"], "event_frequency");
+
+    // A disabled rule stays silent.
+    let rid = r.body["id"].as_str().unwrap();
+    app.patch(&format!("/api/v1/projects/acme/web/alert-rules/{rid}"), &admin, json!({"enabled": false})).await;
+    app.conn().execute("DELETE FROM alert_fires", &[]).unwrap();
+    rupta_api::alerts::handle(&app.state, &seen(1)).await.unwrap();
+    assert_eq!(got.0.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn rule_validation_and_permissions() {
+    let app = TestApp::new();
+    let org = app.org("acme");
+    app.project(org, "web");
+    let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
+    let (_, member) = app.member(org, "member@example.com", Role::Member);
+    let other = app.org("other");
+    let foreign: i64 = app.conn().query_one("INSERT INTO notification_channels (org_id, kind, name, config) VALUES ($1, 'slack', 'x', '{}') RETURNING id", &[&other]).unwrap().get(0);
+    let base =
+        json!({"name": "r", "conditions": [{"type": "first_seen"}], "actions": [{"type": "email", "user_ids": []}]});
+    assert_eq!(
+        app.post("/api/v1/projects/acme/web/alert-rules", &admin, base).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    let foreign_action = json!({"name": "r", "conditions": [{"type": "first_seen"}], "actions": [{"type": "channel", "channel_id": foreign.to_string()}]});
+    assert_eq!(
+        app.post("/api/v1/projects/acme/web/alert-rules", &admin, foreign_action).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "channels of other orgs"
+    );
+    let bad_interval = json!({"name": "r", "conditions": [{"type": "event_frequency", "count": 1, "interval": "1y"}], "actions": [{"type": "email", "team_ids": []}]});
+    assert_eq!(
+        app.post("/api/v1/projects/acme/web/alert-rules", &admin, bad_interval).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    let ok = json!({"name": "r", "conditions": [{"type": "reappeared"}], "actions": [{"type": "email", "user_ids": []}], "frequency_minutes": 5});
+    let mut ok2 = ok.clone();
+    ok2["actions"] = json!([{"type": "channel", "channel_id": app.post("/api/v1/orgs/acme/channels", &admin, json!({"kind": "slack", "name": "s", "config": {"webhook_url": "https://hooks.example.com/x"}})).await.body["id"]}]);
+    assert_eq!(
+        app.post("/api/v1/projects/acme/web/alert-rules", &member, ok2.clone()).await.status,
+        StatusCode::FORBIDDEN
+    );
+    let r = app.post("/api/v1/projects/acme/web/alert-rules", &admin, ok2).await;
+    assert_eq!(r.status, StatusCode::CREATED);
+    let id = r.body["id"].as_str().unwrap();
+    assert_eq!(app.get(&format!("/api/v1/projects/acme/web/alert-rules/{id}"), &member).await.status, StatusCode::OK);
+    assert_eq!(app.get("/api/v1/projects/acme/web/alert-rules", &member).await.body.as_array().unwrap().len(), 1);
+    assert_eq!(
+        app.delete(&format!("/api/v1/projects/acme/web/alert-rules/{id}"), &admin).await.status,
+        StatusCode::NO_CONTENT
+    );
+    let _ = ok;
+}

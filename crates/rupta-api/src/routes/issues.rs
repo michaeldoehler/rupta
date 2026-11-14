@@ -13,7 +13,7 @@ use rupta_auth::rbac::Permission;
 use rupta_core::ids::Id;
 use rupta_core::query::{self, CompileContext};
 use rupta_store::squad::{Connection, Row};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
@@ -422,10 +422,6 @@ async fn list_issues(
     Ok(axum::Json(page))
 }
 
-fn double_option<'de, T: Deserialize<'de>, D: Deserializer<'de>>(d: D) -> Result<Option<Option<T>>, D::Error> {
-    Option::<T>::deserialize(d).map(Some)
-}
-
 /// Changes to one or more issues.
 #[derive(Debug, Default, Deserialize, ToSchema)]
 pub struct IssueUpdate {
@@ -433,7 +429,7 @@ pub struct IssueUpdate {
     pub status: Option<String>,
     pub substatus: Option<String>,
     /// `user:{id}`, `team:{id}`, `me`, or `null` to unassign.
-    #[serde(default, deserialize_with = "double_option")]
+    #[serde(default, deserialize_with = "crate::extract::double_option")]
     #[schema(value_type = Option<String>)]
     pub assignee: Option<Option<String>>,
     /// `high`, `medium` or `low`.
