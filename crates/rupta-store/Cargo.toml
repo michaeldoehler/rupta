@@ -6,9 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+publish = false
 
 [dependencies]
-rupta-core.workspace = true
 squad.workspace = true
 tokio.workspace = true
 thiserror.workspace = true
