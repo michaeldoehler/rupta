@@ -63,6 +63,7 @@ async fn metrics(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
     out.push_str(&format!("rupta_storage_cache_hits_total {}\n", stats.cache_hits));
     out.push_str("# TYPE rupta_storage_cache_misses_total counter\n");
     out.push_str(&format!("rupta_storage_cache_misses_total {}\n", stats.cache_misses));
+    out.push_str(&app.api.metrics.render());
     app.ingest.render_metrics(&mut out);
     ([(header::CONTENT_TYPE, "text/plain; version=0.0.4")], out).into_response()
 }

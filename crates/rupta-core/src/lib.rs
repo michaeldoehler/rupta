@@ -6,6 +6,7 @@ pub mod event;
 pub mod grouping;
 pub mod ids;
 pub mod normalize;
+pub mod query;
 pub mod role;
 pub mod scrub;
 pub mod settings;
