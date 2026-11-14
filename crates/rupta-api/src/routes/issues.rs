@@ -969,8 +969,12 @@ pub struct Activity {
     #[schema(value_type = String)]
     pub id: Id,
     /// `comment`, `status_change`, `assigned`, `unassigned`,
-    /// `priority_change`, and kinds recorded by ingestion (e.g.
-    /// `first_seen`, `regression`).
+    /// `priority_change`, kinds recorded by ingestion (e.g. `first_seen`,
+    /// `regression`), and for issue trackers `ticket_linked`,
+    /// `ticket_unlinked`, `ticket_status_change` (a webhook changed the
+    /// ticket) and `ticket_sync` (rupta commented on or moved a ticket;
+    /// `data.ok` and `data.error`). A `status_change` caused by a ticket
+    /// has `data.source: "integration"`.
     pub kind: String,
     pub user: Option<UserRef>,
     #[schema(value_type = Object)]

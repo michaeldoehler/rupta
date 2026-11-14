@@ -6607,7 +6607,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`comment`, `status_change`, `assigned`, `unassigned`,\n`priority_change`, and kinds recorded by ingestion (e.g.\n`first_seen`, `regression`)."
+            "description": "`comment`, `status_change`, `assigned`, `unassigned`,\n`priority_change`, kinds recorded by ingestion (e.g. `first_seen`,\n`regression`), and for issue trackers `ticket_linked`,\n`ticket_unlinked`, `ticket_status_change` (a webhook changed the\nticket) and `ticket_sync` (rupta commented on or moved a ticket;\n`data.ok` and `data.error`). A `status_change` caused by a ticket\nhas `data.source: \"integration\"`."
           },
           "updated_at": {
             "type": [
@@ -9313,7 +9313,7 @@
                 },
                 "kind": {
                   "type": "string",
-                  "description": "`comment`, `status_change`, `assigned`, `unassigned`,\n`priority_change`, and kinds recorded by ingestion (e.g.\n`first_seen`, `regression`)."
+                  "description": "`comment`, `status_change`, `assigned`, `unassigned`,\n`priority_change`, kinds recorded by ingestion (e.g. `first_seen`,\n`regression`), and for issue trackers `ticket_linked`,\n`ticket_unlinked`, `ticket_status_change` (a webhook changed the\nticket) and `ticket_sync` (rupta commented on or moved a ticket;\n`data.ok` and `data.error`). A `status_change` caused by a ticket\nhas `data.source: \"integration\"`."
                 },
                 "updated_at": {
                   "type": [
