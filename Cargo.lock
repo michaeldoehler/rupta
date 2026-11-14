@@ -2626,6 +2626,7 @@ dependencies = [
  "http",
  "http-body-util",
  "lettre",
+ "openidconnect",
  "rand 0.10.3",
  "rand_core 0.6.4",
  "reqwest",
