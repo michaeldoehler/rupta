@@ -15,6 +15,7 @@ pub(crate) const MIGRATIONS: &[(i64, &str, &str)] = &[
     (1, "core", include_str!("../migrations/0001_core.sql")),
     (2, "issues_events", include_str!("../migrations/0002_issues_events.sql")),
     (3, "shared", include_str!("../migrations/0003_shared.sql")),
+    (1000, "ingest", include_str!("../migrations/1000_ingest.sql")),
 ];
 
 pub(crate) fn apply(conn: &Connection) -> Result<()> {
