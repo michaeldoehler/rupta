@@ -137,7 +137,7 @@ function hash(s: string): number {
 }
 
 /**
- * Fill colour of a frame. Application code is warm (the brand hue range),
+ * Fill colour of a frame. Application code is palm green (the secondary accent),
  * library code cool and muted; by package, each package gets its own hue.
  * Lightness adapts to the theme so text stays readable.
  */
@@ -150,7 +150,8 @@ export function frameColor(frame: ProfileFrame | undefined, mode: ColorMode, dar
     return `oklch(${l.toFixed(3)} ${dark ? 0.09 : 0.08} ${hue})`
   }
   if (frame?.is_application) {
-    const hue = 30 + (h % 30)
+    // application code in the palm-leaf range, library code cool and quiet
+    const hue = 112 + (h % 24)
     return `oklch(${l.toFixed(3)} ${dark ? 0.13 : 0.11} ${hue})`
   }
   const hue = 220 + (h % 40)

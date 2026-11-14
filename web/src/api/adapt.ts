@@ -244,7 +244,8 @@ export function normReleaseDetail(raw: unknown): ReleaseDetail {
     ...normRelease(raw),
     deploys: (o.deploys as ReleaseDetail['deploys']) ?? [],
     health,
-    users: o.users === undefined ? null : num(o.users),
+    // `health.total_users` on current servers
+    users: o.users !== undefined ? num(o.users) : obj(o.health).total_users !== undefined ? num(obj(o.health).total_users) : null,
     commit_count: o.commit_count === undefined ? undefined : num(o.commit_count),
   }
 }

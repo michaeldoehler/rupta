@@ -94,13 +94,13 @@ export const LOG_LEVEL_VAR: Record<LogLevel, string> = {
 
 /** Bar colour of a span by op category; the op text is always shown next to it. */
 export const OP_COLOR: Record<string, string> = {
-  http: 'var(--series-1)',
-  db: 'var(--series-2)',
+  http: 'var(--series-2)',
+  db: 'var(--series-5)',
   resource: 'var(--series-3)',
   browser: 'var(--series-3)',
   ui: 'var(--series-4)',
-  queue: 'var(--series-5)',
-  task: 'var(--series-5)',
+  queue: 'var(--palm)',
+  task: 'var(--palm)',
   pageload: 'var(--series-other)',
   navigation: 'var(--series-other)',
   default: 'var(--series-other)',

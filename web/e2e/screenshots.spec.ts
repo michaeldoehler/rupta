@@ -21,6 +21,8 @@ const README_SHOTS = new Set([
   'replay',
 ])
 const WAVE = process.env.REVIEW_WAVE
+// SHOTS=45,46 retakes only these numbers (the index still lists every shot).
+const ONLY = process.env.SHOTS ? new Set(process.env.SHOTS.split(',')) : null
 
 type Shot = {
   n: string
@@ -185,7 +187,7 @@ const shots: Shot[] = [
           .getByRole('link', { name: /1\.\d+\.\d+/ })
           .first()
           .click(),
-        await expect(p.getByText('Sessions', { exact: true })).toBeVisible()
+        await expect(p.getByRole('heading', { name: 'Sessions' })).toBeVisible()
       ),
   },
   { n: '19', screen: 'crons', state: 'list', go: async (p) => void (await p.goto('/acme/crons')) },
@@ -277,7 +279,7 @@ async function openProfile(page: Page) {
   await page.goto('/acme/profiles')
   await page
     .getByRole('grid', { name: 'Profiles' })
-    .getByRole('link', { name: /GET \/api\/products$/ })
+    .getByRole('link', { name: /GET \/api\/products api/ })
     .first()
     .click()
   await expect(page.getByTestId('flamegraph')).toBeVisible()
@@ -721,6 +723,7 @@ for (const theme of ['dark'] as const) {
     for (const s of shots) {
       if (!REVIEW && !s.readme) continue
       if (WAVE === '2' && s.wave !== 2) continue
+      if (ONLY && !ONLY.has(s.n)) continue
       const ctx = await browser.newContext({
         colorScheme: theme,
         deviceScaleFactor: s.wide ? 1 : 2,
@@ -729,6 +732,7 @@ for (const theme of ['dark'] as const) {
         hasTouch: s.mobile,
       })
       const page = await ctx.newPage()
+      page.setDefaultTimeout(20_000)
       // start from the demo data, signed in
       if (s.n !== '01' && s.n !== '02') {
         await page.goto('/acme/issues?mock=demo&mock_latency=0')
