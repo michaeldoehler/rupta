@@ -26,8 +26,9 @@ stored, what is acknowledged and dropped, and the limits.
 An application that already reports to Sentry (sentry.io or a self-hosted
 Sentry) switches to rupta by changing its DSN:
 
-1. Create a project in rupta (*Settings → Projects → New project*) and copy
-   the DSN from its *Client keys* page.
+1. Create a project in rupta (*Settings → All projects → New
+   project*) and copy the DSN
+   from its *Client keys & SDK* page.
 2. Replace the DSN in the application's configuration, for example the
    `SENTRY_DSN` environment variable, `SENTRY_LARAVEL_DSN` in Laravel, or
    the `dsn` option of `Sentry.init` / `sentry_sdk.init`.

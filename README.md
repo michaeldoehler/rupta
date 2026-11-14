@@ -116,7 +116,7 @@ docker compose up -d
 ```
 
 Open <http://localhost:8080>, log in as `admin@example.com` with the
-printed password, create a project (*Settings → Projects → New project*)
+printed password, create a project (*Settings → All projects → New project*)
 and copy its DSN. [Getting started](docs/getting-started.md) walks through
 the first five minutes, including a test error sent with `curl`.
 
@@ -161,7 +161,7 @@ point `sentry-cli` at rupta with `SENTRY_URL` and a rupta token
 
 The project settings show copy-paste setup for 14 platforms (JavaScript,
 React, Next.js, Node.js, PHP, Laravel, Symfony, Python, Django, Go, Java,
-.NET, Ruby and Rust); [getting started](docs/getting-started.md#3-send-errors-from-your-application)
+.NET, Ruby and Rust); [getting started](docs/getting-started.md#send-errors-from-your-application)
 has the snippets for JavaScript, Node.js, PHP, Laravel, Python and Django.
 → [SDK compatibility](docs/sdk-compatibility.md)
 

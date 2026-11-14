@@ -16,6 +16,10 @@ changelog says when and how to migrate.
   SDK and data type (tested, expected to work, accepted but not stored, not
   supported) and a list of what is not supported; README, source map
   upload and comparison say the same, with a trademark note.
+- `docs/getting-started.md`: a five-minute path from Docker Compose to the
+  first error, with `curl` and SDK examples for JavaScript, Node.js, PHP,
+  Laravel, Python and Django, moving an existing application, and source
+  map upload. `docs/README.md`: a documentation index with a reading order.
 
 ## [0.1.0] - 2026-11-14
 
