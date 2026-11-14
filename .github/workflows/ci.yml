@@ -51,6 +51,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -80,6 +82,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -92,9 +96,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Playwright for the browser SDK
+        run: |
+          npm install -g playwright@1.65.1
+          playwright install --with-deps chromium
       - run: cargo build --locked -p rupta-server
-      - name: SDK smoke test
-        run: scripts/sdk-smoke.sh
+      - name: SDK smoke test (all SDKs required)
+        run: NODE_PATH="$(npm root -g)" SMOKE_REQUIRE_ALL=1 scripts/sdk-smoke.sh
       - name: Browser tests
         working-directory: web
         run: |
