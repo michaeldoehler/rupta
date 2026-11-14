@@ -107,6 +107,9 @@ pub struct Config {
     pub trusted_proxies: Vec<String>,
     pub cors_allowed_origins: Vec<String>,
     pub shutdown_timeout: Duration,
+    /// `RUPTA_SSO_ALLOW_PRIVATE_ISSUERS`: the SSO connection test may fetch
+    /// issuers on loopback, link-local and private addresses.
+    pub sso_allow_private_issuers: bool,
 }
 
 impl std::fmt::Debug for Config {
@@ -315,6 +318,7 @@ impl Config {
             trusted_proxies: r.list("RUPTA_TRUSTED_PROXIES"),
             cors_allowed_origins: r.list("RUPTA_CORS_ALLOWED_ORIGINS"),
             shutdown_timeout: Duration::from_secs(r.number("RUPTA_SHUTDOWN_TIMEOUT_SECS", 30)?),
+            sso_allow_private_issuers: r.bool("RUPTA_SSO_ALLOW_PRIVATE_ISSUERS", false)?,
         };
         if !config.local_login && config.oidc.is_none() {
             bail!("RUPTA_LOCAL_LOGIN=false needs single sign-on (RUPTA_OIDC_ISSUER), or nobody could log in");

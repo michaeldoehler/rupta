@@ -257,6 +257,9 @@ async fn put_sso(
         default_role,
         jit_provisioning: false,
     };
+    // The server fetches this issuer at every login of the organization's
+    // members: refuse internal addresses, as the connection test does.
+    super::sso_test::check_issuer(&state, &issuer).await.map_err(|e| ApiError::invalid("issuer", e))?;
     state
         .oidc
         .start(&state.keys, &probe, &format!("{}/auth/sso/probe/callback", state.config.public_url), None)

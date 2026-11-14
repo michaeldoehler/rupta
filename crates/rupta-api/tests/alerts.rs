@@ -4,17 +4,13 @@ use std::sync::{Arc, Mutex};
 
 use axum::http::{HeaderMap, StatusCode};
 use chrono::Utc;
-use common::TestApp;
+use common::{TestApp, smtp_sink};
 use rupta_core::role::Role;
 use rupta_core::signal::IssueSignal;
 use serde_json::{Value, json};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 /// (path, headers, JSON body, raw body)
 type Post = (String, HeaderMap, Value, Vec<u8>);
-/// (recipients, message)
-type Mail = (Vec<String>, String);
-type Mails = Arc<Mutex<Vec<Mail>>>;
 
 #[derive(Clone, Default)]
 struct Received(Arc<Mutex<Vec<Post>>>);
@@ -38,53 +34,6 @@ async fn receiver() -> (String, Received) {
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
     (format!("http://{addr}"), got)
-}
-
-/// A minimal SMTP server that accepts every message.
-async fn smtp_sink() -> (String, Mails) {
-    let messages: Mails = Arc::default();
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    let m = messages.clone();
-    tokio::spawn(async move {
-        loop {
-            let (sock, _) = listener.accept().await.unwrap();
-            let m = m.clone();
-            tokio::spawn(async move {
-                let (r, mut w) = sock.into_split();
-                let mut lines = BufReader::new(r).lines();
-                w.write_all(b"220 sink ESMTP\r\n").await.unwrap();
-                let mut rcpt = Vec::new();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    let upper = line.to_ascii_uppercase();
-                    if upper.starts_with("EHLO") || upper.starts_with("HELO") {
-                        w.write_all(b"250-sink\r\n250 OK\r\n").await.unwrap();
-                    } else if upper.starts_with("RCPT TO:") {
-                        rcpt.push(line[8..].trim().trim_matches(|c| c == '<' || c == '>').to_string());
-                        w.write_all(b"250 OK\r\n").await.unwrap();
-                    } else if upper.starts_with("DATA") {
-                        w.write_all(b"354 go ahead\r\n").await.unwrap();
-                        let mut data = String::new();
-                        while let Ok(Some(l)) = lines.next_line().await {
-                            if l == "." {
-                                break;
-                            }
-                            data.push_str(&l);
-                            data.push('\n');
-                        }
-                        m.lock().unwrap().push((std::mem::take(&mut rcpt), data));
-                        w.write_all(b"250 OK queued\r\n").await.unwrap();
-                    } else if upper.starts_with("QUIT") {
-                        w.write_all(b"221 bye\r\n").await.unwrap();
-                        break;
-                    } else {
-                        w.write_all(b"250 OK\r\n").await.unwrap();
-                    }
-                }
-            });
-        }
-    });
-    (format!("smtp://{addr}"), messages)
 }
 
 async fn wait_for<T>(f: impl Fn() -> Option<T>) -> T {

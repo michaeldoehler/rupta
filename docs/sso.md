@@ -120,6 +120,57 @@ curl -X PUT -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: applicatio
   organizations are not listed, so the login page does not reveal which
   organizations exist.
 
+## Testing the connection
+
+`POST /api/v1/orgs/{org}/sso/test` (owners; the settings form's *Test
+connection* button) checks a provider before it is saved. The body is the
+form: `issuer`, and optionally `client_id` and `client_secret`. The server
+fetches `{issuer}/.well-known/openid-configuration` and answers:
+
+```json
+{"ok": false, "issuer": "https://acme.zitadel.cloud",
+ "authorization_endpoint": "https://acme.zitadel.cloud/oauth/v2/authorize",
+ "token_endpoint": "https://acme.zitadel.cloud/oauth/v2/token",
+ "userinfo_endpoint": "https://acme.zitadel.cloud/oidc/v1/userinfo",
+ "jwks_uri": "https://acme.zitadel.cloud/oauth/v2/keys",
+ "scopes_supported": ["openid", "profile", "email"],
+ "problems": ["without a client secret the provider must allow public clients (token endpoint auth method none)"]}
+```
+
+`ok` is true when `problems` is empty. Checked: the document's `issuer`
+equals the configured one (ignoring a trailing `/`); the authorization and
+token endpoints and `jwks_uri` are present and http(s) URLs; response type
+`code` and PKCE with `S256` are announced; `openid` is among the scopes if
+scopes are listed; the token endpoint accepts the client: `none` for a
+public client (no secret), `client_secret_basic` or `client_secret_post`
+with a secret (`client_secret_basic` is assumed when the provider lists no
+methods). Reachability problems (DNS, timeout, HTTP status, invalid JSON)
+are reported in `problems` as well. The client id and secret are not sent
+to the provider: whether the provider knows the client shows only at the
+first sign-in.
+
+The request is made by the server, so it is limited:
+
+- The issuer host must resolve only to public addresses. Loopback,
+  private (RFC 1918, IPv6 unique local), link-local (including the cloud
+  metadata address `169.254.169.254`), carrier-grade NAT and unspecified
+  addresses are refused, unless the host is the host of the instance
+  provider (`RUPTA_OIDC_ISSUER`) or `RUPTA_SSO_ALLOW_PRIVATE_ISSUERS=true`.
+- The connection goes to the address that was checked (no second DNS
+  lookup), redirects are not followed, the answer may be at most 1 MiB and
+  the whole request takes at most 5 seconds.
+- When the server reaches the internet through an HTTP proxy configured in
+  the environment (`HTTPS_PROXY`), the proxy opens the connection; the
+  check covers the address rupta resolves, not what the proxy does.
+
+Saving the settings (`PUT .../sso`) applies the same address check
+before it fetches the discovery document, because the server contacts the
+provider again at every sign-in of the organization's members. Providers
+on the internal network therefore need `RUPTA_SSO_ALLOW_PRIVATE_ISSUERS=true`
+(or must be the instance provider). The check runs when the settings are
+saved; a provider whose DNS name later resolves to an internal address is
+not detected.
+
 ## Zitadel step by step
 
 The steps refer to the Zitadel console (cloud or self-hosted). Replace

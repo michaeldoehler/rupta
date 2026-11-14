@@ -88,9 +88,9 @@ Grouped as in the OpenAPI document.
 | Organizations | `GET/POST /orgs`, `GET/PATCH/DELETE /orgs/{org}` |
 | Members | `GET/POST /orgs/{org}/members` (POST invites), `PATCH/DELETE /orgs/{org}/members/{user_id}`, `GET /orgs/{org}/invites`, `DELETE /orgs/{org}/invites/{id}`, `GET /invites/{token}`, `POST /invites/{token}/accept` |
 | Teams | `GET/POST /orgs/{org}/teams`, `PATCH/DELETE /orgs/{org}/teams/{team}`, `PUT/DELETE /orgs/{org}/teams/{team}/members/{user_id}` |
-| Security | `GET /orgs/{org}/audit-log`, `GET/PUT/DELETE /orgs/{org}/sso`, `GET/POST /orgs/{org}/tokens`, `DELETE /orgs/{org}/tokens/{id}` |
-| Projects | `GET/POST /orgs/{org}/projects`, `GET/PATCH/DELETE /projects/{org}/{project}`, `GET/POST /projects/{org}/{project}/keys`, `PATCH/DELETE .../keys/{id}`, `GET .../stats` |
-| Issues | `GET/PUT/DELETE /orgs/{org}/issues`, `GET/PATCH/DELETE /issues/{id}`, `GET /issues/{id}/activity`, `POST /issues/{id}/comments`, `PATCH/DELETE /issues/{id}/comments/{comment_id}`, `GET/POST /orgs/{org}/saved-searches`, `PATCH/DELETE .../saved-searches/{id}` |
+| Security | `GET /orgs/{org}/audit-log`, `GET/PUT/DELETE /orgs/{org}/sso`, `POST /orgs/{org}/sso/test`, `GET/POST /orgs/{org}/tokens`, `DELETE /orgs/{org}/tokens/{id}` |
+| Projects | `GET/POST /orgs/{org}/projects`, `GET/PATCH/DELETE /projects/{org}/{project}`, `GET/POST /projects/{org}/{project}/keys`, `PATCH/DELETE .../keys/{id}`, `GET .../stats`, `GET .../artifact-bundles`, `DELETE .../artifact-bundles/{id}` |
+| Issues | `GET/PUT/DELETE /orgs/{org}/issues`, `GET /orgs/{org}/issues/by-short-id/{short_id}`, `GET/PATCH/DELETE /issues/{id}`, `GET /issues/{id}/activity`, `POST /issues/{id}/comments`, `PATCH/DELETE /issues/{id}/comments/{comment_id}`, `GET/POST /orgs/{org}/saved-searches`, `PATCH/DELETE .../saved-searches/{id}` |
 | Events | `GET /issues/{id}/events`, `GET /issues/{id}/events/{latest\|oldest\|recommended\|event_id}`, `GET /orgs/{org}/events/{project}/{event_id}`, `GET /issues/{id}/tags`, `GET /issues/{id}/tags/{key}/values`, `GET /issues/{id}/stats`, `GET /orgs/{org}/events` |
 | Feedback and files | `GET /issues/{id}/feedback`, `GET /projects/{org}/{project}/feedback`, `GET /issues/{id}/attachments`, `GET /attachments/{id}/download` |
 | Releases | `GET /orgs/{org}/releases`, `GET /orgs/{org}/releases/{version}`, `GET /projects/{org}/{project}/health` |
@@ -115,9 +115,56 @@ Notes on some of them:
   `PATCH /issues/{id}`: `status` (`unresolved`, `resolved`, `ignored`),
   `substatus`, `assignee` (`"user:{id}"`, `"team:{id}"`, `"me"` or `null`),
   `priority` (`high`, `medium`, `low`), `ignore_duration` (minutes),
-  `ignore_count` (further events), `resolved_in_release`, and the per-user
-  flags `is_bookmarked` and `has_seen`. At most 100 ids; ids of other
-  organizations are skipped. Viewers may only change the per-user flags.
+  `ignore_count` (further events), `ignore_user_count` (further distinct
+  users) with the optional `ignore_user_window` (minutes: count the users
+  within that window instead), `resolved_in_release` (a version),
+  `resolved_in: "next_release"` (or `substatus: "in_next_release"`), and
+  the per-user flags `is_bookmarked` and `has_seen`. At most 100 ids; ids
+  of other organizations are skipped. Viewers may only change the per-user
+  flags. Ingestion decides when such issues come back; see
+  [ingestion](ingestion.md#issues).
+- **Resolution in a release**: with `resolved_in_release` the issue shows
+  `resolved_in_mode: "release"`. With `resolved_in: "next_release"` the
+  server records the project's latest release (by first sight) in
+  `resolved_in_release`, sets `resolved_in_mode: "next_release"` and the
+  substatus `in_next_release`; `resolved_in_release` is `null` when the
+  project has no release yet.
+- **Ignore conditions** are shown as stored: `ignore_count` is the
+  `times_seen` value at which the issue reappears; `ignore_user_count` is
+  the `users_seen` value at which it reappears, or, with
+  `ignore_user_window`, the number of distinct users within the window.
+  Changing the status clears them.
+- **Short ids**: `GET /orgs/{org}/issues/by-short-id/WEB-APP-31` finds the
+  issue by project slug and number (split at the last `-`, compared
+  case-insensitively); unknown ids answer `404`.
+- **Issue substatus** `escalating` is set by the escalation check
+  ([ingestion](ingestion.md#escalating-issues)); `new` issues become
+  `ongoing` a week after their first event. Ignoring with `substatus:
+  "archived_until_escalating"` keeps an issue ignored until it escalates.
+- **User preferences**: `GET /user` and `PATCH /user` carry `preferences`:
+  `timezone` (an IANA name such as `Europe/Berlin`, or `null` to follow
+  the browser), `clock` (`24h` or `12h`), `theme` (`system`, `light`,
+  `dark`) and `notifications` (`issue_alerts`, `workflow`,
+  `weekly_report`, booleans; defaults on, on, off). A patch changes only
+  the given fields; an invalid value answers `422` and changes nothing.
+  `issue_alerts` off stops alert rule emails to the user (channels are not
+  affected). `workflow` covers the emails "assigned to you" (or to your
+  team) and "new comment on an issue assigned to you", sent when SMTP is
+  configured; nobody is emailed about their own change. `weekly_report` is
+  stored for the web app only: rupta sends no weekly report yet.
+- **Artifact bundles**: `GET /projects/{org}/{project}/artifact-bundles`
+  lists the source map bundles linked to the project, newest first, with
+  `id`, `checksum`, `release`, `dist`, `file_count`, `size`, `created_at`
+  and `debug_ids_count`. `DELETE .../artifact-bundles/{id}` (admins)
+  removes the bundle from the project; when no other project uses it, its
+  index rows, the bundle and its stored zip are deleted as well. Deletions
+  are recorded in the audit log (`artifact_bundle.delete`). Events already
+  symbolicated keep their resolved frames.
+- **SSO connection test**: `POST /orgs/{org}/sso/test` (owners) takes the
+  SSO form (`issuer`, `client_id`, `client_secret`), fetches the issuer's
+  discovery document and answers `{ok, issuer, authorization_endpoint,
+  token_endpoint, userinfo_endpoint, jwks_uri, scopes_supported,
+  problems}`. Nothing is saved; see [single sign-on](sso.md#testing-the-connection).
 - **Event documents** are the normalized events as stored by ingestion,
   plus `previous_event_id` and `next_event_id` within the issue, and
   `replay_id` and `trace_id` (from the replay and trace contexts, `null`
@@ -132,8 +179,16 @@ Notes on some of them:
   errors), `rejected`, `filtered` or `rate_limited`; `since` and `until` as
   Unix seconds or RFC 3339; `resolution=1h` or `1d`. The answer is
   `[[unix_seconds, count], ...]` with empty buckets filled with zero.
-- **Release health** is computed from hourly session counts. Crash-free
-  users cannot be derived from them and are always `null`. Adoption is the
+- **Release health** is computed from hourly session counts and, for
+  users, from the distinct ids (`did`) of sessions: `total_users`,
+  `crashed_users` (users with at least one crashed session) and
+  `crash_free_users` (percent, `null` when no session carried a `did`).
+  Sessions without a `did` count for sessions but not for users. Users are
+  counted exactly (`count(DISTINCT)`), except in project health over
+  periods longer than 31 days, which uses `approx_count_distinct`
+  (HyperLogLog, typically within 1–2 %). The health `series` and the
+  release detail `sessions` are `[[unix_seconds, sessions, crashed, users,
+  crashed_users]]`, with users distinct per bucket. Adoption is the
   release's share of the project's sessions in the last 24 hours (in the
   release list) or in the requested period (project health).
 - **Telemetry endpoints** (performance, logs, metrics, profiles,

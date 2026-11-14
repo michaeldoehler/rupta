@@ -149,6 +149,7 @@ details and client IP, and shown to admins at
 - `channel.create`, `channel.update`, `channel.delete`
 - `alert_rule.create`, `alert_rule.update`, `alert_rule.delete`
 - `issue.delete`
+- `artifact_bundle.delete`
 
 Logins and logouts belong to no organization; an organization's log shows
 those of its members. Failed logins for unknown emails are recorded but

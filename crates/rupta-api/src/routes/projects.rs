@@ -352,6 +352,7 @@ pub async fn purge_project_data(state: &ApiState, project_id: i64) {
                 "DELETE FROM attachments WHERE project_id = $1",
                 "DELETE FROM outcomes WHERE project_id = $1",
                 "DELETE FROM session_counts WHERE project_id = $1",
+                "DELETE FROM session_users WHERE project_id = $1",
             ] {
                 c.execute(sql, &[&project_id])?;
             }

@@ -19,8 +19,8 @@ pub const TIMESTAMP_HEADER: &str = "x-rupta-timestamp";
 /// What a notification is about.
 #[derive(Debug, Clone, Serialize)]
 pub struct Notification {
-    /// `first_seen`, `regression`, `reappeared`, `event_frequency`,
-    /// `user_frequency` or `test`.
+    /// `first_seen`, `regression`, `reappeared`, `escalating`,
+    /// `event_frequency`, `user_frequency` or `test`.
     pub trigger: String,
     pub rule_id: Option<String>,
     pub rule_name: String,
@@ -63,6 +63,7 @@ impl Notification {
             "first_seen" => "New issue",
             "regression" => "Regression",
             "reappeared" => "Issue reappeared",
+            "escalating" => "Escalating issue",
             "event_frequency" | "user_frequency" => "Issue frequency alert",
             "test" => "Test",
             _ => "Alert",

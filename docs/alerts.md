@@ -92,7 +92,8 @@ match:
 | --- | --- |
 | `first_seen` | the issue was just created |
 | `regression` | an event arrived for a resolved issue |
-| `reappeared` | an ignored issue's condition (time or count) was met |
+| `reappeared` | an ignored issue's condition (time, event count or user count) was met |
+| `escalating` | the issue became `escalating`: far more events in the last hour than usual (see [ingestion](ingestion.md#escalating-issues)) |
 | `event_frequency` `{count, interval}` | the issue has at least `count` events within `interval` (`1m` to `30d`) |
 | `user_frequency` `{count, interval}` | the issue's events within `interval` come from at least `count` distinct users |
 
@@ -106,7 +107,15 @@ match:
 
 Actions: `channel` sends through a channel of the same organization;
 `email` sends to the listed users and to the members of the listed teams,
-as long as they are members of the organization and not disabled.
+as long as they are members of the organization, not disabled, and have
+not turned off `notifications.issue_alerts` in their preferences
+(`PATCH /api/v1/user`). Channels are not affected by user preferences.
+
+Workflow emails are separate from rules: when SMTP is configured, users
+get an email when an issue is assigned to them or to one of their teams,
+and when someone comments on an issue assigned to them (or their team).
+The person who made the change gets none. Each user can turn these off
+with `notifications.workflow`.
 
 `frequency_minutes` (1–43200, default 30) limits notifications to one per
 rule and issue within that many minutes. Fires are recorded in
@@ -117,7 +126,8 @@ Notifications link to `{RUPTA_PUBLIC_URL}/organizations/{org}/issues/{id}`.
 ## How evaluation works
 
 Ingestion publishes a signal for every new issue, regression, reappearance
-and batch of events of an existing issue. The alert engine
+and batch of events of an existing issue, and the escalation check (every
+five minutes) one for every issue that starts escalating. The alert engine
 (`rupta_api::alerts::spawn`, started by the server) receives them and, per
 signal, loads the project's enabled rules, checks conditions (frequency
 conditions count rows in the `events` table) and filters, records the fire

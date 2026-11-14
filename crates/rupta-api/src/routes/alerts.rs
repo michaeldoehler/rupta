@@ -289,7 +289,8 @@ pub struct AlertRule {
     pub name: String,
     pub enabled: bool,
     /// Any of: `{type: first_seen}`, `{type: regression}`,
-    /// `{type: reappeared}`, `{type: event_frequency, count, interval}`,
+    /// `{type: reappeared}`, `{type: escalating}`,
+    /// `{type: event_frequency, count, interval}`,
     /// `{type: user_frequency, count, interval}` (interval like `1h`).
     #[schema(value_type = Vec<Object>)]
     pub conditions: Value,
@@ -350,7 +351,7 @@ fn check_rule(
     for cond in conds {
         let t = cond.get("type").and_then(Value::as_str).unwrap_or("");
         out_c.push(match t {
-            "first_seen" | "regression" | "reappeared" => json!({"type": t}),
+            "first_seen" | "regression" | "reappeared" | "escalating" => json!({"type": t}),
             "event_frequency" | "user_frequency" => {
                 let count = cond
                     .get("count")
@@ -362,7 +363,7 @@ fn check_rule(
             _ => {
                 return Err(ApiError::invalid(
                     "conditions.type",
-                    "first_seen, regression, reappeared, event_frequency or user_frequency",
+                    "first_seen, regression, reappeared, escalating, event_frequency or user_frequency",
                 ));
             }
         });

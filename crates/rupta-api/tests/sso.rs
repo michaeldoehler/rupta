@@ -338,7 +338,8 @@ async fn existing_users_link_only_with_verified_email_and_roles_can_come_from_us
 #[tokio::test]
 async fn organization_providers_with_encrypted_secrets() {
     let idp = start_idp().await;
-    let app = TestApp::new();
+    // The test provider listens on loopback, which is refused by default.
+    let app = TestApp::with_config(|c| c.sso_allow_private_issuers = true);
     let org = app.org("acme");
     let (_, owner) = app.member(org, "owner@example.com", Role::Owner);
     let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
@@ -386,4 +387,19 @@ async fn organization_providers_with_encrypted_secrets() {
     assert_eq!(cfg.body["sso"][0]["id"], "org-acme");
     assert_eq!(app.delete("/api/v1/orgs/acme/sso", &owner).await.status, StatusCode::NO_CONTENT);
     assert_eq!(app.get("/auth/sso/org-acme/start", &As::anonymous()).await.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn organization_providers_on_internal_addresses_are_refused_by_default() {
+    let idp = start_idp().await;
+    let app = TestApp::new();
+    let org = app.org("acme");
+    let (_, owner) = app.member(org, "owner@example.com", Role::Owner);
+    let body =
+        json!({"provider_name": "Internal", "issuer": idp.issuer, "client_id": "rupta-client", "client_secret": "s"});
+    let r = app.put("/api/v1/orgs/acme/sso", &owner, body).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "{:?}", r.body);
+    assert!(r.body.to_string().contains("RUPTA_SSO_ALLOW_PRIVATE_ISSUERS"), "{}", r.body);
+    let stored: i64 = app.conn().query_one("SELECT count(*) FROM sso_configs", &[]).unwrap().get(0);
+    assert_eq!(stored, 0);
 }

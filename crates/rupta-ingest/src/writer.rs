@@ -87,6 +87,32 @@ impl SessionTracker {
     }
 }
 
+/// Users of sessions already written for an hour, so that each user is
+/// appended to `session_users` once per (project, release, environment,
+/// hour) and once more when a session of theirs crashed. The set is
+/// cleared when it grows large; later duplicates only cost storage, since
+/// queries count distinct users.
+#[derive(Default)]
+pub(crate) struct SessionUserSeen {
+    seen: HashSet<SessionUserRow>,
+}
+
+const SESSION_USERS_SEEN: usize = 500_000;
+
+impl SessionUserSeen {
+    /// True if the row is new (and remembers it).
+    pub fn insert(&mut self, row: &SessionUserRow) -> bool {
+        if self.seen.contains(row) {
+            return false;
+        }
+        if self.seen.len() >= SESSION_USERS_SEEN {
+            self.seen.clear();
+        }
+        self.seen.insert(row.clone());
+        true
+    }
+}
+
 /// Distinct users per issue: user hashes seen, kept up to a cap per issue.
 #[derive(Default)]
 struct UserTracker {
@@ -104,6 +130,8 @@ struct Batch {
     /// Session counts derived from the session updates (computed once, so
     /// a retried transaction does not count twice).
     session_deltas: Vec<(i64, SessionCount)>,
+    /// Users of sessions not yet stored for their hour (deduplicated once).
+    session_users: Vec<SessionUserRow>,
     /// `(project_id, event_id)`, `events` row and `event_payloads` row of
     /// every event, collected once so that a retried transaction reuses them.
     keys: Vec<(i64, [u8; 16])>,
@@ -126,6 +154,8 @@ fn weight(p: &Processed) -> usize {
 pub(crate) struct Shared {
     sessions: Mutex<SessionTracker>,
     users: Mutex<UserTracker>,
+    /// Session users stored per hour already (see [`SessionUserSeen`]).
+    session_users: Mutex<SessionUserSeen>,
     /// Feedback stored before its event: linked when the event arrives.
     unlinked_feedback: Mutex<HashSet<(i64, [u8; 16])>>,
 }
@@ -254,6 +284,26 @@ impl Writer {
                 ));
             }
         }
+        {
+            let mut seen = lock(&self.inner.writer_state.session_users);
+            for p in &batch.parts {
+                let from_updates = p.sessions.iter().filter_map(|u| {
+                    Some(SessionUserRow {
+                        project_id: u.project_id,
+                        release: u.release.clone(),
+                        environment: u.environment.clone(),
+                        hour: hour(u.started),
+                        user_hash: u.user_hash?,
+                        crashed: u.status == "crashed",
+                    })
+                });
+                for row in from_updates.chain(p.session_users.iter().cloned()) {
+                    if seen.insert(&row) {
+                        batch.session_users.push(row);
+                    }
+                }
+            }
+        }
         let mut result = Err(StoreError::Invalid("not attempted".into()));
         for attempt in 0..3 {
             let mut signals = Vec::new();
@@ -282,6 +332,7 @@ impl Writer {
                 tracing::error!(error = %e, events = batch.events, "writing an ingest batch failed; batch dropped");
                 // Users counted for this batch were not stored: recount from the database.
                 *lock(&self.inner.writer_state.users) = UserTracker::default();
+                *lock(&self.inner.writer_state.session_users) = SessionUserSeen::default();
             }
         }
         for p in batch.parts {
@@ -455,9 +506,25 @@ impl Writer {
                     // `ignore_count` is the times_seen value at which the ignore ends
                     // (times_seen when ignored plus the number of events to wait for).
                     let count_reached = st.ignore_count.is_some_and(|c| st.times_seen + a.count >= c);
-                    if until_passed || count_reached {
+                    // `ignore_user_count` without a window is the users_seen value at
+                    // which the ignore ends; with a window, distinct users within it.
+                    let users_reached = match (st.ignore_user_count, st.ignore_user_window) {
+                        (Some(n), None) => st.users_seen + users_added >= n,
+                        (Some(n), Some(w)) => {
+                            let since = now - chrono::Duration::minutes(i64::from(w));
+                            issue_users_since(&conn, st.project_id, st.id, since)? >= n
+                        }
+                        _ => false,
+                    };
+                    if until_passed || count_reached || users_reached {
                         reopen_issue(&conn, st.id, "ongoing")?;
-                        let reason = if until_passed { "ignore_until_passed" } else { "ignore_count_reached" };
+                        let reason = if until_passed {
+                            "ignore_until_passed"
+                        } else if count_reached {
+                            "ignore_count_reached"
+                        } else {
+                            "ignore_user_count_reached"
+                        };
                         add_issue_activity(&conn, st.id, "set_unresolved", &json!({"reason": reason}))?;
                         signals.push(IssueSignal::Reappeared { project_id: st.project_id, issue_id: st.id });
                     }
@@ -505,6 +572,7 @@ impl Writer {
             (a.project_id, &a.release, &a.environment, a.hour).cmp(&(b.project_id, &b.release, &b.environment, b.hour))
         });
         add_session_counts(&conn, &counts)?;
+        append_session_users(&conn, &batch.session_users)?;
 
         let mut releases: Vec<_> = releases.into_iter().collect();
         releases.sort_by(|a, b| a.0.cmp(&b.0));
@@ -606,20 +674,48 @@ impl Writer {
         Ok(())
     }
 
-    /// An event for a resolved issue regresses it, except when the issue was
-    /// resolved in a release and the event comes from an older release (one
-    /// that existed before the issue was resolved).
+    /// Whether events for a resolved issue regress it:
+    ///
+    /// - resolved without a release: any event;
+    /// - resolved in a release `V` (`resolved_in_mode` `release`): events
+    ///   without a release, of `V` itself, and of releases first seen after
+    ///   `V`; while `V` has not been seen, only events of `V`;
+    /// - resolved in the next release (`next_release`, `V` the latest
+    ///   release at resolution time): only events of a release other than
+    ///   `V` that was first seen after the resolution. Events of `V`, of
+    ///   older releases and without a release keep it resolved.
+    ///
+    /// "First seen" is `releases.created_at`; a release not stored yet
+    /// (first seen in this batch) counts as first seen now.
     fn regresses(&self, conn: &Connection, a: &IssueAgg, st: &IssueState) -> Result<bool> {
+        if st.resolved_in_mode.as_deref() == Some("next_release") {
+            for release in a.releases.iter().flatten() {
+                if Some(release) == st.resolved_in_release.as_ref() {
+                    continue;
+                }
+                let created = release_created_at(conn, a.org_id, release)?;
+                let after = match (created, st.resolved_at) {
+                    (Some(c), Some(r)) => c > r,
+                    _ => true,
+                };
+                if after {
+                    return Ok(true);
+                }
+            }
+            return Ok(false);
+        }
         let Some(resolved_in) = &st.resolved_in_release else { return Ok(true) };
+        let fixed = release_created_at(conn, a.org_id, resolved_in)?;
         for release in &a.releases {
             let Some(release) = release else { return Ok(true) };
             if release == resolved_in {
                 return Ok(true);
             }
-            let created = release_created_at(conn, a.org_id, release)?;
-            match (created, st.resolved_at) {
-                (Some(c), Some(r)) if c < r => {}
-                _ => return Ok(true),
+            if let Some(fixed) = fixed {
+                let created = release_created_at(conn, a.org_id, release)?;
+                if created.is_none_or(|c| c > fixed) {
+                    return Ok(true);
+                }
             }
         }
         Ok(false)
@@ -642,6 +738,7 @@ mod tests {
             errors,
             release: "1.0".into(),
             environment: "production".into(),
+            user_hash: None,
         }
     }
 

@@ -1930,6 +1930,54 @@
         }
       }
     },
+    "/api/v1/orgs/{org}/issues/by-short-id/{short_id}": {
+      "get": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "The issue with a short id (`WEB-APP-31`: the project slug in upper\ncase, `-`, the number), matched case-insensitively.",
+        "operationId": "issue_by_short_id",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "short_id",
+            "in": "path",
+            "description": "e.g. `WEB-APP-31`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Issue"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orgs/{org}/logs": {
       "get": {
         "tags": [
@@ -3949,6 +3997,55 @@
         }
       }
     },
+    "/api/v1/orgs/{org}/sso/test": {
+      "post": {
+        "tags": [
+          "orgs"
+        ],
+        "summary": "Tests the connection to an identity provider: fetches and checks its\ndiscovery document. Nothing is saved. Owners only.",
+        "operationId": "test_sso",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SsoTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoTestResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orgs/{org}/teams": {
       "get": {
         "tags": [
@@ -4655,6 +4752,111 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AlertRule"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{org}/{project}/artifact-bundles": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Artifact bundles linked to the project, newest first.",
+        "operationId": "list_bundles",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 100 (default 50).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ArtifactBundle"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{org}/{project}/artifact-bundles/{id}": {
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Removes a bundle from the project (admins). When no other project\nuses the bundle, its index rows, the bundle and its stored zip are\ndeleted too, so its source maps no longer symbolicate new events.",
+        "operationId": "delete_bundle",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -5370,7 +5572,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionUser"
+                  "$ref": "#/components/schemas/CurrentUser"
                 }
               }
             }
@@ -5381,7 +5583,7 @@
         "tags": [
           "user"
         ],
-        "summary": "Changes name, avatar or password. A password change ends all other\nsessions of the user.",
+        "summary": "Changes name, avatar, preferences or password. A password change ends\nall other sessions of the user.",
         "operationId": "update_user",
         "requestBody": {
           "content": {
@@ -5398,7 +5600,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionUser"
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -5637,7 +5848,7 @@
             "items": {
               "type": "object"
             },
-            "description": "Any of: `{type: first_seen}`, `{type: regression}`,\n`{type: reappeared}`, `{type: event_frequency, count, interval}`,\n`{type: user_frequency, count, interval}` (interval like `1h`)."
+            "description": "Any of: `{type: first_seen}`, `{type: regression}`,\n`{type: reappeared}`, `{type: escalating}`,\n`{type: event_frequency, count, interval}`,\n`{type: user_frequency, count, interval}` (interval like `1h`)."
           },
           "created_at": {
             "type": "string",
@@ -5783,6 +5994,57 @@
           "token_hint": {
             "type": "string",
             "description": "Last four characters, for recognition."
+          }
+        }
+      },
+      "ArtifactBundle": {
+        "type": "object",
+        "required": [
+          "id",
+          "checksum",
+          "file_count",
+          "size",
+          "created_at",
+          "debug_ids_count"
+        ],
+        "properties": {
+          "checksum": {
+            "type": "string",
+            "description": "SHA-1 of the bundle zip."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "debug_ids_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Distinct debug ids of the bundle's files."
+          },
+          "dist": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Files in the bundle's manifest."
+          },
+          "id": {
+            "type": "string"
+          },
+          "release": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes of the zip."
           }
         }
       },
@@ -6163,6 +6425,25 @@
             }
           }
         ]
+      },
+      "CurrentUser": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SessionUser"
+          },
+          {
+            "type": "object",
+            "required": [
+              "preferences"
+            ],
+            "properties": {
+              "preferences": {
+                "$ref": "#/components/schemas/Preferences"
+              }
+            }
+          }
+        ],
+        "description": "The signed-in user with their preferences."
       },
       "Dashboard": {
         "type": "object",
@@ -6609,7 +6890,9 @@
           "total_sessions",
           "crashed_sessions",
           "errored_sessions",
-          "abnormal_sessions"
+          "abnormal_sessions",
+          "total_users",
+          "crashed_users"
         ],
         "properties": {
           "abnormal_sessions": {
@@ -6638,11 +6921,16 @@
               "null"
             ],
             "format": "double",
-            "description": "Always `null`: session counts are not kept per user."
+            "description": "Percent of users without a crashed session; `null` without\nsessions that carry a `did`."
           },
           "crashed_sessions": {
             "type": "integer",
             "format": "int64"
+          },
+          "crashed_users": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Distinct users with at least one crashed session."
           },
           "errored_sessions": {
             "type": "integer",
@@ -6651,6 +6939,11 @@
           "total_sessions": {
             "type": "integer",
             "format": "int64"
+          },
+          "total_users": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Distinct users (sessions with a `did`)."
           }
         }
       },
@@ -6835,7 +7128,8 @@
               "integer",
               "null"
             ],
-            "format": "int64"
+            "format": "int64",
+            "description": "The `times_seen` value at which an ignored issue reappears."
           },
           "ignore_until": {
             "type": [
@@ -6843,6 +7137,22 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "ignore_user_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Ignored until more users: without `ignore_user_window` the\n`users_seen` value at which the issue reappears; with it the number\nof distinct users within the window."
+          },
+          "ignore_user_window": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Minutes of the window for `ignore_user_count`."
           },
           "is_bookmarked": {
             "type": "boolean"
@@ -6886,6 +7196,13 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "resolved_in_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How `resolved_in_release` is meant: `release` (resolved in that\nversion) or `next_release` (resolved in the release after it; it is\nthe latest release at resolution time and may be `null` when the\nproject had none). `null` when not resolved in a release."
           },
           "resolved_in_release": {
             "type": [
@@ -7053,6 +7370,22 @@
             "format": "int64",
             "description": "With `status: ignored`: minutes until the issue reappears."
           },
+          "ignore_user_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "With `status: ignored`: further distinct users until it reappears."
+          },
+          "ignore_user_window": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "With `ignore_user_count`: count the users within this many minutes\n(1 to 525600) instead of in total."
+          },
           "is_bookmarked": {
             "type": [
               "boolean",
@@ -7067,12 +7400,19 @@
             ],
             "description": "`high`, `medium` or `low`."
           },
+          "resolved_in": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "With `status: resolved`: `next_release` resolves the issue in the\nrelease after the latest one seen so far (same as `substatus:\nin_next_release`)."
+          },
           "resolved_in_release": {
             "type": [
               "string",
               "null"
             ],
-            "description": "With `status: resolved`: the release that fixes it."
+            "description": "With `status: resolved`: the release that fixes it. Events of that\nrelease and of releases first seen after it regress the issue."
           },
           "status": {
             "type": [
@@ -7638,6 +7978,52 @@
           }
         }
       },
+      "NotificationPreferences": {
+        "type": "object",
+        "description": "Email notifications a user receives.",
+        "required": [
+          "issue_alerts",
+          "workflow",
+          "weekly_report"
+        ],
+        "properties": {
+          "issue_alerts": {
+            "type": "boolean",
+            "description": "Emails from alert rules that name the user or one of their teams."
+          },
+          "weekly_report": {
+            "type": "boolean",
+            "description": "A weekly summary. Stored for the web app; rupta does not send\nweekly reports yet."
+          },
+          "workflow": {
+            "type": "boolean",
+            "description": "Emails when an issue is assigned to the user (or their team) and\nwhen someone comments on an issue assigned to them."
+          }
+        }
+      },
+      "NotificationsPatch": {
+        "type": "object",
+        "properties": {
+          "issue_alerts": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "weekly_report": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "workflow": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
       "Org": {
         "type": "object",
         "required": [
@@ -7715,6 +8101,76 @@
                       "type": "null"
                     }
                   ]
+                }
+              }
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor of the next page; `null` on the last page."
+          }
+        }
+      },
+      "Page_ArtifactBundle": {
+        "type": "object",
+        "description": "A page of results.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "checksum",
+                "file_count",
+                "size",
+                "created_at",
+                "debug_ids_count"
+              ],
+              "properties": {
+                "checksum": {
+                  "type": "string",
+                  "description": "SHA-1 of the bundle zip."
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "debug_ids_count": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Distinct debug ids of the bundle's files."
+                },
+                "dist": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "file_count": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Files in the bundle's manifest."
+                },
+                "id": {
+                  "type": "string"
+                },
+                "release": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "size": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Bytes of the zip."
                 }
               }
             }
@@ -8237,7 +8693,8 @@
                     "integer",
                     "null"
                   ],
-                  "format": "int64"
+                  "format": "int64",
+                  "description": "The `times_seen` value at which an ignored issue reappears."
                 },
                 "ignore_until": {
                   "type": [
@@ -8245,6 +8702,22 @@
                     "null"
                   ],
                   "format": "date-time"
+                },
+                "ignore_user_count": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Ignored until more users: without `ignore_user_window` the\n`users_seen` value at which the issue reappears; with it the number\nof distinct users within the window."
+                },
+                "ignore_user_window": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Minutes of the window for `ignore_user_count`."
                 },
                 "is_bookmarked": {
                   "type": "boolean"
@@ -8288,6 +8761,13 @@
                     "null"
                   ],
                   "format": "date-time"
+                },
+                "resolved_in_mode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "How `resolved_in_release` is meant: `release` (resolved in that\nversion) or `next_release` (resolved in the release after it; it is\nthe latest release at resolution time and may be `null` when the\nproject had none). `null` when not resolved in a release."
                 },
                 "resolved_in_release": {
                   "type": [
@@ -8692,6 +9172,70 @@
           }
         }
       },
+      "Preferences": {
+        "type": "object",
+        "description": "The preferences of a user; missing fields take their defaults.",
+        "required": [
+          "clock",
+          "theme",
+          "notifications"
+        ],
+        "properties": {
+          "clock": {
+            "type": "string",
+            "description": "`24h` or `12h`."
+          },
+          "notifications": {
+            "$ref": "#/components/schemas/NotificationPreferences"
+          },
+          "theme": {
+            "type": "string",
+            "description": "`system`, `light` or `dark`."
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "IANA time zone for showing times, e.g. `Europe/Berlin`; `null`\nfollows the browser."
+          }
+        }
+      },
+      "PreferencesPatch": {
+        "type": "object",
+        "description": "A change of preferences: only the given fields change.",
+        "properties": {
+          "clock": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notifications": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NotificationsPatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "theme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "IANA time zone; `null` or `\"\"` to follow the browser."
+          }
+        }
+      },
       "ProfilePage": {
         "type": "object",
         "required": [
@@ -8893,10 +9437,18 @@
                 {
                   "type": "integer",
                   "format": "int64"
+                },
+                {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                {
+                  "type": "integer",
+                  "format": "int64"
                 }
               ]
             },
-            "description": "`[[unix_seconds, sessions, crashed]]`."
+            "description": "`[[unix_seconds, sessions, crashed, users, crashed_users]]`; users\nare distinct per bucket."
           }
         }
       },
@@ -9210,10 +9762,18 @@
                     {
                       "type": "integer",
                       "format": "int64"
+                    },
+                    {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    {
+                      "type": "integer",
+                      "format": "int64"
                     }
                   ]
                 },
-                "description": "Daily `[[unix_seconds, sessions, crashed]]` of the last 14 days."
+                "description": "Daily `[[unix_seconds, sessions, crashed, users, crashed_users]]`\nof the last 14 days (users distinct per day)."
               }
             }
           }
@@ -10066,6 +10626,89 @@
           }
         }
       },
+      "SsoTestRequest": {
+        "type": "object",
+        "description": "The settings to test (the fields of the SSO form; others are ignored).",
+        "required": [
+          "issuer"
+        ],
+        "properties": {
+          "client_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "client_secret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Omit or leave empty for a public client."
+          },
+          "issuer": {
+            "type": "string"
+          }
+        }
+      },
+      "SsoTestResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "scopes_supported",
+          "problems"
+        ],
+        "properties": {
+          "authorization_endpoint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issuer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The issuer as the provider states it."
+          },
+          "jwks_uri": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "True when the provider can be used: no problems."
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What is wrong, in plain words; empty when `ok`."
+          },
+          "scopes_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "token_endpoint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userinfo_endpoint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "TagSummary": {
         "type": "object",
         "required": [
@@ -10686,6 +11329,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "preferences": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PreferencesPatch",
+                "description": "Only the given fields change; each is validated."
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
