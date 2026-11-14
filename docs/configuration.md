@@ -4,9 +4,8 @@ rupta is configured entirely through environment variables. There is no
 configuration file. Invalid values stop the server at start with a message
 naming the variable.
 
-With Docker Compose, only the variables that `compose.yaml` lists for the
-`rupta` service are passed from `.env`; see
-[deployment](deployment.md#docker-compose-single-host) for how to add others.
+With Docker Compose, the variables are read from `.env`; see
+[deployment](deployment.md#docker-compose-single-host).
 
 **Secrets from files.** Every variable marked *secret* can instead be given
 as `<NAME>_FILE` containing the path of a file with the value, as Docker and

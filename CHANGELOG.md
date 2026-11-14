@@ -8,6 +8,14 @@ changelog says when and how to migrate.
 
 ## [Unreleased]
 
+### Changed
+
+- `compose.yaml` passes every configuration variable from `.env`; previously
+  settings such as `RUPTA_TRUSTED_PROXIES` had no effect without editing the
+  file. `deploy/stack.yml` creates the bootstrap administrator from the
+  `rupta_admin_password` secret, so no setup screen is open after the first
+  deploy.
+
 ### Documentation
 
 - Name the compatibility explicitly: rupta implements the ingestion
