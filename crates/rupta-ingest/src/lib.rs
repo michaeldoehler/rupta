@@ -36,6 +36,13 @@ impl Ingest {
         Router::new()
     }
 
+    /// Issue signals (new issue, regression, ...) for the alert engine.
+    /// Each call returns a new receiver; slow receivers miss signals.
+    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<rupta_core::signal::IssueSignal> {
+        let (_tx, rx) = tokio::sync::broadcast::channel(1);
+        rx
+    }
+
     /// Stops accepting events and writes everything queued.
     pub async fn shutdown(&self) {}
 }
