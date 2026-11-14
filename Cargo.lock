@@ -2766,6 +2766,7 @@ dependencies = [
  "rsa",
  "rupta-auth",
  "rupta-core",
+ "rupta-ingest",
  "rupta-store",
  "serde",
  "serde_json",

@@ -209,6 +209,14 @@ async fn telemetry_from_the_sdks_is_stored() {
         "SELECT replay_id, segment_count, count_clicks, count_errors, urls, browser, user_email, environment, release FROM replays",
     );
     assert_eq!(r.get::<i32>(1), 1);
+    let (started, finished): (chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>) = h
+        .store
+        .connect()
+        .query_one("SELECT started, finished FROM replays", &[])
+        .map(|r| (r.get(0), r.get(1)))
+        .unwrap();
+    assert_eq!(started.date_naive().to_string(), "2026-11-14");
+    assert!((finished - started).num_seconds() >= 5, "{started} {finished}");
     assert!(r.get::<i32>(2) >= 2, "clicks: {}", r.get::<i32>(2));
     assert!(r.get::<i32>(3) >= 2, "errors: {}", r.get::<i32>(3));
     assert!(r.get::<Value>(4).to_string().contains("localhost:3000"));

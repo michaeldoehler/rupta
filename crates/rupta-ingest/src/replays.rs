@@ -192,7 +192,9 @@ pub fn parse_recording(payload: &[u8], limit: usize) -> Result<Recording, Record
     let (mut first, mut last): (Option<i64>, Option<i64>) = (None, None);
     for e in &events {
         let Some(t) = e.get("timestamp").and_then(Value::as_f64) else { continue };
-        let t = t as i64;
+        // rrweb events carry milliseconds; some custom events of the SDK
+        // carry seconds.
+        let t = if t < 1e11 { (t * 1000.0) as i64 } else { t as i64 };
         first = Some(first.map_or(t, |f| f.min(t)));
         last = Some(last.map_or(t, |l| l.max(t)));
         // rrweb: incremental snapshot (3) from a mouse interaction (2) of type click (2).
@@ -269,7 +271,8 @@ mod tests {
     fn recordings_plain_and_compressed() {
         let events = br#"[{"type":4,"data":{"href":"http://a/"},"timestamp":1794650000000},
             {"type":3,"data":{"source":2,"type":2,"id":5},"timestamp":1794650001500},
-            {"type":3,"data":{"source":2,"type":1},"timestamp":1794650002000}]"#;
+            {"type":3,"data":{"source":2,"type":1},"timestamp":1794650002000},
+            {"type":5,"data":{"tag":"performanceSpan"},"timestamp":1794650001.25}]"#;
         let mut plain = b"{\"segment_id\":3}\n".to_vec();
         plain.extend_from_slice(events);
         let r = parse_recording(&plain, 1 << 20).unwrap();
