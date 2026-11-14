@@ -3,6 +3,7 @@
 //! query language.
 
 pub mod ids;
+pub mod query;
 pub mod role;
 pub mod settings;
 pub mod signal;

@@ -39,7 +39,40 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "v7", "serde"] }
 http = "1"
 
+# API and authentication
+utoipa = { version = "6", features = ["chrono", "uuid"] }
+utoipa-axum = "0.3"
+openidconnect = { version = "4.1", default-features = false }
+argon2 = "0.6"
+sha1 = "0.11"
+sha2 = "0.11"
+hmac = "0.13"
+hkdf = "0.13"
+chacha20poly1305 = "0.11"
+subtle = "2.6"
+rand = "0.10"
+base64 = "0.23"
+hex = "0.4"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "rustls-platform-verifier", "hostname"] }
+zstd = "0.14"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+flate2 = "1"
+url = "2"
+form_urlencoded = "1"
+
 [profile.release]
 lto = "thin"
 codegen-units = 4
 debug = 1
+
+# RSA key generation in the single sign-on tests is slow without optimization.
+[profile.dev.package.num-bigint-dig]
+opt-level = 3
+[profile.dev.package.rsa]
+opt-level = 3
+# Password hashing dominates the API tests in unoptimized builds.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
