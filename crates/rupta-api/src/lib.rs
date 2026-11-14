@@ -4,6 +4,8 @@
 
 pub mod access;
 pub mod alerts;
+pub mod bootstrap;
+pub mod compat;
 pub mod error;
 pub mod extract;
 pub mod mail;
@@ -96,7 +98,7 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/v1/{*rest}", axum::routing::any(|| async { error::ApiError::not_found() }))
         .layer(DefaultBodyLimit::max(state.config.max_body_bytes));
 
-    let mut api = Router::new().merge(v1).with_state(state.clone());
+    let mut api = Router::new().merge(v1).merge(compat::router()).with_state(state.clone());
     api = security_headers(api);
     if !state.config.cors_allowed_origins.is_empty() {
         let origins: Vec<HeaderValue> = state

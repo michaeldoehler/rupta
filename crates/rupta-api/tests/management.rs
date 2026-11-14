@@ -413,3 +413,88 @@ async fn releases_and_health() {
     assert_eq!(h.body["releases"][0]["health"]["adoption"], 80.0);
     assert_eq!(h.body["series"].as_array().unwrap().len(), 24);
 }
+
+#[tokio::test]
+async fn monitors_crud_with_checkins() {
+    let app = TestApp::new();
+    let org = app.org("acme");
+    app.project(org, "web");
+    let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
+    let (_, viewer) = app.member(org, "viewer@example.com", Role::Viewer);
+    let body = json!({"name": "Nightly backup", "schedule": {"type": "crontab", "value": "0 3 * * *"}, "checkin_margin": 5, "timezone": "Europe/Berlin"});
+    assert_eq!(
+        app.post("/api/v1/projects/acme/web/monitors", &viewer, body.clone()).await.status,
+        StatusCode::FORBIDDEN
+    );
+    let r = app.post("/api/v1/projects/acme/web/monitors", &admin, body.clone()).await;
+    assert_eq!(r.status, StatusCode::CREATED, "{:?}", r.body);
+    assert_eq!(r.body["slug"], "nightly-backup");
+    assert_eq!(app.post("/api/v1/projects/acme/web/monitors", &admin, body).await.status, StatusCode::CONFLICT);
+    let bad = json!({"name": "x", "schedule": {"type": "crontab", "value": "every day"}});
+    assert_eq!(
+        app.post("/api/v1/projects/acme/web/monitors", &admin, bad).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    let mid: i64 = r.body["id"].as_str().unwrap().parse().unwrap();
+    let conn = app.conn();
+    for (i, status) in ["ok", "error", "ok"].iter().enumerate() {
+        let id = uuid::Uuid::new_v4();
+        let at = Utc::now() - Duration::minutes(10 - i as i64);
+        conn.execute("INSERT INTO checkins (id, monitor_id, status, duration_ms, created_at, updated_at) VALUES ($1, $2, $3, 1200, $4, $4)", &[id.as_bytes(), &mid, status, &at]).unwrap();
+    }
+    let d = app.get("/api/v1/projects/acme/web/monitors/nightly-backup", &viewer).await;
+    assert_eq!(d.body["checkins"].as_array().unwrap().len(), 3);
+    assert_eq!(d.body["checkins"][0]["status"], "ok");
+    let page = app.get("/api/v1/projects/acme/web/monitors/nightly-backup/checkins?limit=2", &viewer).await;
+    assert_eq!(page.body["data"].as_array().unwrap().len(), 2);
+    let next = page.body["next_cursor"].as_str().unwrap();
+    let rest = app
+        .get(&format!("/api/v1/projects/acme/web/monitors/nightly-backup/checkins?limit=2&cursor={next}"), &viewer)
+        .await;
+    assert_eq!(rest.body["data"][0]["status"], "ok");
+    let u = app
+        .patch(
+            "/api/v1/projects/acme/web/monitors/nightly-backup",
+            &admin,
+            json!({"status": "disabled", "schedule": {"type": "interval", "value": 2, "unit": "hour"}}),
+        )
+        .await;
+    assert_eq!(u.body["status"], "disabled");
+    assert_eq!(u.body["schedule"]["unit"], "hour");
+    assert_eq!(app.get("/api/v1/projects/acme/web/monitors", &viewer).await.body.as_array().unwrap().len(), 1);
+    assert_eq!(
+        app.delete("/api/v1/projects/acme/web/monitors/nightly-backup", &admin).await.status,
+        StatusCode::NO_CONTENT
+    );
+}
+
+#[tokio::test]
+async fn bootstrap_from_environment_runs_once() {
+    let app = TestApp::new();
+    let id =
+        rupta_api::bootstrap::admin_from_env(&app.state, "Root@Example.com", "a long password", "main").await.unwrap();
+    assert!(id.is_some());
+    assert_eq!(
+        rupta_api::bootstrap::admin_from_env(&app.state, "other@example.com", "a long password", "main").await.unwrap(),
+        None
+    );
+    let r = app
+        .post(
+            "/api/v1/auth/login",
+            &As::anonymous(),
+            json!({"email": "root@example.com", "password": "a long password"}),
+        )
+        .await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.body["orgs"][0]["slug"], "main");
+    assert_eq!(r.body["orgs"][0]["role"], "owner");
+    assert_eq!(r.body["user"]["is_superuser"], true);
+    assert!(
+        rupta_api::bootstrap::admin_from_env(&TestApp::new().state, "x@example.com", "short", "main").await.is_err()
+    );
+    assert!(
+        rupta_api::bootstrap::admin_from_env(&TestApp::new().state, "x@example.com", "a long password", "Bad Org")
+            .await
+            .is_err()
+    );
+}

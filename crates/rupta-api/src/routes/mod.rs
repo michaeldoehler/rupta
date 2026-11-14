@@ -5,6 +5,7 @@ pub mod alerts;
 pub mod auth;
 pub mod events;
 pub mod issues;
+pub mod monitors;
 pub mod orgs;
 pub mod projects;
 pub mod releases;
@@ -26,4 +27,5 @@ pub fn all() -> OpenApiRouter<ApiState> {
         .merge(events::routes())
         .merge(releases::routes())
         .merge(alerts::routes())
+        .merge(monitors::routes())
 }
