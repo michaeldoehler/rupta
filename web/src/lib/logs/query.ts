@@ -159,7 +159,8 @@ export function computeFacets(rows: LogRow[], opts: { maxKeys?: number; maxValue
     add('level', r.level)
     add('environment', r.environment)
     add('release', r.release)
-    for (const [k, v] of Object.entries(r.attributes)) if (!FACET_SKIP.has(k)) add(k, v)
+    // SDK bookkeeping (sentry.*) repeats columns such as release and environment.
+    for (const [k, v] of Object.entries(r.attributes)) if (!FACET_SKIP.has(k) && !k.startsWith('sentry.')) add(k, v)
   }
   const facets: Facet[] = []
   for (const [key, m] of byKey) {

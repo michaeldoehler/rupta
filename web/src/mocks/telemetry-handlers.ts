@@ -175,7 +175,7 @@ export function telemetryHandlers(ctx: MockContext) {
         .filter((d) => !opFilter || (opFilter.type === 'filter' && opFilter.values.some((v) => d.op.startsWith(v))))
         .map((d) => transactionRow(d, r.t.projectIds.get(d.project)!, period, envFactor))
       const sort = (url.searchParams.get('sort') ?? 'tpm') as 'tpm'
-      rows = sortBy(rows, sort in rows[0] ? sort : 'tpm')
+      rows = rows.length ? sortBy(rows, sort in rows[0] ? sort : 'tpm') : rows
       return json({ data: rows, next_cursor: null })
     }),
     http.get(`${BASE}/orgs/:org/performance/transactions/summary`, async ({ params, request }) => {

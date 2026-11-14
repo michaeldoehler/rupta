@@ -1,7 +1,8 @@
 # User guide
 
 A tour of the rupta web app: where things are, how to triage issues
-quickly, the search syntax and the keyboard shortcuts.
+quickly, how to read traces, logs, metrics, profiles and session replays,
+the search syntax and the keyboard shortcuts.
 
 ![Issue stream](images/issues-light.png)
 
@@ -25,13 +26,16 @@ quickly, the search syntax and the keyboard shortcuts.
 
 The sidebar holds the organization switcher, a search field for the
 command palette and the main sections: **Issues**, **Releases**, **Crons**,
-**User feedback**, **Alerts** and **Settings**. At the bottom are your
+**User feedback** and **Alerts**; under **Explore** the telemetry pages
+**Performance**, **Traces**, **Logs**, **Metrics** (with dashboards),
+**Profiles** and **Replays**; and **Settings**. At the bottom are your
 account menu (theme, shortcuts, sign out) and a button to collapse the
 sidebar (`[`). On small screens the sidebar opens from the menu button.
 
 List pages share three selectors at the top: **projects**, **environments**
 and **period**. They are part of the URL, so a link you copy opens the same
-view, and they stay set while you move between pages.
+view, and they stay set while you move between pages. The Explore pages
+also offer **Last hour**.
 
 ## Issues
 
@@ -138,6 +142,130 @@ Below are tabs:
   or teams or notifies a channel, at most once per issue within the chosen
   time.
 
+## Performance and traces
+
+**Performance** lists transactions (page loads, navigations, requests,
+jobs) grouped by name with throughput (transactions per minute), the
+50th to 99th percentile durations, failure rate (status other than `ok`,
+`cancelled` or `unknown`) and apdex (satisfied up to 300 ms, tolerated up
+to 1.2 s). Sort by clicking a column; filter by name or kind. `j`/`k` and
+`Enter` open a transaction.
+
+A **transaction summary** shows throughput and p50/p95 over time, the
+duration distribution with p50 and p95 marked, web vitals at the 75th
+percentile for page loads (LCP, INP, CLS, FCP, TTFB, each rated good,
+needs improvement or poor against the published thresholds), related
+issues and the ten slowest samples with links to their trace, profile and
+replay. **Aggregated flamegraph** merges the latest profiles of the
+transaction.
+
+![Trace view](images/trace-light.png)
+
+The **trace view** shows every span of a trace across services as a
+waterfall: the span tree on the left (drag the column edge to resize),
+bars on a time axis on the right. Collapse and expand subtrees with the
+chevrons or `←`/`→`; very large traces open collapsed below the
+transactions. Red diamonds mark error events, small ticks log lines.
+**Critical path** (`c`) dims everything that did not determine the end
+time. Zoom with the buttons, `=`/`-`, ⌘/Ctrl + scroll on the timeline, or
+by dragging a range on the overview above; `0` resets. Selecting a span
+opens its details: duration and self time, data, tags, its errors (linked
+to their issues), its logs, and links to the transaction summary, the
+profile and the span's logs. An issue's event links to its trace (and
+opens the span the error happened in) and to its session replay.
+
+**Traces** also has a **span explorer**: time spent per operation,
+description or transaction, or the individual spans (`Spans`), filtered
+with `op:db.query`, `duration:>100` or text in the description. Paste a
+trace id to open it; the command palette accepts trace ids too.
+
+## Logs
+
+![Logs](images/logs-light.png)
+
+The **Logs** page shows a histogram of lines per level over the period
+(click a bar to look at that interval), a query bar, attribute facets and
+the lines, newest first. The query bar suggests keys and values as you
+type:
+
+| Form | Example |
+| --- | --- |
+| Levels | `level:error`, `level:[warn,error]`, `!level:debug` |
+| Trace or span | `trace:<trace id>`, `span:<span id>` |
+| Columns | `release:1.4.2`, `sdk:sentry.python` |
+| Attributes | `service.name:api`, `http.response.status_code:504` |
+| Text in the body | `timeout`, `"connection reset"` |
+
+Facets list the top values of each attribute in the lines loaded (up to
+1,000); click a value to filter, Alt+click to exclude. Click a line (or
+`Enter`) to see all attributes, with buttons to include or exclude a
+value, a link to the trace, and the issues of errors in that trace.
+
+**Live** (`t`) streams new lines as they arrive (Server-Sent Events; the
+server checks for new lines about once a second). Scrolling down pauses
+the stream and collects new lines until you resume or scroll back to the
+top. When more lines arrive than the server sends per poll, it says how
+many were skipped.
+
+## Metrics and dashboards
+
+The **metrics explorer** lists the metric names with type and unit. Pick
+one, an aggregation (sum, count, average, minimum, maximum, percentiles;
+distinct values for sets), optionally an attribute (or `environment` /
+`release`) to group by, and a line, area or bar chart. Sums and counts
+stack in area and bar charts. The table below the chart lists minimum,
+average, maximum and last value per series; charts show at most five
+series, the table all of them. **Add to dashboard** saves the chart as a
+widget.
+
+**Dashboards** are shared with the organization. A dashboard is a grid of
+widgets (metric charts, transaction throughput or latency, log volume by
+level, or a list of issues), each one to four columns wide; add, edit,
+duplicate, reorder and remove them from the widget menu. The period and
+project selectors at the top apply to every widget.
+
+## Profiles
+
+![Flamegraph](images/flamegraph-light.png)
+
+**Profiles** lists sampled profiles (and continuous profiling chunks)
+with transaction, duration, release and environment; **By transaction**
+groups them and opens the aggregated flamegraph of a transaction.
+
+A profile opens as a **flamegraph**: callers on top, callees below, width
+proportional to the samples a frame was on the stack. Click a frame to
+zoom into it, drag to pan, ⌘/Ctrl + scroll to zoom, `Esc` or `0` to reset.
+**Time order** keeps calls in the order they were first seen; **Left
+heavy** puts the heaviest callee first. Colour by **application vs.
+library** code or by **package**. Search (`/`) highlights matching
+functions and shows their share of the samples. Below, the **call tree**
+lists self and total share per call path (arrow keys expand and collapse)
+and **Functions** totals per function; selecting a row selects the frame.
+The details panel shows the frame's file, package, callers and stack.
+Times are estimated from the profile's duration; aggregated flamegraphs
+show shares of samples only.
+
+## Session replays
+
+![Session replay](images/replay-light.png)
+
+**Replays** lists recorded browser sessions with user, pages, browser,
+duration, errors and clicks; search with `url:`, `user.email:`,
+`browser:`, `count_errors:>0` or text. A replay plays in the page with
+the recorded viewport scaled to fit. The timeline marks errors, clicks
+and navigations; `space` plays and pauses, `←`/`→` skip five seconds, `,`
+and `.` change the speed (0.5× to 8×), **Skip inactivity** fast-forwards
+through idle stretches and `f` goes fullscreen. The address bar shows the
+page at the current moment. The side panel lists breadcrumbs, console
+messages, network requests and the issues of errors recorded during the
+session; clicking an entry jumps there. Issues have a **Replays** tab with
+the sessions in which their errors happened.
+
+The panels show what the browser SDK put into the recording: network
+details appear only with the replay integration's network options, and
+errors are placed on the timeline from recorded console errors because
+the server lists the replay's issues without times.
+
 ## Settings
 
 - **Account:** name, theme (light, dark, system), timezone and 12/24-hour
@@ -161,7 +289,10 @@ Below are tabs:
 - **Projects:** each project has general settings, client keys (DSN) with
   setup instructions for the official open-source SDKs on 14 platforms,
   inbound filters, data scrubbing, allowed origins and the CSP report URI,
-  rate limit and retention, and source maps with the upload CLI commands.
+  rate limit and retention, source maps with the upload CLI commands, and
+  **Telemetry data**: per type (traces, logs, metrics, profiles, replays)
+  an on/off switch, the retention in days and, for transactions, spans
+  and logs, the share the server keeps at ingestion.
 
 ![Client keys and SDK setup](images/project-keys-light.png)
 
@@ -171,6 +302,7 @@ Below are tabs:
 
 - go to any page or settings page,
 - find issues by text, or jump to an issue by its short id (`WEB-12`),
+- open a trace by pasting its id, or list its logs,
 - show only one project or open its settings,
 - switch organization,
 - switch the theme, or open the shortcut overview.
@@ -188,6 +320,7 @@ the app.
 | | `?` | Shortcut overview |
 | | `[` | Collapse or expand the sidebar |
 | | `g` then `i` / `r` / `c` / `f` / `a` / `s` | Go to issues, releases, crons, feedback, alerts, settings |
+| | `g` then `p` / `t` / `l` / `m` / `d` / `o` / `v` | Go to performance, traces, logs, metrics, dashboards, profiles, replays |
 | Issue stream | `/` | Focus the search |
 | | `j` / `k` | Next / previous issue |
 | | `x`, `shift x` | Select, select a range |
@@ -204,6 +337,24 @@ the app.
 | | `shift h` / `shift l` | Oldest / latest event |
 | | `c` | Copy the short id |
 | | `Esc` | Back to the stream |
+
+| Trace view | `j` / `k`, `↑` / `↓` | Next / previous span |
+| | `←` / `→` | Collapse (or go to the parent) / expand |
+| | `Enter` or `o`, `Esc` | Open / close span details |
+| | `c` | Critical path |
+| | `e` | Expand all |
+| | `=` / `-` / `0` | Zoom in / out / reset |
+| | `/` | Find spans |
+| Logs | `j` / `k`, `Enter` | Move, expand or collapse a line |
+| | `t` | Live tail on or off |
+| | `/` | Focus the query |
+| Lists (transactions, profiles, replays) | `j` / `k`, `Enter` | Move, open |
+| Flamegraph | `/` | Search frames |
+| | `=` / `-`, `0` or `r` | Zoom in / out, reset |
+| Replay | `space` or `k` | Play or pause |
+| | `←` / `→` | Back / forward five seconds |
+| | `,` / `.` | Slower / faster |
+| | `f` | Fullscreen |
 
 Actions in the stream apply to the selected issues, or to the highlighted
 one when nothing is selected.
@@ -244,3 +395,15 @@ custom tags are not suggested yet.
   works.
 - The list of uploaded source map bundles needs a server endpoint that
   does not exist yet; uploads work regardless.
+- Log facets count the lines loaded in the browser (up to 1,000), not the
+  whole period.
+- Dashboards store each widget's width in quarters of the page; the
+  server's 12-column `layout` is written as `w` = 3 × width and widgets
+  are placed in list order (positions and heights are not used yet).
+  Chart types `table` and `number`, which the server accepts, show as line
+  charts.
+- The span explorer, trace view and transaction summary show what was
+  sampled; counts are not extrapolated.
+- Session replays load all recording segments before playing; very long
+  sessions take a moment to open. Canvas recordings and mobile video
+  replays are not played.

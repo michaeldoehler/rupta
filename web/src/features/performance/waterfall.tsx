@@ -178,8 +178,8 @@ export function TimeAxis({ view, className }: { view: ViewWindow; className?: st
   const ticks = timeTicks(width, 6)
   return (
     <div className={cn('relative h-full', className)} aria-hidden>
-      {ticks.map((t) => (
-        <span key={t} className="absolute top-0 flex h-full items-center border-l border-border pl-1 text-[10.5px] text-muted-foreground tabular" style={{ left: `${(t / width) * 100}%` }}>
+      {ticks.filter((t) => t / width < 0.94).map((t) => (
+        <span key={t} className="absolute top-0 flex h-full items-center border-l border-border pl-1 text-[10.5px] whitespace-nowrap text-muted-foreground tabular" style={{ left: `${(t / width) * 100}%` }}>
           {ms(view.start + t)}
         </span>
       ))}
@@ -226,6 +226,7 @@ const Row = memo(function Row({
   const label = s.is_segment ? (s.transaction ?? s.description) : s.description
   const color = opColor(opCategory(s.op))
   const labelRight = left + w < 82
+  const labelInside = !labelRight && w > 14
   return (
     <div
       role="row"
@@ -272,8 +273,8 @@ const Row = memo(function Row({
           style={{ left: `${left}%`, width: `max(2px, ${w}%)`, background: failed ? 'var(--destructive)' : color }}
         />
         <span
-          className="pointer-events-none absolute top-1/2 -translate-y-1/2 px-1.5 text-[11px] whitespace-nowrap text-muted-foreground tabular"
-          style={labelRight ? { left: `max(0px, ${left + w}%)` } : { right: `max(0px, ${100 - left}%)` }}
+          className={cn('pointer-events-none absolute top-1/2 -translate-y-1/2 px-1.5 text-[11px] whitespace-nowrap tabular', labelInside ? 'font-medium text-white' : 'text-muted-foreground')}
+          style={labelRight ? { left: `max(0px, ${left + w}%)` } : labelInside ? { right: `max(2px, ${100 - left - w}%)` } : { right: `max(0px, ${100 - left}%)` }}
         >
           {ms(s.duration_ms)}
         </span>
