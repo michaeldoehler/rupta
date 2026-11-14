@@ -7,7 +7,7 @@
 #   docker run -p 8080:8080 -v rupta-data:/data -e RUPTA_SECRET_KEY=$(openssl rand -hex 32) rupta
 
 # 1. Web app.
-FROM node:22-bookworm-slim AS web
+FROM node:25-bookworm-slim AS web
 WORKDIR /web
 RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml web/.pnpmfile.cjs ./
