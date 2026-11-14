@@ -91,10 +91,23 @@ maps match. With debug ids injected, matching works without a release too.
 
 Errors of this API have the form `{"detail": "..."}`.
 
+The web app lists a project's bundles (`GET
+/api/v1/projects/{org}/{project}/artifact-bundles`: checksum, release,
+dist, file count, size, number of debug ids, upload time). Admins can
+delete one: it is removed from the project, and when no other project of
+the organization uses it, its index rows, the bundle and its zip in the
+object store are deleted. New events then no longer find its source maps;
+events symbolicated before keep their resolved frames.
+
 ## Limits
 
-- Uploaded chunks are kept until they are cleaned up by maintenance; there
-  is no automatic removal of chunks or old bundles yet.
+- Uploaded chunks are deleted (objects and `file_chunks` rows) by the
+  hourly maintenance once they are older than 24 hours. An assembled bundle
+  is stored as one object of its own and references no chunks, so this
+  only matters for uploads that take longer than a day between chunk
+  upload and assembly. Old bundles are not removed automatically; delete
+  them in the project settings or with
+  `DELETE /api/v1/projects/{org}/{project}/artifact-bundles/{id}`.
 - Commits, repositories and suspect commits are not supported.
 - Release versions may not contain `/` (the CLI's path format would break),
   and may not be `latest`, `.` or `..`.

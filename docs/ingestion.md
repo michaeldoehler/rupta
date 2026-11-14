@@ -37,7 +37,9 @@ HTTP handler ──try_send──► bounded queue ──► workers ──► b
    counts, outcomes, feedback, attachment rows and check-ins. After the
    commit it publishes issue signals (`Ingest::subscribe`, used by the
    alert engine): `New`, `Regressed`, `Reappeared` and an aggregated `Seen`
-   per issue and batch.
+   per issue and batch. Session users go to `session_users` (see [SDK
+   compatibility](sdk-compatibility.md#sessions)). `Escalating` comes from
+   the escalation check (below).
 
 An event id that is already stored (an SDK retrying) is skipped.
 
@@ -102,15 +104,34 @@ are not counted.
   `first_seen`/`last_seen` widen, `last_release` follows the newest event.
 - **Regression:** an event for a `resolved` issue sets it to `unresolved` /
   `regressed`, clears the resolution, adds `set_regression` to the issue's
-  activity and publishes `Regressed`. If the issue was resolved in a
-  release (`resolved_in_release`), events from releases that already
-  existed before the issue was resolved do not regress it; events without
-  a release, from that release or from newer releases do.
+  activity and publishes `Regressed`. Which events count depends on how the
+  issue was resolved ("first seen" of a release is `releases.created_at`,
+  the time rupta first saw it from an event, a session or the upload CLI; a
+  release seen for the first time in the same batch counts as first seen
+  now):
+  - resolved without a release: every event;
+  - resolved in a release `V` (`resolved_in_release`, `resolved_in_mode`
+    `release`): events of `V` itself, of releases first seen after `V`, and
+    events without a release. Events of releases first seen before `V`
+    keep it resolved. While `V` has not been seen at all, only events of
+    `V` regress the issue;
+  - resolved in the next release (`resolved_in_mode` `next_release`; the
+    API records the project's latest release at that moment as
+    `resolved_in_release`): only events of a release other than the
+    recorded one that was first seen after the resolution. Events of the
+    recorded release, of older releases and events without a release keep
+    it resolved.
 - **Ignored issues** reappear (`unresolved` / `ongoing`, activity
-  `set_unresolved`, signal `Reappeared`) when `ignore_until` has passed or
-  `times_seen` reaches `ignore_count` (an absolute threshold the API sets
-  to `times_seen` at ignore time plus N). Issues ignored forever or "until
-  escalating" stay ignored: there is no escalation detection in 0.1.
+  `set_unresolved` with the reason, signal `Reappeared`) when
+  `ignore_until` has passed, `times_seen` reaches `ignore_count` (an
+  absolute threshold the API sets to `times_seen` at ignore time plus N),
+  or the user condition is met: without a window `users_seen` reaches
+  `ignore_user_count` (absolute, `users_seen` at ignore time plus N); with
+  `ignore_user_window` the issue's events of the last that many minutes
+  come from at least `ignore_user_count` distinct users (counted in
+  `events` when an event arrives). Issues ignored forever stay ignored;
+  issues ignored with substatus `archived_until_escalating` come back when
+  they escalate (below).
 - **Users:** `users_seen` counts distinct user identities (id, else e-mail,
   else username, else IP address, hashed). The writer keeps up to 10,000
   user hashes per issue (for up to 50,000 issues) in memory and loads them
@@ -123,6 +144,37 @@ are not counted.
 
 Releases are created on first sight (from events or sessions) with their
 first and last event times.
+
+## Escalating issues
+
+A background check (every five minutes, `rupta_ingest::escalation`) sets
+substatuses that depend on time rather than on a single event:
+
+- **Escalating:** an unresolved issue with substatus `ongoing`, or an
+  issue ignored with substatus `archived_until_escalating`, becomes
+  `unresolved` / `escalating` when its events in the last hour are at
+  least 50 and more than 10 times its hourly average over the 7 days
+  before that hour (events in those 168 hours / 168; younger issues are
+  averaged over the full 168 hours too). The average is stored in
+  `escalation_baseline`, the time in `escalated_at`, activity
+  `set_escalating` (with `events_last_hour`, `hourly_average`) is recorded
+  and the signal `Escalating` goes to the alert engine (rule condition
+  `escalating`).
+- **Back to ongoing:** an escalating issue that escalated at least 24
+  hours ago returns to `ongoing` (activity `set_ongoing`) when each hour of
+  the last 24 had fewer than twice the baseline events (and at least: no
+  events). Issues set to `escalating` through the API have no baseline and
+  return after a day without events.
+- **New to ongoing:** issues stay `new` for 7 days after their first
+  event; the check then moves them to `ongoing`. Only `ongoing` issues can
+  escalate, so an issue's first week never escalates (its first hours
+  would always look like a spike).
+
+Counts use the events' own timestamps, as the issue statistics do, and
+the `events` table, so events removed by retention or deleted with their
+issue no longer count. The check runs in the server process; when it was
+not running (for example during a restart), the next run looks at the
+last hour only.
 
 ## Throughput
 

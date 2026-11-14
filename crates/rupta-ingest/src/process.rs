@@ -96,6 +96,8 @@ pub(crate) struct SessionUpdate {
     pub errors: u64,
     pub release: String,
     pub environment: String,
+    /// Hash of the session's distinct id (`did`), for crash-free users.
+    pub user_hash: Option<i64>,
 }
 
 /// Feedback whose issue the writer resolves from the event id.
@@ -111,6 +113,8 @@ pub(crate) struct Processed {
     pub attachments: Vec<AttachmentRow>,
     pub sessions: Vec<SessionUpdate>,
     pub session_counts: Vec<(i64, SessionCount)>,
+    /// Users of pre-aggregated sessions (`sessions` items with `did`).
+    pub session_users: Vec<SessionUserRow>,
     pub feedback: Vec<PendingFeedback>,
     pub checkins: Vec<CheckIn>,
     pub outcomes: Vec<(OutcomeKey, i64)>,
@@ -673,6 +677,7 @@ fn session(env: &mut EnvelopeState<'_>, item: &Item) {
         errors: raw.get("errors").and_then(Value::as_u64).unwrap_or(0),
         release,
         environment,
+        user_hash: opt_str(raw.get("did"), 256).map(|d| xxh3_64(d.as_bytes()) as i64),
     });
     env.outcome(Category::Session, Outcome::Accepted, "", 1);
 }
@@ -698,6 +703,16 @@ fn sessions(env: &mut EnvelopeState<'_>, item: &Item) {
             continue;
         }
         n += total as u64;
+        if let Some(did) = opt_str(a.get("did"), 256) {
+            env.out.session_users.push(SessionUserRow {
+                project_id: env.project_id,
+                release: release.clone(),
+                environment: environment.clone(),
+                hour: hour(started),
+                user_hash: xxh3_64(did.as_bytes()) as i64,
+                crashed: crashed > 0,
+            });
+        }
         env.out.session_counts.push((
             env.org_id,
             SessionCount {

@@ -8,6 +8,45 @@ changelog says when and how to migrate.
 
 ## [Unreleased]
 
+### Added
+
+- `GET /api/v1/orgs/{org}/issues/by-short-id/{short_id}` finds an issue by
+  its short id (`WEB-APP-31`), case-insensitively.
+- Resolving an issue "in the next release" (`resolved_in: next_release`
+  or `substatus: in_next_release`): the project's latest release is
+  recorded and only events of a release first seen afterwards regress the
+  issue. Resolving in a specific release now regresses for that release
+  and releases first seen after it.
+- Ignoring an issue until N more users are affected
+  (`ignore_user_count`, optionally within `ignore_user_window` minutes).
+- Escalation detection: a check every five minutes marks issues
+  `escalating` (more than 10× their hourly 7-day average and at least 50
+  events in the last hour), returns them to `ongoing` after a calm day,
+  and moves issues older than a week from `new` to `ongoing`. Alert rules
+  have the condition `escalating`; issues ignored with substatus
+  `archived_until_escalating` come back when they escalate.
+- Crash-free users in release health, from the distinct ids (`did`) of
+  sessions; the health series carry user counts.
+- Artifact bundles of a project can be listed and deleted
+  (`/api/v1/projects/{org}/{project}/artifact-bundles`); upload chunks
+  older than 24 hours are deleted by the hourly maintenance.
+- `POST /api/v1/orgs/{org}/sso/test` checks an identity provider's
+  discovery document before the settings are saved, with protection
+  against internal addresses (`RUPTA_SSO_ALLOW_PRIVATE_ISSUERS`).
+- User preferences on the server (`preferences` on `GET/PATCH
+  /api/v1/user`): time zone, clock, theme and email switches. Alert rule
+  emails respect `issue_alerts`; new workflow emails (issue assigned to
+  you or your team, comment on an issue assigned to you) respect
+  `workflow`.
+
+### Changed
+
+- Release health `series` (project health) and `sessions` (release
+  detail) entries have two more elements: `[ts, sessions, crashed, users,
+  crashed_users]`.
+- Migration 4000 adds columns to `issues` and the `session_users` table;
+  it is applied automatically at start.
+
 ## [0.1.0]
 
 The first release.

@@ -22,7 +22,6 @@ use tokio::task::JoinHandle;
 use crate::error::ApiResult;
 use crate::notify::{self, Notification};
 use crate::routes::alerts::sending_config;
-use crate::sql::id_list;
 use crate::state::{ApiMetrics, ApiState};
 
 /// Notifications sent concurrently at most.
@@ -71,6 +70,7 @@ fn trigger_of(signal: &IssueSignal) -> &'static str {
         IssueSignal::New { .. } => "first_seen",
         IssueSignal::Regressed { .. } => "regression",
         IssueSignal::Reappeared { .. } => "reappeared",
+        IssueSignal::Escalating { .. } => "escalating",
         IssueSignal::Seen { .. } => "seen",
     }
 }
@@ -145,7 +145,7 @@ fn evaluate(state: &ApiState, c: &Connection, signal: &IssueSignal) -> ApiResult
         for cond in conditions.as_array().into_iter().flatten() {
             let t = cond.get("type").and_then(Value::as_str).unwrap_or("");
             let hit = match t {
-                "first_seen" | "regression" | "reappeared" => t == trigger,
+                "first_seen" | "regression" | "reappeared" | "escalating" => t == trigger,
                 "event_frequency" | "user_frequency" => {
                     let n = cond.get("count").and_then(Value::as_i64).unwrap_or(i64::MAX);
                     let interval = cond.get("interval").and_then(Value::as_str).unwrap_or("1h");
@@ -220,21 +220,12 @@ fn evaluate(state: &ApiState, c: &Connection, signal: &IssueSignal) -> ApiResult
                 _ => {}
             }
         }
-        let mut emails: Vec<String> = Vec::new();
-        if !user_ids.is_empty() || !team_ids.is_empty() {
-            // Only current members of the organization receive email.
-            let rows = c.query(
-                &format!(
-                    "SELECT DISTINCT u.email FROM users u JOIN members m ON m.user_id = u.id AND m.org_id = $1
-                     WHERE NOT u.disabled AND (u.id IN ({}) OR u.id IN (SELECT tm.user_id FROM team_members tm JOIN teams t ON t.id = tm.team_id
-                                                                     WHERE t.org_id = $1 AND t.id IN ({})))",
-                    id_list(&user_ids),
-                    id_list(&team_ids)
-                ),
-                &[&org_id],
-            )?;
-            emails = rows.iter().map(|r| r.get(0)).collect();
-        }
+        // Only current members of the organization who want alert emails.
+        let mut recipients = user_ids;
+        recipients.extend(crate::preferences::team_members(c, org_id, &team_ids)?);
+        recipients.sort();
+        recipients.dedup();
+        let emails = crate::preferences::recipients(c, org_id, &recipients, crate::preferences::Kind::IssueAlerts)?;
         let org_slug: String = row.get(10);
         let project_slug: String = row.get(7);
         out.push(Firing {

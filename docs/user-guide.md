@@ -123,8 +123,8 @@ Below are tabs:
 - **Releases** lists versions with new issues, crash-free sessions,
   adoption, session counts and the last deploy. A release's page charts
   sessions and crashes, lists the issues that first appeared in it and its
-  deploys. Crash-free users are shown when the server provides them (it
-  currently cannot derive them from session counts).
+  deploys. Crash-free users count the distinct users of sessions that carry
+  a distinct id (`did`), which the official SDKs send when a user is set.
 - **Crons** shows each monitor's schedule in words and a timeline of recent
   check-ins (ok, failed, missed, timed out). A monitor's page has the
   check-in history, success rate and average duration, and can disable the

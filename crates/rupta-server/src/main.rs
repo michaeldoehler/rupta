@@ -91,6 +91,7 @@ async fn serve(config: Config) -> Result<()> {
     }
     let alerts = rupta_api::alerts::spawn(api_state.clone(), ingest.subscribe());
     let maintenance = rupta_api::maintenance::spawn(api_state.clone());
+    let escalation = ingest.spawn_escalation();
     let app =
         Arc::new(App { config: config.clone(), store: store.clone(), ingest: ingest.clone(), api: api_state.clone() });
 
@@ -116,6 +117,7 @@ async fn serve(config: Config) -> Result<()> {
     if tokio::time::timeout(config.shutdown_timeout, ingest.shutdown()).await.is_err() {
         tracing::warn!("ingest did not drain within RUPTA_SHUTDOWN_TIMEOUT_SECS");
     }
+    escalation.abort();
     alerts.abort();
     maintenance.abort();
     drop(app);
@@ -148,6 +150,7 @@ fn api_config(config: &Config) -> rupta_api::ApiConfig {
         smtp_from: config.smtp_from.clone(),
         cors_allowed_origins: config.cors_allowed_origins.clone(),
         trusted_proxies: config.trusted_proxies.clone(),
+        sso_allow_private_issuers: config.sso_allow_private_issuers,
         ..rupta_api::ApiConfig::new(&config.public_url, &config.secret_key)
     }
 }

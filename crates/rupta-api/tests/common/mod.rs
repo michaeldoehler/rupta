@@ -12,6 +12,7 @@ use rupta_auth::{password, session, users};
 use rupta_core::role::Role;
 use rupta_store::Store;
 use serde_json::{Value, json};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tower::ServiceExt;
 
 pub const SECRET: &[u8] = b"test secret key that is long enough!!";
@@ -218,4 +219,66 @@ impl TestApp {
     pub fn audit_actions(&self) -> Vec<String> {
         self.conn().query("SELECT action FROM audit_log ORDER BY id", &[]).unwrap().iter().map(|r| r.get(0)).collect()
     }
+}
+
+/// (recipients, message)
+pub type Mail = (Vec<String>, String);
+pub type Mails = std::sync::Arc<std::sync::Mutex<Vec<Mail>>>;
+
+/// A minimal SMTP server that accepts every message.
+pub async fn smtp_sink() -> (String, Mails) {
+    let messages: Mails = std::sync::Arc::default();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let m = messages.clone();
+    tokio::spawn(async move {
+        loop {
+            let (sock, _) = listener.accept().await.unwrap();
+            let m = m.clone();
+            tokio::spawn(async move {
+                let (r, mut w) = sock.into_split();
+                let mut lines = BufReader::new(r).lines();
+                w.write_all(b"220 sink ESMTP\r\n").await.unwrap();
+                let mut rcpt = Vec::new();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let upper = line.to_ascii_uppercase();
+                    if upper.starts_with("EHLO") || upper.starts_with("HELO") {
+                        w.write_all(b"250-sink\r\n250 OK\r\n").await.unwrap();
+                    } else if upper.starts_with("RCPT TO:") {
+                        rcpt.push(line[8..].trim().trim_matches(|c| c == '<' || c == '>').to_string());
+                        w.write_all(b"250 OK\r\n").await.unwrap();
+                    } else if upper.starts_with("DATA") {
+                        w.write_all(b"354 go ahead\r\n").await.unwrap();
+                        let mut data = String::new();
+                        while let Ok(Some(l)) = lines.next_line().await {
+                            if l == "." {
+                                break;
+                            }
+                            data.push_str(&l);
+                            data.push('\n');
+                        }
+                        m.lock().unwrap().push((std::mem::take(&mut rcpt), data));
+                        w.write_all(b"250 OK queued\r\n").await.unwrap();
+                    } else if upper.starts_with("QUIT") {
+                        w.write_all(b"221 bye\r\n").await.unwrap();
+                        break;
+                    } else {
+                        w.write_all(b"250 OK\r\n").await.unwrap();
+                    }
+                }
+            });
+        }
+    });
+    (format!("smtp://{addr}"), messages)
+}
+
+/// Waits up to four seconds for `f` to return something.
+pub async fn wait_for<T>(f: impl Fn() -> Option<T>) -> T {
+    for _ in 0..200 {
+        if let Some(v) = f() {
+            return v;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    panic!("timed out");
 }

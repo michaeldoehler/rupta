@@ -417,6 +417,7 @@ async fn resolved_issue_regresses_and_ignore_count_runs_out() {
             IssueSignal::New { .. } => "new",
             IssueSignal::Regressed { .. } => "regressed",
             IssueSignal::Reappeared { .. } => "reappeared",
+            IssueSignal::Escalating { .. } => "escalating",
             IssueSignal::Seen { .. } => "seen",
         });
     }

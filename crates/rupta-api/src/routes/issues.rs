@@ -29,6 +29,7 @@ pub fn routes() -> OpenApiRouter<ApiState> {
     OpenApiRouter::new()
         .routes(routes!(list_issues, bulk_update, bulk_delete))
         .routes(routes!(get_issue, update_issue, delete_issue))
+        .routes(routes!(issue_by_short_id))
         .routes(routes!(issue_activity))
         .routes(routes!(add_comment))
         .routes(routes!(edit_comment, delete_comment))
@@ -99,7 +100,19 @@ pub struct Issue {
     pub resolved_in_release: Option<String>,
     pub resolved_at: Option<DateTime<Utc>>,
     pub ignore_until: Option<DateTime<Utc>>,
+    /// The `times_seen` value at which an ignored issue reappears.
     pub ignore_count: Option<i64>,
+    /// How `resolved_in_release` is meant: `release` (resolved in that
+    /// version) or `next_release` (resolved in the release after it; it is
+    /// the latest release at resolution time and may be `null` when the
+    /// project had none). `null` when not resolved in a release.
+    pub resolved_in_mode: Option<String>,
+    /// Ignored until more users: without `ignore_user_window` the
+    /// `users_seen` value at which the issue reappears; with it the number
+    /// of distinct users within the window.
+    pub ignore_user_count: Option<i64>,
+    /// Minutes of the window for `ignore_user_count`.
+    pub ignore_user_window: Option<i64>,
     pub is_bookmarked: bool,
     pub has_seen: bool,
     /// Link to the issue in the web app.
@@ -108,7 +121,8 @@ pub struct Issue {
 
 const ISSUE_COLUMNS: &str = "i.id, i.short_id, i.title, i.culprit, i.level, i.status, i.substatus, i.type, i.platform, i.project_id,
     i.first_seen, i.last_seen, i.times_seen, i.users_seen, i.assignee_user_id, i.assignee_team_id, i.metadata, i.priority,
-    i.first_release, i.last_release, i.resolved_in_release, i.resolved_at, i.ignore_until, i.ignore_count";
+    i.first_release, i.last_release, i.resolved_in_release, i.resolved_at, i.ignore_until, i.ignore_count,
+    i.resolved_in_mode, i.ignore_user_count, i.ignore_user_window";
 
 /// Loads everything around a set of issue rows: projects, assignees,
 /// bookmarks, seen state.
@@ -230,6 +244,9 @@ pub(crate) fn issue_from(state: &ApiState, org_slug: &str, r: &Row, d: &Decorati
         resolved_at: r.get(21),
         ignore_until: r.get(22),
         ignore_count: r.get(23),
+        resolved_in_mode: r.get(24),
+        ignore_user_count: r.get(25),
+        ignore_user_window: r.get::<Option<i32>>(26).map(i64::from),
         is_bookmarked: d.bookmarked.contains(&id),
         has_seen: d.seen.contains(&id),
         permalink: format!("{}/organizations/{org_slug}/issues/{id}", state.config.public_url),
@@ -408,7 +425,7 @@ async fn list_issues(
             sql.push_str(&format!(" AND ({}) ORDER BY sort_key DESC, i.id DESC LIMIT {}", compiled.sql, limit + 1));
             let rows = c.query(&sql, &params.refs())?;
             let d = decorate(c, &rows, auth.user_id())?;
-            let keys: Vec<(i64, i64)> = rows.iter().map(|r| (r.get::<i64>(24), r.get::<i64>(0))).collect();
+            let keys: Vec<(i64, i64)> = rows.iter().map(|r| (r.get::<i64>(27), r.get::<i64>(0))).collect();
             let mut issues: Vec<Issue> = rows.iter().map(|r| issue_from(&st, &o.slug, r, &d)).collect();
             let page_ids: Vec<i64> = issues.iter().take(limit as usize).map(|i| i.id.0).collect();
             let mut stats = issue_stats(c, &projects, &page_ids, stats_period, now)?;
@@ -438,8 +455,18 @@ pub struct IssueUpdate {
     pub ignore_duration: Option<i64>,
     /// With `status: ignored`: further events until it reappears.
     pub ignore_count: Option<i64>,
-    /// With `status: resolved`: the release that fixes it.
+    /// With `status: ignored`: further distinct users until it reappears.
+    pub ignore_user_count: Option<i64>,
+    /// With `ignore_user_count`: count the users within this many minutes
+    /// (1 to 525600) instead of in total.
+    pub ignore_user_window: Option<i64>,
+    /// With `status: resolved`: the release that fixes it. Events of that
+    /// release and of releases first seen after it regress the issue.
     pub resolved_in_release: Option<String>,
+    /// With `status: resolved`: `next_release` resolves the issue in the
+    /// release after the latest one seen so far (same as `substatus:
+    /// in_next_release`).
+    pub resolved_in: Option<String>,
     /// Per user.
     pub is_bookmarked: Option<bool>,
     /// Per user.
@@ -447,6 +474,12 @@ pub struct IssueUpdate {
 }
 
 impl IssueUpdate {
+    /// Resolve in the next release (`resolved_in: next_release` or
+    /// `substatus: in_next_release`).
+    fn in_next_release(&self) -> bool {
+        self.resolved_in.as_deref() == Some("next_release") || self.substatus.as_deref() == Some("in_next_release")
+    }
+
     fn needs_triage(&self) -> bool {
         self.status.is_some() || self.substatus.is_some() || self.assignee.is_some() || self.priority.is_some()
     }
@@ -480,8 +513,23 @@ fn validate_update(c: &Connection, org: &OrgCtx, u: &IssueUpdate, me: Option<i64
     if u.ignore_count.is_some_and(|n| n <= 0) {
         return Err(ApiError::invalid("ignore_count", "must be positive"));
     }
+    if u.ignore_user_count.is_some_and(|n| n <= 0) {
+        return Err(ApiError::invalid("ignore_user_count", "must be positive"));
+    }
+    if u.ignore_user_window.is_some_and(|d| d <= 0 || d > 525_600) {
+        return Err(ApiError::invalid("ignore_user_window", "1 to 525600 minutes"));
+    }
+    if u.ignore_user_window.is_some() && u.ignore_user_count.is_none() {
+        return Err(ApiError::invalid("ignore_user_window", "only together with ignore_user_count"));
+    }
     if u.resolved_in_release.as_ref().is_some_and(|r| r.is_empty() || r.len() > 250) {
         return Err(ApiError::invalid("resolved_in_release", "1 to 250 characters"));
+    }
+    if u.resolved_in.as_deref().is_some_and(|r| r != "next_release") {
+        return Err(ApiError::invalid("resolved_in", "next_release"));
+    }
+    if u.in_next_release() && u.resolved_in_release.is_some() {
+        return Err(ApiError::invalid("resolved_in_release", "not together with the next release"));
     }
     let Some(a) = &u.assignee else { return Ok(None) };
     let Some(a) = a else { return Ok(Some(AssignTo::None)) };
@@ -519,53 +567,129 @@ fn activity(c: &Connection, issue: i64, user: Option<i64>, kind: &str, data: Val
     Ok(())
 }
 
-/// substatus, resolved_at, ignore_until, ignore_count, resolved_in_release
-type StatusFields = (String, Option<DateTime<Utc>>, Option<DateTime<Utc>>, Option<i64>, Option<String>);
+/// The status columns an update writes.
+#[derive(Default)]
+struct StatusFields {
+    substatus: String,
+    resolved_at: Option<DateTime<Utc>>,
+    ignore_until: Option<DateTime<Utc>>,
+    ignore_count: Option<i64>,
+    ignore_user_count: Option<i64>,
+    ignore_user_window: Option<i32>,
+    resolved_in_release: Option<String>,
+    resolved_in_mode: Option<&'static str>,
+}
+
+/// The latest release of a project (by first sight), if any.
+fn latest_release(c: &Connection, project_id: i64) -> ApiResult<Option<String>> {
+    Ok(c.query_opt(
+        "SELECT r.version FROM releases r JOIN release_projects rp ON rp.release_id = r.id
+         WHERE rp.project_id = $1 ORDER BY r.created_at DESC, r.id DESC LIMIT 1",
+        &[&project_id],
+    )?
+    .map(|r| r.get(0)))
+}
 
 /// Applies an update to issues already authorized. Records activity.
-fn apply_update(c: &Connection, org: &OrgCtx, issue_ids: &[i64], u: &IssueUpdate, me: Option<i64>) -> ApiResult<()> {
+/// Returns the issues newly assigned (for notifications).
+fn apply_update(
+    c: &Connection,
+    org: &OrgCtx,
+    issue_ids: &[i64],
+    u: &IssueUpdate,
+    me: Option<i64>,
+) -> ApiResult<Vec<Assigned>> {
     let assign = validate_update(c, org, u, me)?;
     let now = Utc::now();
+    let mut assigned = Vec::new();
     for &id in issue_ids {
-        let cur = c.query_one("SELECT status, substatus, priority, times_seen FROM issues WHERE id = $1", &[&id])?;
-        let (old_status, old_sub, old_prio, times_seen): (String, String, String, i64) =
-            (cur.get(0), cur.get(1), cur.get(2), cur.get(3));
+        let cur = c.query_one(
+            "SELECT status, substatus, priority, times_seen, users_seen, project_id, assignee_user_id, assignee_team_id
+             FROM issues WHERE id = $1",
+            &[&id],
+        )?;
+        let (old_status, old_sub, old_prio, times_seen, users_seen, project_id): (
+            String,
+            String,
+            String,
+            i64,
+            i64,
+            i64,
+        ) = (cur.get(0), cur.get(1), cur.get(2), cur.get(3), cur.get(4), cur.get(5));
+        let (old_user, old_team): (Option<i64>, Option<i64>) = (cur.get(6), cur.get(7));
         if let Some(status) = &u.status {
-            let (substatus, resolved_at, ignore_until, ignore_count, release): StatusFields = match status.as_str() {
-                "resolved" => (
-                    u.substatus.clone().unwrap_or(old_sub.clone()),
-                    Some(now),
-                    None,
-                    None,
-                    u.resolved_in_release.clone(),
-                ),
+            let f = match status.as_str() {
+                "resolved" => {
+                    let (release, mode, sub) = if u.in_next_release() {
+                        (latest_release(c, project_id)?, Some("next_release"), "in_next_release".to_string())
+                    } else {
+                        let mode = u.resolved_in_release.as_ref().map(|_| "release");
+                        (u.resolved_in_release.clone(), mode, u.substatus.clone().unwrap_or(old_sub.clone()))
+                    };
+                    StatusFields {
+                        substatus: sub,
+                        resolved_at: Some(now),
+                        resolved_in_release: release,
+                        resolved_in_mode: mode,
+                        ..StatusFields::default()
+                    }
+                }
                 "ignored" => {
                     let until = u.ignore_duration.map(|m| now + Duration::minutes(m));
                     // Stored as the absolute event count at which it reappears.
                     let count = u.ignore_count.map(|n| times_seen + n);
+                    // Without a window also absolute; with one, the number of users.
+                    let users =
+                        u.ignore_user_count.map(|n| if u.ignore_user_window.is_some() { n } else { users_seen + n });
                     let sub = u.substatus.clone().unwrap_or_else(|| {
-                        if until.is_some() || count.is_some() {
+                        if until.is_some() || count.is_some() || users.is_some() {
                             "archived_until_condition_met".into()
                         } else {
                             "archived_forever".into()
                         }
                     });
-                    (sub, None, until, count, None)
+                    StatusFields {
+                        substatus: sub,
+                        ignore_until: until,
+                        ignore_count: count,
+                        ignore_user_count: users,
+                        ignore_user_window: u.ignore_user_window.map(|w| w as i32),
+                        ..StatusFields::default()
+                    }
                 }
-                _ => (u.substatus.clone().unwrap_or_else(|| "ongoing".into()), None, None, None, None),
+                _ => StatusFields {
+                    substatus: u.substatus.clone().unwrap_or_else(|| "ongoing".into()),
+                    ..StatusFields::default()
+                },
             };
             c.execute(
-                "UPDATE issues SET status = $1, substatus = $2, resolved_at = $3, ignore_until = $4, ignore_count = $5, resolved_in_release = $6 WHERE id = $7",
-                &[status, &substatus, &resolved_at, &ignore_until, &ignore_count, &release, &id],
+                "UPDATE issues SET status = $1, substatus = $2, resolved_at = $3, ignore_until = $4, ignore_count = $5,
+                     resolved_in_release = $6, resolved_in_mode = $7, ignore_user_count = $8, ignore_user_window = $9,
+                     escalated_at = NULL, escalation_baseline = NULL
+                 WHERE id = $10",
+                &[
+                    status,
+                    &f.substatus,
+                    &f.resolved_at,
+                    &f.ignore_until,
+                    &f.ignore_count,
+                    &f.resolved_in_release,
+                    &f.resolved_in_mode,
+                    &f.ignore_user_count,
+                    &f.ignore_user_window,
+                    &id,
+                ],
             )?;
-            if *status != old_status || substatus != old_sub {
+            if *status != old_status || f.substatus != old_sub {
                 activity(
                     c,
                     id,
                     me,
                     "status_change",
-                    json!({"status": status, "substatus": substatus, "old_status": old_status, "ignore_until": ignore_until,
-                           "ignore_count": u.ignore_count, "resolved_in_release": release}),
+                    json!({"status": status, "substatus": f.substatus, "old_status": old_status, "ignore_until": f.ignore_until,
+                           "ignore_count": u.ignore_count, "ignore_user_count": u.ignore_user_count,
+                           "ignore_user_window": u.ignore_user_window, "resolved_in_release": f.resolved_in_release,
+                           "resolved_in_mode": f.resolved_in_mode}),
                 )?;
             }
         } else if let Some(sub) = &u.substatus {
@@ -588,6 +712,9 @@ fn apply_update(c: &Connection, org: &OrgCtx, issue_ids: &[i64], u: &IssueUpdate
                     &[uid, &id],
                 )?;
                 activity(c, id, me, "assigned", json!({"type": "user", "id": uid.to_string()}))?;
+                if old_user != Some(*uid) {
+                    assigned.push(Assigned { issue_id: id, user_id: Some(*uid), team_id: None });
+                }
             }
             Some(AssignTo::Team(tid)) => {
                 c.execute(
@@ -595,6 +722,9 @@ fn apply_update(c: &Connection, org: &OrgCtx, issue_ids: &[i64], u: &IssueUpdate
                     &[tid, &id],
                 )?;
                 activity(c, id, me, "assigned", json!({"type": "team", "id": tid.to_string()}))?;
+                if old_team != Some(*tid) {
+                    assigned.push(Assigned { issue_id: id, user_id: None, team_id: Some(*tid) });
+                }
             }
             None => {}
         }
@@ -619,7 +749,14 @@ fn apply_update(c: &Connection, org: &OrgCtx, issue_ids: &[i64], u: &IssueUpdate
             }
         }
     }
-    Ok(())
+    Ok(assigned)
+}
+
+/// An issue newly assigned to a user or a team.
+pub(crate) struct Assigned {
+    pub issue_id: i64,
+    pub user_id: Option<i64>,
+    pub team_id: Option<i64>,
 }
 
 pub(crate) fn load_issue(
@@ -654,7 +791,8 @@ async fn bulk_update(
     if issue_ids.is_empty() || issue_ids.len() > 100 {
         return Err(ApiError::invalid("id", "give 1 to 100 issue ids"));
     }
-    let n = state
+    let me = auth.user_id();
+    let (n, assigned) = state
         .db(move |c| {
             let perm = if u.needs_triage() { Permission::TriageIssues } else { Permission::ReadProject };
             let o = org_sync(c, &auth, &org, perm)?;
@@ -667,11 +805,12 @@ async fn bulk_update(
                 .iter()
                 .map(|r| r.get(0))
                 .collect();
-            apply_update(&txn, &o, &found, &u, auth.user_id())?;
+            let assigned = apply_update(&txn, &o, &found, &u, auth.user_id())?;
             txn.commit()?;
-            Ok(found.len())
+            Ok((found.len(), assigned))
         })
         .await?;
+    crate::workflow::assigned(&state, me, assigned);
     Ok(axum::Json(json!({ "updated": n })))
 }
 
@@ -738,6 +877,42 @@ async fn get_issue(State(state): State<ApiState>, auth: Auth, Path(id): Path<i64
     Ok(axum::Json(issue))
 }
 
+/// Splits a short id such as `WEB-APP-31` into the project slug and the
+/// number (at the last `-`).
+fn parse_short_id(s: &str) -> Option<(String, i64)> {
+    let (slug, n) = s.trim().rsplit_once('-')?;
+    let n: i64 = n.parse().ok().filter(|n| *n > 0)?;
+    (!slug.is_empty()).then(|| (slug.to_ascii_lowercase(), n))
+}
+
+/// The issue with a short id (`WEB-APP-31`: the project slug in upper
+/// case, `-`, the number), matched case-insensitively.
+#[utoipa::path(get, path = "/api/v1/orgs/{org}/issues/by-short-id/{short_id}", tag = "issues",
+    params(("org" = String, Path), ("short_id" = String, Path, description = "e.g. `WEB-APP-31`")),
+    responses((status = 200, body = Issue), (status = 404, body = crate::error::ErrorBody)))]
+async fn issue_by_short_id(
+    State(state): State<ApiState>,
+    auth: Auth,
+    Path((org, short_id)): Path<(String, String)>,
+) -> ApiResult<axum::Json<Issue>> {
+    let (slug, number) = parse_short_id(&short_id).ok_or_else(ApiError::not_found)?;
+    let st = state.clone();
+    let issue = state
+        .db(move |c| {
+            let o = org_sync(c, &auth, &org, Permission::ReadProject)?;
+            let row = c.query_opt(
+                "SELECT i.id, p.id, p.slug, p.name, p.platform FROM issues i JOIN projects p ON p.id = i.project_id
+                 WHERE p.org_id = $1 AND lower(p.slug) = $2 AND i.short_id = $3",
+                &[&o.id, &slug, &number],
+            )?;
+            let row = row.ok_or_else(ApiError::not_found)?;
+            let p = ProjectCtx { org: o, id: row.get(1), slug: row.get(2), name: row.get(3), platform: row.get(4) };
+            load_issue(&st, c, &p, row.get(0), auth.user_id())
+        })
+        .await?;
+    Ok(axum::Json(issue))
+}
+
 /// Changes an issue.
 #[utoipa::path(patch, path = "/api/v1/issues/{id}", tag = "issues", params(("id" = String, Path)), request_body = IssueUpdate,
     responses((status = 200, body = Issue)))]
@@ -748,16 +923,18 @@ async fn update_issue(
     Json(u): Json<IssueUpdate>,
 ) -> ApiResult<axum::Json<Issue>> {
     let st = state.clone();
-    let issue = state
+    let me = auth.user_id();
+    let (issue, assigned) = state
         .db(move |c| {
             let perm = if u.needs_triage() { Permission::TriageIssues } else { Permission::ReadProject };
             let p = issue_sync(c, &auth, id, perm)?;
             let txn = c.transaction()?;
-            apply_update(&txn, &p.org, &[id], &u, auth.user_id())?;
+            let assigned = apply_update(&txn, &p.org, &[id], &u, auth.user_id())?;
             txn.commit()?;
-            load_issue(&st, c, &p, id, auth.user_id())
+            Ok((load_issue(&st, c, &p, id, auth.user_id())?, assigned))
         })
         .await?;
+    crate::workflow::assigned(&state, me, assigned);
     Ok(axum::Json(issue))
 }
 
@@ -871,6 +1048,9 @@ async fn add_comment(
             Ok(activity_from(&c.query_one(&format!("{ACTIVITY_SELECT} WHERE a.id = $1"), &[&aid])?))
         })
         .await?;
+    if let Some(t) = a.data.get("text").and_then(Value::as_str) {
+        crate::workflow::commented(&state, uid, id, t.to_string());
+    }
     Ok((StatusCode::CREATED, axum::Json(a)).into_response())
 }
 
