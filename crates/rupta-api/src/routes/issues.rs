@@ -519,6 +519,9 @@ fn activity(c: &Connection, issue: i64, user: Option<i64>, kind: &str, data: Val
     Ok(())
 }
 
+/// substatus, resolved_at, ignore_until, ignore_count, resolved_in_release
+type StatusFields = (String, Option<DateTime<Utc>>, Option<DateTime<Utc>>, Option<i64>, Option<String>);
+
 /// Applies an update to issues already authorized. Records activity.
 fn apply_update(c: &Connection, org: &OrgCtx, issue_ids: &[i64], u: &IssueUpdate, me: Option<i64>) -> ApiResult<()> {
     let assign = validate_update(c, org, u, me)?;
@@ -528,13 +531,7 @@ fn apply_update(c: &Connection, org: &OrgCtx, issue_ids: &[i64], u: &IssueUpdate
         let (old_status, old_sub, old_prio, times_seen): (String, String, String, i64) =
             (cur.get(0), cur.get(1), cur.get(2), cur.get(3));
         if let Some(status) = &u.status {
-            let (substatus, resolved_at, ignore_until, ignore_count, release): (
-                String,
-                Option<DateTime<Utc>>,
-                Option<DateTime<Utc>>,
-                Option<i64>,
-                Option<String>,
-            ) = match status.as_str() {
+            let (substatus, resolved_at, ignore_until, ignore_count, release): StatusFields = match status.as_str() {
                 "resolved" => (
                     u.substatus.clone().unwrap_or(old_sub.clone()),
                     Some(now),

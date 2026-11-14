@@ -10,8 +10,14 @@ use rupta_core::signal::IssueSignal;
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
+/// (path, headers, JSON body, raw body)
+type Post = (String, HeaderMap, Value, Vec<u8>);
+/// (recipients, message)
+type Mail = (Vec<String>, String);
+type Mails = Arc<Mutex<Vec<Mail>>>;
+
 #[derive(Clone, Default)]
-struct Received(Arc<Mutex<Vec<(String, HeaderMap, Value, Vec<u8>)>>>);
+struct Received(Arc<Mutex<Vec<Post>>>);
 
 /// A local HTTP server recording every POST.
 async fn receiver() -> (String, Received) {
@@ -35,8 +41,8 @@ async fn receiver() -> (String, Received) {
 }
 
 /// A minimal SMTP server that accepts every message.
-async fn smtp_sink() -> (String, Arc<Mutex<Vec<(Vec<String>, String)>>>) {
-    let messages: Arc<Mutex<Vec<(Vec<String>, String)>>> = Arc::default();
+async fn smtp_sink() -> (String, Mails) {
+    let messages: Mails = Arc::default();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let m = messages.clone();
