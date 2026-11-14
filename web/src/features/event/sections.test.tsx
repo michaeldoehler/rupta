@@ -37,7 +37,13 @@ describe('Breadcrumbs', () => {
 })
 
 describe('Request', () => {
-  const req = { url: 'https://api.example.com/orders', method: 'POST', headers: [['Content-Type', 'application/json']] as [string, string][], query_string: [['page', '2']] as [string, string][], data: { a: "it's" } }
+  const req = {
+    url: 'https://api.example.com/orders',
+    method: 'POST',
+    headers: [['Content-Type', 'application/json']] as [string, string][],
+    query_string: [['page', '2']] as [string, string][],
+    data: { a: "it's" },
+  }
   it('builds a cURL command', () => {
     expect(toCurl(req)).toBe(`curl -X POST 'https://api.example.com/orders?page=2' \\\n  -H 'Content-Type: application/json' \\\n  --data '{"a":"it'\\''s"}'`)
   })

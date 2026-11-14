@@ -53,12 +53,13 @@ export function PlatformIcon({ platform, className, size = 'md' }: { platform: s
       aria-hidden
       className={cn(
         'inline-flex shrink-0 items-center justify-center rounded-[5px] font-mono leading-none font-semibold tracking-tight',
+        'bg-[oklch(0.93_0.045_var(--h))] text-[oklch(0.4_0.11_var(--h))] dark:bg-[oklch(0.3_0.06_var(--h))] dark:text-[oklch(0.86_0.09_var(--h))]',
         size === 'sm' && 'size-4 text-[7.5px]',
         size === 'md' && 'size-5 text-[9px]',
         size === 'lg' && 'size-8 rounded-md text-[12px]',
         className,
       )}
-      style={{ background: `oklch(0.93 0.045 ${p.hue})`, color: `oklch(0.4 0.11 ${p.hue})` }}
+      style={{ '--h': p.hue } as React.CSSProperties}
     >
       {p.label}
     </span>

@@ -19,8 +19,19 @@ const crash: Frame = {
   symbolicated: true,
   raw: { filename: '/assets/index-abc.js', function: 'p', lineno: 1, colno: 4242, in_app: true },
 }
-const caller: Frame = { filename: './src/components/Cart.tsx', function: 'CartLine', lineno: 21, in_app: true, context_line: '<span>{formatPrice(item)}</span>' }
-const ex: ExceptionValue = { type: 'TypeError', value: 'item.price.toFixed is not a function', mechanism: { type: 'onerror', handled: false }, stacktrace: { frames: [lib(1), lib(2), lib(3), caller, crash] } }
+const caller: Frame = {
+  filename: './src/components/Cart.tsx',
+  function: 'CartLine',
+  lineno: 21,
+  in_app: true,
+  context_line: '<span>{formatPrice(item)}</span>',
+}
+const ex: ExceptionValue = {
+  type: 'TypeError',
+  value: 'item.price.toFixed is not a function',
+  mechanism: { type: 'onerror', handled: false },
+  stacktrace: { frames: [lib(1), lib(2), lib(3), caller, crash] },
+}
 const opts: StacktraceOptions = { inAppOnly: true, newestFirst: true, view: 'symbolicated', expandAll: false }
 
 describe('ExceptionBlock', () => {
@@ -81,7 +92,16 @@ describe('raw stack traces', () => {
     const js = rawStacktrace([ex], 'javascript')
     expect(js.split('\n')[0]).toBe('TypeError: item.price.toFixed is not a function')
     expect(js.split('\n')[1]).toBe('    at formatPrice (webpack:///src/lib/money.ts:6:32)')
-    const py = rawStacktrace([{ type: 'KeyError', value: "'id'", stacktrace: { frames: [{ filename: 'app.py', abs_path: '/app/app.py', function: 'view', lineno: 3, context_line: 'x = d["id"]' }] } }], 'python')
+    const py = rawStacktrace(
+      [
+        {
+          type: 'KeyError',
+          value: "'id'",
+          stacktrace: { frames: [{ filename: 'app.py', abs_path: '/app/app.py', function: 'view', lineno: 3, context_line: 'x = d["id"]' }] },
+        },
+      ],
+      'python',
+    )
     expect(py).toBe(`Traceback (most recent call last):\n  File "/app/app.py", line 3, in view\n    x = d["id"]\nKeyError: 'id'`)
   })
 })

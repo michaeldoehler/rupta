@@ -46,7 +46,11 @@ describe('issue stream', () => {
     fireEvent.keyDown(window, { key: 'b' })
     expect(await screen.findByText('Could not update the issue')).toBeInTheDocument()
     expect(screen.getByText('Database is read-only')).toBeInTheDocument()
-    expect(getWorld().issues.find((i) => i.id === id)?.bookmarked_by.has('1')).toBe(false)
+    expect(
+      getWorld()
+        .issues.find((i) => i.id === id)
+        ?.bookmarked_by.has('1'),
+    ).toBe(false)
     await waitFor(() => expect(within(screen.getAllByRole('row')[0]).queryByLabelText('Bookmarked')).not.toBeInTheDocument())
   })
 

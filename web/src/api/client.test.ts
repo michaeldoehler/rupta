@@ -15,7 +15,11 @@ describe('buildQuery', () => {
 
 describe('request', () => {
   it('parses the error envelope of the API', async () => {
-    server.use(http.get('/api/v1/thing', () => HttpResponse.json({ error: { code: 'validation_failed', message: 'Bad name', details: { fields: { name: 'Too short' } } } }, { status: 422 })))
+    server.use(
+      http.get('/api/v1/thing', () =>
+        HttpResponse.json({ error: { code: 'validation_failed', message: 'Bad name', details: { fields: { name: 'Too short' } } } }, { status: 422 }),
+      ),
+    )
     const err = await request('/thing').catch((e) => e)
     expect(err).toBeInstanceOf(ApiError)
     expect(err).toMatchObject({ status: 422, code: 'validation_failed', message: 'Bad name' })
@@ -61,13 +65,19 @@ describe('request', () => {
   })
 
   it('returns undefined for 204 and rejects invalid JSON', async () => {
-    server.use(http.get('/api/v1/empty', () => new HttpResponse(null, { status: 204 })), http.get('/api/v1/broken', () => new HttpResponse('{oops', { status: 200 })))
+    server.use(
+      http.get('/api/v1/empty', () => new HttpResponse(null, { status: 204 })),
+      http.get('/api/v1/broken', () => new HttpResponse('{oops', { status: 200 })),
+    )
     expect(await request('/empty')).toBeUndefined()
     await expect(request('/broken')).rejects.toMatchObject({ code: 'invalid_response' })
   })
 
   it('requestList accepts arrays and pages', async () => {
-    server.use(http.get('/api/v1/a', () => HttpResponse.json([1, 2])), http.get('/api/v1/b', () => HttpResponse.json({ data: [3], next_cursor: null })))
+    server.use(
+      http.get('/api/v1/a', () => HttpResponse.json([1, 2])),
+      http.get('/api/v1/b', () => HttpResponse.json({ data: [3], next_cursor: null })),
+    )
     expect(await requestList('/a')).toEqual([1, 2])
     expect(await requestList('/b')).toEqual([3])
   })
