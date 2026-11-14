@@ -52,8 +52,13 @@ Kafka, no ClickHouse, no Redis, no PostgreSQL to operate.
   contain. → [session replay](docs/session-replay.md)
 - **Release health** (crash-free sessions and users), **cron monitoring**
   and **user feedback**.
-- **Alerts** by email, Slack, Microsoft Teams and signed webhooks.
-  → [alerts](docs/alerts.md)
+- **Alerts** by email, Slack, Microsoft Teams, signed webhooks, PagerDuty
+  and Opsgenie. → [alerts](docs/alerts.md)
+- **Issue tracker integrations**: create or link Jira (Cloud and Data
+  Center), Linear, GitHub and GitLab tickets, with two-way status sync.
+  → [integrations](docs/integrations.md)
+- **Prometheus metrics**, alert rules and a Grafana dashboard.
+  → [monitoring](docs/monitoring.md)
 - **Enterprise-ready access control.** Single sign-on with OpenID Connect
   (Zitadel, Keycloak, Entra ID, Okta, …) with role mapping and
   per-organization enforcement, organizations, teams, four roles, scoped
@@ -133,12 +138,14 @@ Ruby, Rust and others). → [SDK compatibility](docs/sdk-compatibility.md)
 | [Deployment](docs/deployment.md) | Docker Compose, Docker Swarm, Garage and S3, TLS, sizing |
 | [Configuration](docs/configuration.md) | every environment variable |
 | [Operations](docs/operations.md) | health checks, metrics, backup and restore, upgrades, troubleshooting |
+| [Monitoring](docs/monitoring.md) | Prometheus metrics, alert rules, Grafana dashboard and annotations |
 | [User guide](docs/user-guide.md) | a tour of the web app, keyboard shortcuts |
 | [SDK compatibility](docs/sdk-compatibility.md) | what each SDK item does, tested SDK versions |
 | [Search](docs/search.md) | the query language |
 | [Single sign-on](docs/sso.md) | OpenID Connect, step by step with Zitadel |
 | [Authentication](docs/authentication.md) | accounts, sessions, roles, API tokens |
 | [Alerts](docs/alerts.md) | rules, conditions, notification channels |
+| [Integrations](docs/integrations.md) | Jira, Linear, GitHub and GitLab tickets and status sync |
 | [Source maps](docs/sourcemaps.md), [upload](docs/sourcemap-upload.md) | symbolication and the upload CLI |
 | [Performance](docs/performance.md), [Logs](docs/logs.md), [Metrics](docs/metrics.md), [Profiling](docs/profiling.md), [Session replay](docs/session-replay.md) | the monitoring features |
 | [Ingestion](docs/ingestion.md), [Grouping](docs/grouping.md), [Data scrubbing](docs/data-scrubbing.md) | how events are processed |

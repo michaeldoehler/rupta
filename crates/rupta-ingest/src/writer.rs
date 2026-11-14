@@ -324,6 +324,7 @@ impl Writer {
         self.inner.metrics.batch(start.elapsed().as_secs_f64(), ok);
         match result {
             Ok(signals) => {
+                self.inner.metrics.projects.observe(&signals);
                 for s in signals {
                     let _ = self.inner.signals.send(s);
                 }

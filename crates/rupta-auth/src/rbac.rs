@@ -69,6 +69,8 @@ pub enum Permission {
     ManageMembers,
     /// Notification channels.
     ManageChannels,
+    /// Issue tracker integrations (credentials, webhooks).
+    ManageIntegrations,
     /// Rename the organization, change its settings.
     ManageOrg,
     /// Delete the organization.
@@ -96,6 +98,7 @@ impl Permission {
         Permission::ReadMembers,
         Permission::ManageMembers,
         Permission::ManageChannels,
+        Permission::ManageIntegrations,
         Permission::ManageOrg,
         Permission::DeleteOrg,
         Permission::ManageSso,
@@ -110,7 +113,7 @@ impl Permission {
             ReadOrg | ReadProject | ReadMembers => Role::Viewer,
             TriageIssues | WriteReleases | UploadArtifacts => Role::Member,
             DeleteIssues | WriteProject | CreateProject | DeleteProject | ManageTeams | ManageMembers
-            | ManageChannels | ManageOrg | ManageOrgTokens | ReadAuditLog => Role::Admin,
+            | ManageChannels | ManageIntegrations | ManageOrg | ManageOrgTokens | ReadAuditLog => Role::Admin,
             DeleteOrg | ManageSso => Role::Owner,
         }
     }
@@ -127,7 +130,7 @@ impl Permission {
             UploadArtifacts => &["project:releases", "project:write"],
             WriteProject => &["project:write", "project:admin"],
             CreateProject | DeleteProject => &["project:admin"],
-            ManageTeams | ManageChannels | ManageOrg => &["org:write", "org:admin"],
+            ManageTeams | ManageChannels | ManageIntegrations | ManageOrg => &["org:write", "org:admin"],
             ReadMembers => &["member:read", "member:write", "org:read"],
             ManageMembers => &["member:write"],
             DeleteOrg | ManageSso | ManageOrgTokens | ReadAuditLog => &["org:admin"],
@@ -243,6 +246,7 @@ mod tests {
             (Permission::ManageTeams, [false, false, true, true]),
             (Permission::ManageMembers, [false, false, true, true]),
             (Permission::ManageChannels, [false, false, true, true]),
+            (Permission::ManageIntegrations, [false, false, true, true]),
             (Permission::ManageOrg, [false, false, true, true]),
             (Permission::ManageOrgTokens, [false, false, true, true]),
             (Permission::ReadAuditLog, [false, false, true, true]),

@@ -6,7 +6,8 @@
 //! is a new file. Version ranges keep parallel work apart: 0001–0999 core,
 //! 1000–1999 ingest, 2000–2999 API and auth, 3000–3999 telemetry
 //! (traces, logs, metrics, profiles, replays), 4000–4999 later additions
-//! (release resolution, escalation, release health users).
+//! (release resolution, escalation, release health users), 5000–5999
+//! integrations (issue trackers, paging services).
 
 use squad::Connection;
 
@@ -21,6 +22,7 @@ pub(crate) const MIGRATIONS: &[(i64, &str, &str)] = &[
     (2000, "api_auth", include_str!("../migrations/2000_api_auth.sql")),
     (3000, "telemetry", include_str!("../migrations/3000_telemetry.sql")),
     (4000, "api_gaps", include_str!("../migrations/4000_api_gaps.sql")),
+    (5000, "integrations", include_str!("../migrations/5000_integrations.sql")),
 ];
 
 pub(crate) fn apply(conn: &Connection) -> Result<()> {

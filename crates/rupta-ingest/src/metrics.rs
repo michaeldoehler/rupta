@@ -1,7 +1,11 @@
 //! Ingest counters in Prometheus text format. Plain atomics, no locks.
 
+use std::collections::HashMap;
 use std::fmt::Write;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use rupta_core::signal::IssueSignal;
 
 /// Data categories, as used in outcomes, rate limits and metrics.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -152,9 +156,94 @@ pub struct Metrics {
     batch_micros_sum: AtomicU64,
     batch_errors: AtomicU64,
     pub(crate) http_requests: AtomicU64,
+    pub projects: ProjectCounters,
+}
+
+/// Error events stored and new issues per project. The first `cap`
+/// projects that receive events after the start get their own entry, in
+/// that order and for good; the rest are added up in one `other` entry.
+/// Entries never move, so every exported series only grows.
+#[derive(Default)]
+pub struct ProjectCounters {
+    inner: Mutex<ProjectInner>,
+}
+
+#[derive(Default)]
+struct ProjectInner {
+    cap: usize,
+    order: Vec<i64>,
+    counts: HashMap<i64, (u64, u64)>,
+    other: (u64, u64),
+}
+
+/// One entry of [`ProjectCounters`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectCount {
+    /// `None` for the projects beyond the cap.
+    pub project_id: Option<i64>,
+    pub events: u64,
+    pub new_issues: u64,
+}
+
+impl ProjectCounters {
+    pub fn with_cap(cap: usize) -> ProjectCounters {
+        ProjectCounters { inner: Mutex::new(ProjectInner { cap, ..ProjectInner::default() }) }
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, ProjectInner> {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn add(&self, project_id: i64, events: u64, new_issues: u64) {
+        let mut g = self.lock();
+        let inner = &mut *g;
+        let slot = if let Some(c) = inner.counts.get_mut(&project_id) {
+            c
+        } else if inner.order.len() < inner.cap {
+            inner.order.push(project_id);
+            inner.counts.entry(project_id).or_default()
+        } else {
+            &mut inner.other
+        };
+        slot.0 += events;
+        slot.1 += new_issues;
+    }
+
+    /// Counts the events and new issues of the signals of a committed batch.
+    pub fn observe(&self, signals: &[IssueSignal]) {
+        for s in signals {
+            match s {
+                IssueSignal::New { project_id, .. } => self.add(*project_id, 0, 1),
+                IssueSignal::Seen { project_id, count, .. } => self.add(*project_id, *count, 0),
+                _ => {}
+            }
+        }
+    }
+
+    /// The entries in first-seen order, then `other` if anything is in it.
+    pub fn snapshot(&self) -> Vec<ProjectCount> {
+        let g = self.lock();
+        let mut out: Vec<ProjectCount> = g
+            .order
+            .iter()
+            .map(|id| {
+                let (events, new_issues) = g.counts[id];
+                ProjectCount { project_id: Some(*id), events, new_issues }
+            })
+            .collect();
+        if g.other != (0, 0) {
+            out.push(ProjectCount { project_id: None, events: g.other.0, new_issues: g.other.1 });
+        }
+        out
+    }
 }
 
 impl Metrics {
+    /// Metrics whose per-project counters keep `cap` projects apart.
+    pub fn with_project_cap(cap: usize) -> Metrics {
+        Metrics { projects: ProjectCounters::with_cap(cap), ..Metrics::default() }
+    }
+
     pub fn count(&self, category: Category, outcome: Outcome, n: u64) {
         if n > 0 {
             self.events[category.index()][outcome.index()].fetch_add(n, Ordering::Relaxed);
@@ -249,5 +338,28 @@ mod tests {
         assert!(s.contains("rupta_ingest_batch_seconds_bucket{le=\"+Inf\"} 2\n"));
         assert_eq!(Category::of_item("replay_recording"), Category::Replay);
         assert_eq!(Category::parse("user_report_v2"), Category::Feedback);
+    }
+
+    #[test]
+    fn project_counters_cap_and_keep_their_order() {
+        let p = ProjectCounters::with_cap(2);
+        p.observe(&[
+            IssueSignal::New { project_id: 7, issue_id: 1 },
+            IssueSignal::Seen { project_id: 7, issue_id: 1, count: 3, environment: None, level: None },
+            IssueSignal::Seen { project_id: 9, issue_id: 2, count: 1, environment: None, level: None },
+            IssueSignal::Seen { project_id: 11, issue_id: 3, count: 5, environment: None, level: None },
+            IssueSignal::New { project_id: 12, issue_id: 4 },
+            IssueSignal::Regressed { project_id: 7, issue_id: 1 },
+        ]);
+        p.add(9, 1, 0);
+        assert_eq!(
+            p.snapshot(),
+            vec![
+                ProjectCount { project_id: Some(7), events: 3, new_issues: 1 },
+                ProjectCount { project_id: Some(9), events: 2, new_issues: 0 },
+                ProjectCount { project_id: None, events: 5, new_issues: 1 },
+            ]
+        );
+        assert!(ProjectCounters::with_cap(0).snapshot().is_empty());
     }
 }

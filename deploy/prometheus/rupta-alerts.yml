@@ -1,0 +1,110 @@
+# Alerting rules for rupta. Check with
+#   promtool check rules deploy/prometheus/rupta-alerts.yml
+#   promtool test rules deploy/prometheus/rupta-alerts.test.yml
+# The thresholds are starting points; see docs/monitoring.md.
+
+groups:
+  - name: rupta-availability
+    rules:
+      - alert: RuptaDown
+        expr: up{job="rupta"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "rupta is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }} for 2 minutes. SDKs cannot deliver events."
+
+      - alert: RuptaNotReady
+        expr: rupta_ready == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "rupta is not ready"
+          description: "The database of {{ $labels.instance }} does not answer, or another instance took over the bucket (see rupta_storage_fenced)."
+
+      - alert: RuptaStorageFenced
+        expr: rupta_storage_fenced == 1
+        labels:
+          severity: critical
+        annotations:
+          summary: "rupta was fenced by another writer"
+          description: "Another instance with the same RUPTA_STORAGE_URL took over the database; {{ $labels.instance }} refuses writes. Stop one of them."
+
+      - alert: RuptaRemoteLagGrowing
+        expr: deriv(rupta_storage_unshipped_lsn[10m]) > 0 and rupta_storage_unshipped_lsn > 0 and rupta_storage_remote_configured == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "the object store copy falls behind"
+          description: "{{ $value }} log records per second more are waiting for the bucket for 10 minutes. Is the object store reachable? With RUPTA_REMOTE_SYNC=sync writes fail meanwhile."
+
+  - name: rupta-ingest
+    rules:
+      - alert: RuptaIngestQueueNearCapacity
+        expr: rupta_ingest_queue_depth / rupta_ingest_queue_capacity > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "the ingest queue is nearly full"
+          description: "The ingest queue of {{ $labels.instance }} is over 80% full for 5 minutes; when it is full, SDKs receive 429 and retry later."
+
+      - alert: RuptaHighRejectionRate
+        expr: |
+          sum by (instance) (rate(rupta_ingest_events_total{outcome=~"rate_limited|invalid|queue_full"}[10m]))
+            / sum by (instance) (rate(rupta_ingest_events_total[10m])) > 0.1
+          and sum by (instance) (rate(rupta_ingest_events_total[10m])) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "many events are rejected"
+          description: "More than 10% of the envelope items sent to {{ $labels.instance }} are rate limited, invalid or dropped because the queue is full."
+
+  - name: rupta-notifications
+    rules:
+      - alert: RuptaNotificationFailures
+        expr: sum by (instance, channel) (increase(rupta_alert_notifications_total{result="failure"}[30m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "alert notifications fail"
+          description: "Notifications through {{ $labels.channel }} failed in the last 30 minutes. Test the channel in the organization settings; the rupta log has the receiver's answer."
+
+      - alert: RuptaIntegrationSyncFailures
+        expr: sum by (instance, kind) (increase(rupta_integration_sync_total{direction="outgoing", result="failure"}[1h])) > 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "updating linked tickets fails"
+          description: "Comments or transitions to {{ $labels.kind }} failed more than 3 times in the last hour. The integration's settings page shows the last error."
+
+  - name: rupta-http
+    rules:
+      - alert: RuptaHighP99Latency
+        expr: |
+          histogram_quantile(0.99,
+            sum by (instance, le) (rate(rupta_http_request_duration_seconds_bucket{route!~"unmatched|/api/v1/orgs/\\{org\\}/logs/stream"}[5m]))
+          ) > 2
+          and sum by (instance) (rate(rupta_http_requests_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "slow responses"
+          description: "The 99th percentile response time of {{ $labels.instance }} is {{ $value | humanizeDuration }} for 10 minutes."
+
+      - alert: RuptaHighServerErrorRate
+        expr: |
+          sum by (instance) (rate(rupta_http_requests_total{status="5xx"}[5m]))
+            / sum by (instance) (rate(rupta_http_requests_total[5m])) > 0.05
+          and sum by (instance) (rate(rupta_http_requests_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "many server errors"
+          description: "More than 5% of the requests to {{ $labels.instance }} fail with a 5xx status."

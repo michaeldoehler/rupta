@@ -13,13 +13,16 @@ channels belong to an organization and decide *where*. Admins manage both.
 | `slack` | `{"webhook_url": "https://hooks.slack.com/services/..."}` | Slack incoming webhook, message with blocks |
 | `teams` | `{"webhook_url": "https://..."}` | Microsoft Teams webhook (Workflows "post to a channel when a webhook request is received", or a legacy connector), Adaptive Card |
 | `webhook` | `{"url": "https://...", "secret": "..."}` | JSON `POST`, signed when a secret is set |
+| `pagerduty` | `{"routing_key": "...", "region": "us"}` | PagerDuty Events API v2: a `trigger` event per firing, `resolve` when the issue is resolved ([below](#pagerduty)) |
+| `opsgenie` | `{"api_key": "...", "region": "eu"}` | Opsgenie Alert API v2: an alert per issue, closed when the issue is resolved ([below](#opsgenie)) |
 
 `POST /api/v1/orgs/{org}/channels/{id}/test` sends a test notification and
 answers `502 delivery_failed` with the receiver's error if it fails.
 
-The webhook secret is stored encrypted and never returned
-(`has_secret: true`). Leave `secret` out when changing a channel to keep it;
-send `""` to remove it. Webhook, Slack and Teams URLs are returned as stored,
+The webhook secret, the PagerDuty routing key and the Opsgenie API key are
+stored encrypted and never returned (`has_secret: true`). Leave them out
+when changing a channel to keep them; send `""` to remove a webhook
+secret (PagerDuty and Opsgenie keys are required). Webhook, Slack and Teams URLs are returned as stored,
 to admins only.
 
 SMTP URL forms: `smtp://host:25` (plain), `smtp://user:pass@host:587?tls=required`
@@ -59,6 +62,51 @@ def valid(secret, timestamp, body, signature):
 Any `2xx` answer counts as delivered. There are no retries: a failed
 delivery is logged and counted in `rupta_notification_failures_total`.
 
+### PagerDuty
+
+Create a service integration of type *Events API v2* in PagerDuty
+(service → *Integrations* → *Add integration* → *Events API V2*) and use
+its **integration key** as `routing_key`. `region` is `us` (default,
+`https://events.pagerduty.com/v2/enqueue`) or `eu`
+(`https://events.eu.pagerduty.com/v2/enqueue`); `api_url` replaces the
+endpoint (for proxies).
+
+When a rule fires, rupta sends a `trigger` event with `dedup_key` = the
+issue id, so all firings of one issue belong to one incident;
+`payload.summary` is the headline, `source` the project slug, `severity`
+follows the event level (`fatal` → `critical`, `error` → `error`,
+`warning` → `warning`, others → `info`), `component` the culprit, `group`
+the environment, `class` the trigger, `custom_details` short id, project,
+level, event count and rule, and `links` the issue URL. When the issue is
+resolved in rupta (by a person, or by a linked ticket), rupta sends a
+`resolve` event with the same key. When a rule fires again later (for
+example on `regression`), the new trigger opens the incident again. The channel test triggers an incident with a
+test key and resolves it immediately.
+
+### Opsgenie
+
+Create an *API* integration in Opsgenie (team → *Integrations* → *Add
+integration* → *API*) and use its **API key** as `api_key` (sent as
+`Authorization: GenieKey ...`). `region` is `us` (`https://api.opsgenie.com`)
+or `eu` (`https://api.eu.opsgenie.com`); `api_url` replaces the base URL.
+
+When a rule fires, rupta creates an alert (`POST /v2/alerts`) with
+`alias` = the issue id (Opsgenie de-duplicates open alerts by alias),
+`message` the headline (130 characters at most), `description` the text
+version, `priority` from the level (`fatal` P1, `error` P2, `warning` P3,
+`info` P4, `debug` P5), `source: rupta`, the project as `entity`, tags
+`rupta`, project, level and environment, and details. Resolving the issue
+closes the alert (`POST /v2/alerts/{alias}/close?identifierType=alias`).
+
+PagerDuty and Opsgenie requests go through the client used for issue
+trackers ([integrations](integrations.md#requests-to-trackers)): `429` and
+`503` are retried with backoff or `Retry-After`, and a custom `api_url` on
+an internal address needs `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS=true`.
+Incidents opened for an issue are recorded (`channel_incidents`); a
+resolve that fails is logged, counted and tried again the next time the
+issue is resolved. Deleting the channel forgets its incidents without
+resolving them.
+
 ## Rules
 
 `/api/v1/projects/{org}/{project}/alert-rules`
@@ -79,7 +127,8 @@ delivery is logged and counted in `rupta_notification_failures_total`.
   "environment": "production",
   "actions": [
     {"type": "channel", "channel_id": "3"},
-    {"type": "email", "user_ids": ["7"], "team_ids": ["2"]}
+    {"type": "email", "user_ids": ["7"], "team_ids": ["2"]},
+    {"type": "create_ticket", "integration_id": "4", "labels": ["production"]}
   ],
   "frequency_minutes": 30
 }
@@ -105,11 +154,23 @@ match:
 
 `environment` on the rule itself works like an environment filter.
 
-Actions: `channel` sends through a channel of the same organization;
+### Actions
+
+`channel` sends through a channel of the same organization;
 `email` sends to the listed users and to the members of the listed teams,
 as long as they are members of the organization, not disabled, and have
 not turned off `notifications.issue_alerts` in their preferences
 (`PATCH /api/v1/user`). Channels are not affected by user preferences.
+
+`create_ticket` `{integration_id, target?, issue_type?, project?, labels?}`
+creates a ticket in an issue tracker ([integrations](integrations.md)) the
+first time the rule fires for an issue; later firings, and issues that
+already have a ticket of that integration (created or linked by hand),
+create none. Fields left out come from the project's defaults for the
+integration; a rule without `target` is refused when the project has no
+defaults. The ticket appears in the issue's links and activity, created
+by nobody (`created_by: null`). Failures are logged (warning) and stored
+as the integration's `last_error`.
 
 Workflow emails are separate from rules: when SMTP is configured, users
 get an email when an issue is assigned to them or to one of their teams,
@@ -143,9 +204,13 @@ Limits:
   rule cannot fire because events *stopped*.
 - Environment and tag filters look at the environment reported with the
   signal or, failing that, at the issue's latest stored event.
-- Deliveries are not retried and not queued across restarts.
+- Deliveries are not queued across restarts. Email, Slack, Teams and
+  webhook deliveries are not retried; PagerDuty, Opsgenie and
+  `create_ticket` retry `429`/`503` up to three times.
 - Webhook URLs are not restricted to public addresses; only admins can set
   them, but they can point at internal services.
 
 Counters on `/metrics`: `rupta_alerts_fired_total`,
-`rupta_notifications_sent_total`, `rupta_notification_failures_total`.
+`rupta_notifications_sent_total`, `rupta_notification_failures_total`,
+and per channel kind and result `rupta_alert_notifications_total` (see
+[monitoring](monitoring.md)).

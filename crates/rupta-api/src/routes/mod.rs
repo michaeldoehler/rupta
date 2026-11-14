@@ -2,9 +2,11 @@
 
 pub mod admin;
 pub mod alerts;
+pub mod annotations;
 pub mod artifacts;
 pub mod auth;
 pub mod events;
+pub mod integrations;
 pub mod issues;
 pub mod logs;
 pub mod metrics;
@@ -33,6 +35,8 @@ pub fn all() -> OpenApiRouter<ApiState> {
         .merge(projects::routes())
         .merge(artifacts::routes())
         .merge(issues::routes())
+        .merge(integrations::routes())
+        .merge(annotations::routes())
         .merge(events::routes())
         .merge(releases::routes())
         .merge(alerts::routes())

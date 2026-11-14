@@ -22,6 +22,7 @@ use utoipa_axum::routes;
 use crate::access::{OrgCtx, ProjectCtx, issue_sync, org_sync};
 use crate::error::{ApiError, ApiResult};
 use crate::extract::{Auth, Json, Page, PageParams, Path, Query};
+use crate::integrations::sync::StatusChange;
 use crate::sql::{Params, id_list};
 use crate::state::ApiState;
 
@@ -591,17 +592,19 @@ fn latest_release(c: &Connection, project_id: i64) -> ApiResult<Option<String>> 
 }
 
 /// Applies an update to issues already authorized. Records activity.
-/// Returns the issues newly assigned (for notifications).
+/// Returns the issues newly assigned (for notifications) and the status
+/// changes (for linked tickets and paging incidents).
 fn apply_update(
     c: &Connection,
     org: &OrgCtx,
     issue_ids: &[i64],
     u: &IssueUpdate,
     me: Option<i64>,
-) -> ApiResult<Vec<Assigned>> {
+) -> ApiResult<(Vec<Assigned>, Vec<StatusChange>)> {
     let assign = validate_update(c, org, u, me)?;
     let now = Utc::now();
     let mut assigned = Vec::new();
+    let mut changes = Vec::new();
     for &id in issue_ids {
         let cur = c.query_one(
             "SELECT status, substatus, priority, times_seen, users_seen, project_id, assignee_user_id, assignee_team_id
@@ -680,6 +683,7 @@ fn apply_update(
                     &id,
                 ],
             )?;
+            changes.extend(StatusChange::from_statuses(id, &old_status, status, me));
             if *status != old_status || f.substatus != old_sub {
                 activity(
                     c,
@@ -749,7 +753,7 @@ fn apply_update(
             }
         }
     }
-    Ok(assigned)
+    Ok((assigned, changes))
 }
 
 /// An issue newly assigned to a user or a team.
@@ -792,7 +796,7 @@ async fn bulk_update(
         return Err(ApiError::invalid("id", "give 1 to 100 issue ids"));
     }
     let me = auth.user_id();
-    let (n, assigned) = state
+    let (n, assigned, changes) = state
         .db(move |c| {
             let perm = if u.needs_triage() { Permission::TriageIssues } else { Permission::ReadProject };
             let o = org_sync(c, &auth, &org, perm)?;
@@ -805,12 +809,13 @@ async fn bulk_update(
                 .iter()
                 .map(|r| r.get(0))
                 .collect();
-            let assigned = apply_update(&txn, &o, &found, &u, auth.user_id())?;
+            let (assigned, changes) = apply_update(&txn, &o, &found, &u, auth.user_id())?;
             txn.commit()?;
-            Ok((found.len(), assigned))
+            Ok((found.len(), assigned, changes))
         })
         .await?;
     crate::workflow::assigned(&state, me, assigned);
+    crate::integrations::sync::status_changed(&state, changes);
     Ok(axum::Json(json!({ "updated": n })))
 }
 
@@ -924,17 +929,18 @@ async fn update_issue(
 ) -> ApiResult<axum::Json<Issue>> {
     let st = state.clone();
     let me = auth.user_id();
-    let (issue, assigned) = state
+    let (issue, assigned, changes) = state
         .db(move |c| {
             let perm = if u.needs_triage() { Permission::TriageIssues } else { Permission::ReadProject };
             let p = issue_sync(c, &auth, id, perm)?;
             let txn = c.transaction()?;
-            let assigned = apply_update(&txn, &p.org, &[id], &u, auth.user_id())?;
+            let (assigned, changes) = apply_update(&txn, &p.org, &[id], &u, auth.user_id())?;
             txn.commit()?;
-            Ok((load_issue(&st, c, &p, id, auth.user_id())?, assigned))
+            Ok((load_issue(&st, c, &p, id, auth.user_id())?, assigned, changes))
         })
         .await?;
     crate::workflow::assigned(&state, me, assigned);
+    crate::integrations::sync::status_changed(&state, changes);
     Ok(axum::Json(issue))
 }
 
@@ -963,8 +969,12 @@ pub struct Activity {
     #[schema(value_type = String)]
     pub id: Id,
     /// `comment`, `status_change`, `assigned`, `unassigned`,
-    /// `priority_change`, and kinds recorded by ingestion (e.g.
-    /// `first_seen`, `regression`).
+    /// `priority_change`, kinds recorded by ingestion (e.g. `first_seen`,
+    /// `regression`), and for issue trackers `ticket_linked`,
+    /// `ticket_unlinked`, `ticket_status_change` (a webhook changed the
+    /// ticket) and `ticket_sync` (rupta commented on or moved a ticket;
+    /// `data.ok` and `data.error`). A `status_change` caused by a ticket
+    /// has `data.source: "integration"`.
     pub kind: String,
     pub user: Option<UserRef>,
     #[schema(value_type = Object)]

@@ -28,7 +28,7 @@ pub struct ErrorDetail {
     /// Machine-readable code: `not_found`, `unauthorized`, `forbidden`,
     /// `csrf_failed`, `validation_failed`, `bad_request`, `conflict`,
     /// `rate_limited`, `payload_too_large`, `sso_required`,
-    /// `unsupported`, `internal`.
+    /// `unsupported`, `delivery_failed`, `integration_error`, `internal`.
     pub code: String,
     pub message: String,
     #[schema(value_type = Object)]

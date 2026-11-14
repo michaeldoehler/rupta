@@ -1,6 +1,8 @@
 //! `rupta`: the error-tracking server.
 
 mod config;
+mod expo;
+mod http_metrics;
 mod ops;
 mod web;
 
@@ -54,6 +56,29 @@ pub struct App {
     pub store: Store,
     pub ingest: rupta_ingest::Ingest,
     pub api: rupta_api::ApiState,
+    pub http_metrics: Arc<http_metrics::HttpMetrics>,
+    pub metrics_cache: ops::MetricsCache,
+    pub started: std::time::Instant,
+    /// Start time in Unix seconds.
+    pub started_unix: f64,
+}
+
+impl App {
+    pub fn new(config: Config, store: Store, ingest: rupta_ingest::Ingest, api: rupta_api::ApiState) -> App {
+        App {
+            config,
+            store,
+            ingest,
+            api,
+            http_metrics: Arc::default(),
+            metrics_cache: ops::MetricsCache::default(),
+            started: std::time::Instant::now(),
+            started_unix: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs_f64())
+                .unwrap_or_default(),
+        }
+    }
 }
 
 async fn serve(config: Config) -> Result<()> {
@@ -79,6 +104,7 @@ async fn serve(config: Config) -> Result<()> {
             public_url: config.public_url.clone(),
             trusted_proxies,
             retention_days: config.retention_days,
+            metrics_project_labels: config.metrics_project_labels,
             ..rupta_ingest::IngestConfig::default()
         },
     );
@@ -92,8 +118,7 @@ async fn serve(config: Config) -> Result<()> {
     let alerts = rupta_api::alerts::spawn(api_state.clone(), ingest.subscribe());
     let maintenance = rupta_api::maintenance::spawn(api_state.clone());
     let escalation = ingest.spawn_escalation();
-    let app =
-        Arc::new(App { config: config.clone(), store: store.clone(), ingest: ingest.clone(), api: api_state.clone() });
+    let app = Arc::new(App::new(config.clone(), store.clone(), ingest.clone(), api_state.clone()));
 
     let api = rupta_api::router(api_state);
     let router = Router::new()
@@ -101,6 +126,7 @@ async fn serve(config: Config) -> Result<()> {
         .merge(ingest.router())
         .merge(api)
         .fallback(web::serve)
+        .layer(axum::middleware::from_fn_with_state(app.http_metrics.clone(), http_metrics::track))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
         .layer(PropagateRequestIdLayer::x_request_id())
@@ -151,6 +177,7 @@ fn api_config(config: &Config) -> rupta_api::ApiConfig {
         cors_allowed_origins: config.cors_allowed_origins.clone(),
         trusted_proxies: config.trusted_proxies.clone(),
         sso_allow_private_issuers: config.sso_allow_private_issuers,
+        integrations_allow_private_hosts: config.integrations_allow_private_hosts,
         ..rupta_api::ApiConfig::new(&config.public_url, &config.secret_key)
     }
 }

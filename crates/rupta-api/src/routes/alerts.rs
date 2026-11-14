@@ -34,11 +34,13 @@ pub fn routes() -> OpenApiRouter<ApiState> {
 pub struct Channel {
     #[schema(value_type = String)]
     pub id: Id,
-    /// `email`, `slack`, `webhook` or `teams`.
+    /// `email`, `slack`, `webhook`, `teams`, `pagerduty` or `opsgenie`.
     pub kind: String,
     pub name: String,
     /// email: `{to: [..]}`; slack and teams: `{webhook_url}`; webhook:
-    /// `{url, has_secret}` (the secret is write-only).
+    /// `{url, has_secret}` (the secret is write-only); pagerduty:
+    /// `{region, api_url, has_secret}` (the routing key is write-only);
+    /// opsgenie: `{region, api_url, has_secret}` (the API key is write-only).
     #[schema(value_type = Object)]
     pub config: Value,
     pub created_at: DateTime<Utc>,
@@ -49,7 +51,8 @@ pub struct ChannelBody {
     pub kind: Option<String>,
     pub name: Option<String>,
     /// email: `{to: ["a@b.c"]}`; slack and teams: `{webhook_url}`;
-    /// webhook: `{url, secret?}`.
+    /// webhook: `{url, secret?}`; pagerduty: `{routing_key, region?: us|eu,
+    /// api_url?}`; opsgenie: `{api_key, region?: us|eu, api_url?}`.
     #[schema(value_type = Option<Object>)]
     pub config: Option<Value>,
 }
@@ -99,7 +102,33 @@ fn prepare_config(state: &ApiState, org_id: i64, kind: &str, config: &Value, old
             };
             Ok(json!({ "url": url, "secret_enc": secret_enc }))
         }
-        _ => Err(ApiError::invalid("kind", "email, slack, webhook or teams")),
+        "pagerduty" | "opsgenie" => {
+            let field = if kind == "pagerduty" { "routing_key" } else { "api_key" };
+            let region = match config.get("region").and_then(Value::as_str) {
+                None | Some("") | Some("us") => "us",
+                Some("eu") => "eu",
+                Some(_) => return Err(ApiError::invalid("config.region", "us or eu")),
+            };
+            let api_url = match config.get("api_url") {
+                None | Some(Value::Null) => None,
+                Some(Value::String(u)) if u.is_empty() => None,
+                v => Some(check_url("config.api_url", v)?),
+            };
+            let secret_enc = match config.get(field).and_then(Value::as_str) {
+                Some(k) if !k.trim().is_empty() => {
+                    if k.len() > 256 {
+                        return Err(ApiError::invalid(&format!("config.{field}"), "at most 256 characters"));
+                    }
+                    Some(state.keys.encrypt(&secret_ctx(org_id), k.trim().as_bytes()))
+                }
+                _ => old.and_then(|o| o.get("secret_enc")).and_then(Value::as_str).map(str::to_string),
+            };
+            if secret_enc.is_none() {
+                return Err(ApiError::invalid(&format!("config.{field}"), "required"));
+            }
+            Ok(json!({ "region": region, "api_url": api_url, "secret_enc": secret_enc }))
+        }
+        _ => Err(ApiError::invalid("kind", "email, slack, webhook, teams, pagerduty or opsgenie")),
     }
 }
 
@@ -298,7 +327,10 @@ pub struct AlertRule {
     /// `{type: environment, value}`, `{type: tag, key, value}`.
     #[schema(value_type = Vec<Object>)]
     pub filters: Value,
-    /// `{type: channel, channel_id}`, `{type: email, user_ids, team_ids}`.
+    /// `{type: channel, channel_id}`, `{type: email, user_ids, team_ids}`,
+    /// `{type: create_ticket, integration_id, target?, issue_type?,
+    /// project?, labels?}` (once per issue; target and the rest default to
+    /// the project's defaults for the integration).
     #[schema(value_type = Vec<Object>)]
     pub actions: Value,
     /// At most one notification per issue and rule in this many minutes.
@@ -339,6 +371,7 @@ fn check_interval(v: Option<&Value>) -> ApiResult<String> {
 fn check_rule(
     c: &Connection,
     org_id: i64,
+    project_id: i64,
     conditions: &Value,
     filters: &Value,
     actions: &Value,
@@ -420,7 +453,32 @@ fn check_rule(
                 }
                 json!({"type": "email", "user_ids": users.iter().map(|u| u.to_string()).collect::<Vec<_>>(), "team_ids": teams.iter().map(|t| t.to_string()).collect::<Vec<_>>()})
             }
-            _ => return Err(ApiError::invalid("actions.type", "channel or email")),
+            "create_ticket" => {
+                let iid = a.get("integration_id").and_then(id_of).ok_or_else(|| ApiError::invalid("actions.integration_id", "required"))?;
+                if c.query_opt("SELECT 1 FROM integrations WHERE id = $1 AND org_id = $2", &[&iid, &org_id])?.is_none() {
+                    return Err(ApiError::invalid("actions.integration_id", "no such integration"));
+                }
+                let opt = |k: &str| -> ApiResult<Option<String>> {
+                    match a.get(k) {
+                        None | Some(Value::Null) => Ok(None),
+                        Some(Value::String(v)) if v.trim().is_empty() => Ok(None),
+                        Some(Value::String(v)) if v.len() <= 200 => Ok(Some(v.trim().to_string())),
+                        _ => Err(ApiError::invalid(&format!("actions.{k}"), "a string of at most 200 characters")),
+                    }
+                };
+                let target = opt("target")?;
+                if target.is_none() && crate::integrations::store::defaults(c, project_id, iid)?.is_none() {
+                    return Err(ApiError::invalid("actions.target", "required: the project has no defaults for this integration"));
+                }
+                let mut out = json!({"type": "create_ticket", "integration_id": iid.to_string(), "target": target, "issue_type": opt("issue_type")?, "project": opt("project")?});
+                if let Some(l) = a.get("labels").filter(|l| !l.is_null()) {
+                    let labels: Vec<String> = l.as_array().ok_or_else(|| ApiError::invalid("actions.labels", "a list of strings"))?
+                        .iter().filter_map(|v| v.as_str().map(|s| s.trim().to_string())).filter(|s| !s.is_empty() && s.len() <= 100).take(20).collect();
+                    out["labels"] = json!(labels);
+                }
+                out
+            }
+            _ => return Err(ApiError::invalid("actions.type", "channel, email or create_ticket")),
         });
     }
     Ok((Value::Array(out_c), Value::Array(out_f), Value::Array(out_a)))
@@ -492,6 +550,7 @@ async fn create_rule(
             let (conds, filts, acts) = check_rule(
                 c,
                 p.org.id,
+                p.id,
                 b.conditions.as_ref().unwrap_or(&json!([])),
                 b.filters.as_ref().unwrap_or(&json!([])),
                 b.actions.as_ref().unwrap_or(&json!([])),
@@ -553,6 +612,7 @@ async fn update_rule(
             let (conds, filts, acts) = check_rule(
                 c,
                 p.org.id,
+                p.id,
                 b.conditions.as_ref().unwrap_or(&cur.conditions),
                 b.filters.as_ref().unwrap_or(&cur.filters),
                 b.actions.as_ref().unwrap_or(&cur.actions),

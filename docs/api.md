@@ -55,9 +55,9 @@ Every error has the same shape:
 | 404 | `not_found` | Does not exist or belongs to another organization |
 | 409 | `conflict` | Already exists (slug taken), or would remove the last owner |
 | 413 | `payload_too_large` | Body over the limit |
-| 422 | `validation_failed` | A field is invalid; `details.field` names it |
+| 422 | `validation_failed`, `integration_error` | A field is invalid (`details.field` names it); an integration's settings are unusable or its host is blocked (`details.reason`) |
 | 429 | `rate_limited` | Too many failed logins; see `Retry-After` |
-| 502 | `delivery_failed`, `sso_unavailable` | A notification channel or the identity provider failed |
+| 502 | `delivery_failed`, `sso_unavailable`, `integration_error` | A notification channel, the identity provider or an issue tracker failed |
 | 500 | `internal` | A bug or a storage failure; details are in the server log |
 
 ## Pagination
@@ -95,6 +95,8 @@ Grouped as in the OpenAPI document.
 | Feedback and files | `GET /issues/{id}/feedback`, `GET /projects/{org}/{project}/feedback`, `GET /issues/{id}/attachments`, `GET /attachments/{id}/download` |
 | Releases | `GET /orgs/{org}/releases`, `GET /orgs/{org}/releases/{version}`, `GET /projects/{org}/{project}/health` |
 | Alerts | `GET/POST /projects/{org}/{project}/alert-rules`, `GET/PATCH/DELETE .../alert-rules/{id}`, `GET/POST /orgs/{org}/channels`, `PATCH/DELETE /orgs/{org}/channels/{id}`, `POST /orgs/{org}/channels/{id}/test` |
+| Integrations | `GET/POST /orgs/{org}/integrations`, `GET/PATCH/DELETE /orgs/{org}/integrations/{id}`, `POST .../integrations/{id}/test`, `GET .../integrations/{id}/targets`, `GET /projects/{org}/{project}/integrations`, `PUT/DELETE /projects/{org}/{project}/integrations/{integration_id}`, `GET/POST /issues/{id}/links`, `DELETE /issues/{id}/links/{link_id}`, `POST /issues/{id}/links/{link_id}/refresh`, `GET /issues/{id}/ticket-draft`; tracker webhooks `POST /api/integrations/{kind}/{integration_id}/webhook` (not under `/api/v1`, no session or token) ([integrations](integrations.md)) |
+| Annotations | `GET /orgs/{org}/annotations` ([monitoring](monitoring.md#annotations-in-grafana)) |
 | Cron monitors | `GET/POST /projects/{org}/{project}/monitors`, `GET/PATCH/DELETE .../monitors/{slug}`, `GET .../monitors/{slug}/checkins` |
 | Performance | `GET /orgs/{org}/performance/transactions`, `GET /orgs/{org}/performance/transactions/summary`, `GET /orgs/{org}/traces/{trace_id}`, `GET /orgs/{org}/spans` ([performance](performance.md)) |
 | Logs | `GET /orgs/{org}/logs`, `GET /orgs/{org}/logs/histogram`, `GET /orgs/{org}/logs/stream` (Server-Sent Events) ([logs](logs.md)) |
@@ -160,6 +162,25 @@ Notes on some of them:
   index rows, the bundle and its stored zip are deleted as well. Deletions
   are recorded in the audit log (`artifact_bundle.delete`). Events already
   symbolicated keep their resolved frames.
+- **Integrations**: `kind` is `jira_cloud`, `jira_server`, `linear`,
+  `github` or `gitlab`. The answer has `config` (non-secret settings),
+  `token_hint` (`****` and the last four characters), `has_webhook_secret`,
+  `webhook_url`, `account` (whose token it is, from the last check) and
+  `last_error`. `POST` (and `PATCH` with `rotate_webhook_secret: true`)
+  also returns `webhook_secret` when rupta generated one, only in that
+  answer. Saving checks the token against the tracker (`422
+  validation_failed` with the tracker's message) unless `validate: false`.
+  Tracker failures of the other endpoints answer `502 integration_error`
+  with `details.reason` (`network`, `unauthorized`, `not_found`,
+  `rate_limited`, `error_response`) or `422 integration_error`
+  (`blocked_host`, `invalid`).
+- **Issue links**: `POST /issues/{id}/links` with `{integration_id,
+  mode: "create"}` (optional `target`, `issue_type`, `project`, `labels`,
+  `title`, `description`) or `{integration_id, mode: "link", reference}`
+  answers `201` with the link: `{id, issue_id, integration: {id, kind,
+  name, enabled}, external_id, external_key, url, title, status,
+  status_category: "open"|"done", assignee, created_by, created_at,
+  synced_at}`; `409` when the ticket is already linked.
 - **SSO connection test**: `POST /orgs/{org}/sso/test` (owners) takes the
   SSO form (`issuer`, `client_id`, `client_secret`), fetches the issuer's
   discovery document and answers `{ok, issuer, authorization_endpoint,

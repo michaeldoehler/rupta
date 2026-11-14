@@ -87,11 +87,41 @@ pub fn is_internal(ip: IpAddr) -> bool {
 
 /// The addresses to connect to, after the SSRF check.
 async fn resolve(state: &ApiState, url: &url::Url) -> Result<Vec<SocketAddr>, String> {
-    let host = url.host_str().ok_or("the issuer has no host")?.trim_start_matches('[').trim_end_matches(']');
-    let port = url.port_or_known_default().ok_or("the issuer has no port")?;
+    let instance_host = state
+        .config
+        .oidc
+        .as_ref()
+        .and_then(|o| url::Url::parse(&o.issuer).ok())
+        .and_then(|u| u.host_str().map(str::to_ascii_lowercase));
+    resolve_guarded(
+        url,
+        state.config.sso_allow_private_issuers,
+        instance_host.as_deref(),
+        "RUPTA_SSO_ALLOW_PRIVATE_ISSUERS",
+        TIMEOUT,
+    )
+    .await
+}
+
+/// Resolves the host of `url` and refuses it when any of its addresses is
+/// internal (see [`is_internal`]), unless `allow_private` is set or the
+/// host is `trusted_host`. `setting` names the variable that allows
+/// internal hosts, for the error message. The caller connects to the
+/// returned addresses, not to a second lookup, so that a DNS answer that
+/// changes between the check and the connection cannot reach an internal
+/// address.
+pub async fn resolve_guarded(
+    url: &url::Url,
+    allow_private: bool,
+    trusted_host: Option<&str>,
+    setting: &str,
+    timeout: Duration,
+) -> Result<Vec<SocketAddr>, String> {
+    let host = url.host_str().ok_or("the URL has no host")?.trim_start_matches('[').trim_end_matches(']');
+    let port = url.port_or_known_default().ok_or("the URL has no port")?;
     let addrs: Vec<SocketAddr> = match host.parse::<IpAddr>() {
         Ok(ip) => vec![SocketAddr::new(ip, port)],
-        Err(_) => tokio::time::timeout(TIMEOUT, tokio::net::lookup_host((host, port)))
+        Err(_) => tokio::time::timeout(timeout, tokio::net::lookup_host((host, port)))
             .await
             .map_err(|_| format!("resolving {host} timed out"))?
             .map_err(|e| format!("{host} could not be resolved: {e}"))?
@@ -100,17 +130,10 @@ async fn resolve(state: &ApiState, url: &url::Url) -> Result<Vec<SocketAddr>, St
     if addrs.is_empty() {
         return Err(format!("{host} could not be resolved"));
     }
-    let instance_host = state
-        .config
-        .oidc
-        .as_ref()
-        .and_then(|o| url::Url::parse(&o.issuer).ok())
-        .and_then(|u| u.host_str().map(str::to_ascii_lowercase));
-    let trusted =
-        state.config.sso_allow_private_issuers || instance_host.as_deref() == Some(&host.to_ascii_lowercase());
+    let trusted = allow_private || trusted_host == Some(&host.to_ascii_lowercase());
     if !trusted && addrs.iter().any(|a| is_internal(a.ip())) {
         return Err(format!(
-            "{host} resolves to a loopback, private or link-local address; such issuers are only fetched when RUPTA_SSO_ALLOW_PRIVATE_ISSUERS=true"
+            "{host} resolves to a loopback, private or link-local address; such hosts are only reached when {setting}=true"
         ));
     }
     Ok(addrs)

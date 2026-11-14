@@ -9,7 +9,7 @@ troubleshooting.
 | --- | --- |
 | `GET /healthz` | Liveness: the process answers. Always 200 while it runs. |
 | `GET /readyz` | Readiness: 200 when the database answers and this instance is still the writer of its bucket; 503 otherwise. The body says which check failed and how far the bucket is behind (`local_lsn`, `shipped_lsn`). |
-| `GET /metrics` | Prometheus text format. Protect it with `RUPTA_METRICS_TOKEN`. |
+| `GET /metrics` | Prometheus text format. Protect it with `RUPTA_METRICS_TOKEN`. The [monitoring](monitoring.md) guide lists every metric and ships alert rules and a Grafana dashboard. |
 
 Metrics worth alerting on:
 
@@ -19,6 +19,11 @@ Metrics worth alerting on:
 | `rupta_storage_unshipped_lsn` | grows for minutes: the bucket is unreachable; with `RUPTA_REMOTE_SYNC=sync` writes fail meanwhile, with `async` they queue. |
 | `rupta_ingest_queue_depth` | stays near `RUPTA_INGEST_QUEUE`: processing cannot keep up; SDKs receive 429. |
 | `rupta_ingest_events_total{outcome="rate_limited"}` | rises: projects or keys hit their rate limits. |
+| `rupta_ready` | `== 0`: what `/readyz` reports as not ready. |
+| `rupta_alert_notifications_total{result="failure"}` | rises: a channel does not deliver. |
+
+`deploy/prometheus/rupta-alerts.yml` has these as Prometheus rules; see
+[monitoring](monitoring.md#alert-rules).
 
 Logs go to standard output, as JSON with `RUPTA_LOG_FORMAT=json` (the
 default in the container image). Every request carries an `x-request-id`.

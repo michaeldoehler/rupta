@@ -25,7 +25,8 @@ mebibytes (`_MB`). Underscores in numbers are ignored (`100_000`).
 | `RUPTA_SHUTDOWN_TIMEOUT_SECS` | `30` | On SIGTERM, how long to wait for queued events to be written. |
 | `RUPTA_LOG` | `info` | Log filter (`error`, `warn`, `info`, `debug`, or per module, e.g. `info,rupta_ingest=debug`). |
 | `RUPTA_LOG_FORMAT` | `text` (`json` in the image) | `text` or `json` (one object per line). |
-| `RUPTA_METRICS_TOKEN` | empty (*secret*) | If set, `GET /metrics` requires `Authorization: Bearer <token>`. |
+| `RUPTA_METRICS_TOKEN` | empty (*secret*) | If set, `GET /metrics` requires `Authorization: Bearer <token>`. See [monitoring](monitoring.md). |
+| `RUPTA_METRICS_PROJECT_LABELS` | `50` | Projects with their own labels in `rupta_project_events_total` and `rupta_project_new_issues_total`: the first ones that receive events after the start. All others are counted as `project="other"`. `0` puts every project in `other`. |
 
 ## Storage
 
@@ -66,6 +67,12 @@ is restored automatically. See [deployment](deployment.md).
 The redirect URI to register at the provider is
 `<RUPTA_PUBLIC_URL>/auth/sso/oidc/callback`. Organizations can configure
 their own provider in the settings in addition; see [single sign-on](sso.md).
+
+## Integrations
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS` | `false` | Let issue tracker integrations (Jira Data Center, self-managed GitLab, …) and PagerDuty/Opsgenie channels with a custom `api_url` reach hosts that resolve to loopback, private, link-local or other internal addresses. Without it such hosts are refused, so that organization admins cannot make the server call internal services. Turn it on when your trackers run on the internal network and all organization admins are trusted. See [integrations](integrations.md). |
 
 ## Email
 

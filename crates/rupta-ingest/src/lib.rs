@@ -75,6 +75,8 @@ pub struct IngestConfig {
     pub retention_days: u32,
     /// Memory for parsed source maps.
     pub sourcemap_cache_bytes: usize,
+    /// Projects with their own entry in the per-project metrics.
+    pub metrics_project_labels: usize,
 }
 
 impl Default for IngestConfig {
@@ -94,6 +96,7 @@ impl Default for IngestConfig {
             batch_interval: Duration::from_millis(50),
             retention_days: 90,
             sourcemap_cache_bytes: 256 << 20,
+            metrics_project_labels: 50,
         }
     }
 }
@@ -193,7 +196,7 @@ impl Ingest {
             keys: KeyCache::new(store.clone()),
             store: store.clone(),
             limiter: Default::default(),
-            metrics: Metrics::default(),
+            metrics: Metrics::with_project_cap(config.metrics_project_labels),
             signals,
             tx,
             closed: AtomicBool::new(false),
@@ -296,6 +299,12 @@ impl Ingest {
     /// Appends the ingest metrics in Prometheus text format.
     pub fn render_metrics(&self, out: &mut String) {
         self.inner.metrics.render(out, self.inner.tx.len(), self.config.queue);
+    }
+
+    /// Error events and new issues per project (see
+    /// [`metrics::ProjectCounters`]).
+    pub fn project_counts(&self) -> Vec<metrics::ProjectCount> {
+        self.inner.metrics.projects.snapshot()
     }
 
     /// Envelopes waiting for a worker.

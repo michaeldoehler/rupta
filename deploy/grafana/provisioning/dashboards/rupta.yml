@@ -1,0 +1,14 @@
+# Loads the dashboards in /var/lib/grafana/dashboards/rupta (the overlay
+# mounts deploy/grafana/rupta-overview.json there).
+apiVersion: 1
+
+providers:
+  - name: rupta
+    folder: rupta
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards/rupta
+      foldersFromFilesStructure: false

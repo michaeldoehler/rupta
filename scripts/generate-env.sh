@@ -17,6 +17,8 @@ sed -e "s|^RUPTA_PUBLIC_URL=.*|RUPTA_PUBLIC_URL=$url|" \
     -e "s|^RUPTA_S3_SECRET_ACCESS_KEY=.*|RUPTA_S3_SECRET_ACCESS_KEY=$(openssl rand -hex 32)|" \
     -e "s|^GARAGE_RPC_SECRET=.*|GARAGE_RPC_SECRET=$(openssl rand -hex 32)|" \
     -e "s|^GARAGE_ADMIN_TOKEN=.*|GARAGE_ADMIN_TOKEN=$(openssl rand -hex 32)|" \
+    -e "s|^RUPTA_METRICS_TOKEN=.*|RUPTA_METRICS_TOKEN=$(openssl rand -hex 24)|" \
+    -e "s|^GRAFANA_ADMIN_PASSWORD=.*|GRAFANA_ADMIN_PASSWORD=$(openssl rand -base64 18)|" \
     .env.example > .env
 chmod 600 .env
 echo "Wrote .env. Log in at $url as admin@example.com with password: $password"

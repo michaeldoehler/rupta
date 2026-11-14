@@ -1,0 +1,29 @@
+# Grafana data source provisioning for the rupta monitoring overlay
+# (compose.monitoring.yaml). Copy to /etc/grafana/provisioning/datasources/
+# and adjust the URL for other setups.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 30s
+
+  # Optional: rupta annotations (releases, deploys, new-issue spikes)
+  # through the Infinity data source plugin (yesoreyeram-infinity-datasource,
+  # installed by the overlay). Create an API token with the scope
+  # org:read in rupta and put it in RUPTA_GRAFANA_TOKEN.
+  - name: rupta
+    uid: rupta-api
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    jsonData:
+      auth_method: bearerToken
+      allowedHosts:
+        - http://rupta:8080
+    secureJsonData:
+      bearerToken: $RUPTA_GRAFANA_TOKEN
