@@ -188,8 +188,8 @@ Notifications link to `{RUPTA_PUBLIC_URL}/organizations/{org}/issues/{id}`.
 
 Ingestion publishes a signal for every new issue, regression, reappearance
 and batch of events of an existing issue, and the escalation check (every
-five minutes) one for every issue that starts escalating. The alert engine
-(`rupta_api::alerts::spawn`, started by the server) receives them and, per
+five minutes) one for every issue that starts escalating. The alert engine,
+which runs in the server process, receives them and, per
 signal, loads the project's enabled rules, checks conditions (frequency
 conditions count rows in the `events` table) and filters, records the fire
 and delivers notifications, at most 16 at a time. Ignored issues never
@@ -207,8 +207,10 @@ Limits:
 - Deliveries are not queued across restarts. Email, Slack, Teams and
   webhook deliveries are not retried; PagerDuty, Opsgenie and
   `create_ticket` retry `429`/`503` up to three times.
-- Webhook URLs are not restricted to public addresses; only admins can set
-  them, but they can point at internal services.
+- Webhook, Slack and Teams URLs and custom PagerDuty/Opsgenie API URLs on
+  loopback, private or link-local addresses are refused unless the server
+  runs with `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS=true`
+  ([security](security.md#outbound-requests)).
 
 Counters on `/metrics`: `rupta_alerts_fired_total`,
 `rupta_notifications_sent_total`, `rupta_notification_failures_total`,

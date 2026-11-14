@@ -1,9 +1,26 @@
-# Uploading source maps with the CLI
+# Uploading source maps with sentry-cli
 
-rupta accepts source maps from the official upload CLI, `sentry-cli`
-(npm package `@sentry/cli`), so existing build pipelines keep working. How
-the uploaded maps are used to symbolicate stack traces is described in
-[source maps](sourcemaps.md).
+rupta implements the part of Sentry's web API that **`sentry-cli`** (npm
+package `@sentry/cli`, also used by Sentry's Vite, webpack, Rollup and
+esbuild plugins) needs to upload source maps and to create releases and
+deploys. A build pipeline that uploads to Sentry today keeps its commands
+and changes only the URL and the token. How the uploaded maps are used to
+symbolicate stack traces is described in [source maps](sourcemaps.md).
+
+> Sentry is a trademark of Functional Software, Inc. rupta is an
+> independent project and is not affiliated with or endorsed by Sentry.
+
+In short:
+
+| `sentry-cli` | With rupta |
+| --- | --- |
+| `sourcemaps inject`, `sourcemaps upload` | work (debug ids or release and dist) |
+| `releases new`, `finalize`, `info`, `list` | work |
+| `deploys new`, `deploys list` | work |
+| `info` | works |
+| `releases set-commits`, `releases delete`, `releases files`, `debug-files`, `send-event`, `monitors run`, platform commands | not supported |
+
+The details follow below.
 
 ## Setup
 
@@ -13,6 +30,10 @@ the uploaded maps are used to symbolicate stack traces is described in
    scope work too.
 2. Point the CLI at rupta, either with flags (`--url`, `--auth-token`) or
    environment variables:
+
+   `SENTRY_URL` is rupta's public URL (`RUPTA_PUBLIC_URL`),
+   `SENTRY_ORG` the organization's slug and `SENTRY_PROJECT` the project's
+   slug, as shown in rupta's URLs and settings:
 
    ```sh
    export SENTRY_URL=https://errors.example.com
@@ -41,9 +62,12 @@ requests are replayed by `crates/rupta-api/tests/cli_replay.rs`.
 | `sentry-cli deploys list --release <version>` | |
 | `sentry-cli info` | Shows the token's scopes. |
 
-Bundlers that call the CLI or the same HTTP API (the official Vite, webpack,
-Rollup and esbuild plugins) use the same requests and should work as well;
-they were not tested.
+Sentry's bundler plugins (`@sentry/vite-plugin`,
+`@sentry/webpack-plugin`, `@sentry/rollup-plugin`,
+`@sentry/esbuild-plugin`) and the framework SDKs that use them (for
+example `@sentry/nextjs`) run `sentry-cli` internally with the same
+requests and are expected to work with the same `url`, `authToken`, `org`
+and `project` options; they were not tested.
 
 Not supported (the server answers `404` with `not supported by rupta`, or `405` for an unsupported method on a supported path):
 `releases set-commits` and anything about commits and repositories,
@@ -59,11 +83,13 @@ npx @sentry/cli sourcemaps inject ./dist
 npx @sentry/cli sourcemaps upload --release "web@$GIT_SHA" ./dist
 npx @sentry/cli releases finalize "web@$GIT_SHA"
 npx @sentry/cli deploys new --release "web@$GIT_SHA" -e production
-rm dist/**/*.map                                # optional: do not ship maps
+find dist -name '*.map' -delete                 # optional: do not ship maps
 ```
 
 Set the same release in the SDK (`release: "web@" + GIT_SHA`) so events and
 maps match. With debug ids injected, matching works without a release too.
+Upload the files exactly as you deploy them: inject and upload after the
+last step that changes the bundles.
 
 ## What the server does
 

@@ -35,8 +35,7 @@ HTTP handler ──try_send──► bounded queue ──► workers ──► b
    `transactions`, `spans`, `logs` and `metrics` (columnar appends),
    profile and replay rows, issue counters and state changes, releases, session
    counts, outcomes, feedback, attachment rows and check-ins. After the
-   commit it publishes issue signals (`Ingest::subscribe`, used by the
-   alert engine): `New`, `Regressed`, `Reappeared` and an aggregated `Seen`
+   commit it publishes issue signals to the alert engine: `New`, `Regressed`, `Reappeared` and an aggregated `Seen`
    per issue and batch. Session users go to `session_users` (see [SDK
    compatibility](sdk-compatibility.md#sessions)). `Escalating` comes from
    the escalation check (below).
@@ -147,7 +146,7 @@ first and last event times.
 
 ## Escalating issues
 
-A background check (every five minutes, `rupta_ingest::escalation`) sets
+A background check (every five minutes) sets
 substatuses that depend on time rather than on a single event:
 
 - **Escalating:** an unresolved issue with substatus `ongoing`, or an
@@ -198,18 +197,15 @@ Per event on one core: JSON parsing 27 µs, normalization 19 µs, scrubbing
 12 µs, grouping 3 µs, serialization 14 µs, compression 12 µs; the batch
 writer needs about 25 ms per 1,000 events in isolation and about three
 times as much while sharing the cores with workers, HTTP and the database's
-background compaction. The 20,000 stored events per second aimed for were
-not reached on this machine. In `safe` mode throughput is bound by commits
+background compaction. In `safe` mode throughput is bound by commits
 (one fsync per batch) and the number of concurrent clients.
 
 `RUPTA_INGEST_WORKERS` adds processing threads; the writer is a single
-thread by default (`IngestConfig::writers`; two writers were not faster on
-four cores).
+thread by default (two writers were not faster on four cores).
 
 ## Retention
 
-`rupta_ingest::retention::spawn` runs five minutes after start and then
-every 24 hours. For each project it deletes data older than the project's
+The retention job runs five minutes after start and then every 24 hours. For each project it deletes data older than the project's
 `retention_days` or `RUPTA_RETENTION_DAYS` (default 90):
 
 - `events` (columnar), one `DELETE` per day from the oldest event up to

@@ -152,7 +152,7 @@ Below are tabs:
   adoption, session counts and the last deploy. A release's page charts
   sessions and crashes, lists the issues that first appeared in it and its
   deploys. Crash-free users count the distinct users of sessions that carry
-  a distinct id (`did`), which the official SDKs send when a user is set.
+  a distinct id (`did`), which the Sentry SDKs send when a user is set.
 - **Crons** shows each monitor's schedule in words and a timeline of recent
   check-ins (ok, failed, missed, timed out). A monitor's page has the
   check-in history, success rate and average duration, and can disable the
@@ -354,7 +354,7 @@ the server lists the replay's issues without times.
 - **API tokens** are shown once when created. Choose scopes and an
   expiry.
 - **Projects:** each project has general settings, client keys (DSN) with
-  setup instructions for the official open-source SDKs on 14 platforms,
+  setup instructions for the Sentry SDKs on 14 platforms,
   inbound filters, data scrubbing, allowed origins and the CSP report URI,
   rate limit and retention, source maps with the upload CLI commands, and
   **Telemetry data**: per type (traces, logs, metrics, profiles, replays)
@@ -403,7 +403,6 @@ the app.
 | | `shift h` / `shift l` | Oldest / latest event |
 | | `c` | Copy the short id |
 | | `Esc` | Back to the stream |
-
 | Trace view | `j` / `k`, `↑` / `↓` | Next / previous span |
 | | `←` / `→` | Collapse (or go to the parent) / expand |
 | | `Enter` or `o`, `Esc` | Open / close span details |
@@ -455,7 +454,8 @@ custom tags are not suggested yet.
 - The web app needs a current browser (it uses modern JavaScript and CSS;
   no support for Internet Explorer).
 - Times use your browser's timezone unless you choose another one in your
-  account settings; that choice is per browser.
+  account settings; that choice is saved with your account. Deploy
+  notification choices are kept per browser.
 - Log facets count the lines loaded in the browser (up to 1,000), not the
   whole period.
 - Dashboards store each widget's width in quarters of the page; the

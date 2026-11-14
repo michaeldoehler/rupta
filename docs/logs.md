@@ -1,6 +1,6 @@
 # Logs
 
-rupta stores the structured logs that the official open-source SDKs send
+rupta stores the structured logs that the Sentry SDKs send
 (`Sentry.logger.info(...)` in JavaScript, `sentry_sdk.logger` in Python
 with `enable_logs=True`, `\Sentry\logger()` in PHP with `enable_logs`) and
 OpenTelemetry log records, lets you search them, count them over time, and

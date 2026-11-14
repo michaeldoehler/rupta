@@ -6,7 +6,8 @@
 
 <p align="center">
   <strong>Self-hosted error tracking and application monitoring in a single container.</strong><br>
-  Compatible with the official open-source SDKs. Built in Rust on an embedded database.
+  Works with the Sentry SDKs and <code>sentry-cli</code>: switch an existing app by changing its DSN.<br>
+  Built in Rust on an embedded database.
 </p>
 
 <p align="center">
@@ -18,8 +19,24 @@
 
 rupta (from *rupture*) collects errors, traces, logs, metrics, profiles and
 session replays from your applications, groups errors into issues and
-alerts your team. Point the official open-source SDKs for JavaScript, PHP,
-Python and other platforms at rupta's DSN and they work unchanged.
+alerts your team.
+
+**Which SDKs?** rupta implements the ingestion protocol of the **Sentry
+SDKs**, the open-source client libraries that Sentry publishes for each
+platform (`@sentry/browser`, `@sentry/node`, `@sentry/react`,
+`@sentry/nextjs`, `sentry/sentry`, `sentry/sentry-laravel` and
+`sentry/sentry-symfony` for PHP,
+`sentry-sdk` for Python, and the SDKs for Go, Java, .NET, Ruby, Rust and
+others), and the source map upload commands of **`sentry-cli`**. You do
+not install anything from rupta in your application: you keep using these
+SDKs unchanged, and an application that already reports to Sentry switches
+to rupta by changing its DSN. The JavaScript (browser and Node.js), PHP and
+Python SDKs are tested end to end; the others use the same protocol and
+are expected to work. The [compatibility matrix](docs/sdk-compatibility.md#compatibility-matrix)
+lists every data type per SDK, and what is not supported.
+
+> Sentry is a trademark of Functional Software, Inc. rupta is an
+> independent project and is not affiliated with or endorsed by Sentry.
 
 It runs as **one process** — HTTP API, ingestion pipeline, web app and
 database in a single binary — and keeps its durable copy in any
@@ -38,8 +55,9 @@ Kafka, no ClickHouse, no Redis, no PostgreSQL to operate.
   release and environment, user impact, comments and assignment. Grouping
   by fingerprint, exception and in-app frames, with regression and
   escalation detection. → [grouping](docs/grouping.md)
-- **JavaScript source maps** uploaded with the official upload CLI (debug
-  ids or release artifacts). → [source maps](docs/sourcemaps.md)
+- **JavaScript source maps** uploaded with `sentry-cli` or the bundler
+  plugins that use it (debug ids or release artifacts).
+  → [source maps](docs/sourcemaps.md)
 - **Performance.** Transactions with throughput, latency percentiles,
   failure rate, Apdex and Web Vitals; trace waterfall; span explorer.
   → [performance](docs/performance.md)
@@ -97,8 +115,10 @@ scripts/generate-env.sh http://localhost:8080   # writes .env with random secret
 docker compose up -d
 ```
 
-Open <http://localhost:8080>, log in as `admin@example.com`, create a
-project and copy its DSN.
+Open <http://localhost:8080>, log in as `admin@example.com` with the
+printed password, create a project (*Settings → All projects → New project*)
+and copy its DSN. [Getting started](docs/getting-started.md) walks through
+the first five minutes, including a test error sent with `curl`.
 
 Without Garage, for a quick look:
 
@@ -108,9 +128,12 @@ docker run -d -p 8080:8080 -v rupta-data:/data \
   ghcr.io/michaeldoehler/rupta:0.1.0
 ```
 
+The first visitor then creates the administrator account in the setup
+screen. Without a bucket, the volume is the only copy of the data.
+
 ## Send your first error
 
-Install the official SDK for your platform and initialize it with the DSN
+Install the Sentry SDK for your platform and initialize it with the DSN
 from the project settings. For a browser application:
 
 ```sh
@@ -127,26 +150,41 @@ Sentry.init({
 });
 ```
 
-The project settings show the setup for every supported platform (React,
-Next.js, Node.js, PHP, Laravel, Symfony, Python, Django, Go, Java, .NET,
-Ruby, Rust and others). → [SDK compatibility](docs/sdk-compatibility.md)
+The DSN has the form `http(s)://<public key>@<host>/<project id>`; the
+SDK derives the ingest URL (`/api/<project id>/envelope/`) from it.
+
+**Already using Sentry?** Replace the DSN in your configuration (often the
+`SENTRY_DSN` environment variable) with the one from rupta and redeploy.
+Nothing else in the application changes. To keep uploading source maps,
+point `sentry-cli` at rupta with `SENTRY_URL` and a rupta token
+([source map upload](docs/sourcemap-upload.md)).
+
+The project settings show copy-paste setup for 14 platforms (JavaScript,
+React, Next.js, Node.js, PHP, Laravel, Symfony, Python, Django, Go, Java,
+.NET, Ruby and Rust); [getting started](docs/getting-started.md#send-errors-from-your-application)
+has the snippets for JavaScript, Node.js, PHP, Laravel, Python and Django.
+→ [SDK compatibility](docs/sdk-compatibility.md)
 
 ## Documentation
 
+Start with [getting started](docs/getting-started.md); the
+[documentation index](docs/README.md) suggests a reading order.
+
 | | |
 | --- | --- |
+| [Getting started](docs/getting-started.md) | from zero to the first error in a few minutes |
 | [Deployment](docs/deployment.md) | Docker Compose, Docker Swarm, Garage and S3, TLS, sizing |
 | [Configuration](docs/configuration.md) | every environment variable |
 | [Operations](docs/operations.md) | health checks, metrics, backup and restore, upgrades, troubleshooting |
 | [Monitoring](docs/monitoring.md) | Prometheus metrics, alert rules, Grafana dashboard and annotations |
 | [User guide](docs/user-guide.md) | a tour of the web app, keyboard shortcuts |
-| [SDK compatibility](docs/sdk-compatibility.md) | what each SDK item does, tested SDK versions |
+| [SDK compatibility](docs/sdk-compatibility.md) | which Sentry SDKs and data types work, tested versions, what is not supported |
 | [Search](docs/search.md) | the query language |
 | [Single sign-on](docs/sso.md) | OpenID Connect, step by step with Zitadel |
 | [Authentication](docs/authentication.md) | accounts, sessions, roles, API tokens |
 | [Alerts](docs/alerts.md) | rules, conditions, notification channels |
 | [Integrations](docs/integrations.md) | Jira, Linear, GitHub and GitLab tickets and status sync |
-| [Source maps](docs/sourcemaps.md), [upload](docs/sourcemap-upload.md) | symbolication and the upload CLI |
+| [Source maps](docs/sourcemaps.md), [upload](docs/sourcemap-upload.md) | symbolication, and uploading with `sentry-cli` |
 | [Performance](docs/performance.md), [Logs](docs/logs.md), [Metrics](docs/metrics.md), [Profiling](docs/profiling.md), [Session replay](docs/session-replay.md) | the monitoring features |
 | [Ingestion](docs/ingestion.md), [Grouping](docs/grouping.md), [Data scrubbing](docs/data-scrubbing.md) | how events are processed |
 | [API](docs/api.md) | REST API overview; [OpenAPI](docs/api/openapi.json) |
@@ -162,7 +200,9 @@ Ruby, Rust and others). → [SDK compatibility](docs/sdk-compatibility.md)
   server; mask sensitive content in the SDK (the default).
 - Not yet available: SAML and SCIM, native (mobile and desktop) crash
   reports and minidumps, mobile session replay, source maps for profile
-  frames, automatic failover beyond rescheduling.
+  frames, automatic failover beyond rescheduling. The SDK features that do
+  not work with rupta are listed under
+  [not supported](docs/sdk-compatibility.md#not-supported).
 
 Each chapter lists the limits of its feature.
 
@@ -177,5 +217,9 @@ pnpm --dir web install && pnpm --dir web dev      # http://localhost:5173
 
 ## License
 
-MIT. See [LICENSE](LICENSE). rupta is an independent project and is not
-affiliated with the vendors of the SDKs it is compatible with.
+MIT. See [LICENSE](LICENSE).
+
+Sentry is a trademark of Functional Software, Inc. rupta is an independent
+project and is not affiliated with or endorsed by Sentry. rupta is written
+independently of the Sentry server; it implements the protocol that the
+open-source Sentry SDKs speak.

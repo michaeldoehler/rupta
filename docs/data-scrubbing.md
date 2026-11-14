@@ -46,6 +46,9 @@ the whole value.
 - Breadcrumb messages and data.
 - Event message and exception values (patterns only).
 - Tags.
+- Logs: attribute keys and values, and the body (patterns), when scrubbing
+  is enabled ([logs](logs.md)).
+- Session replays: only the user's IP address, with `scrub_ip_addresses`.
 
 With `scrub_ip_addresses`, `user.ip_address`, the `X-Forwarded-For`,
 `X-Real-IP`, `Forwarded` and `CF-Connecting-IP` headers, `REMOTE_ADDR` in
@@ -60,8 +63,12 @@ counted in `users_seen`.
   personal data in free text (names, addresses, phone numbers) unless the
   key says so; add such keys to `extra_fields`.
 - Values are replaced, not hashed: scrubbed values cannot be searched.
-- Attachments are stored as sent; they are not scrubbed.
+- Attachments and session replay recordings are stored as sent; they are
+  not scrubbed. Mask replays in the SDK (its default).
 - Rules apply to events stored after a change; stored events are not
   rewritten.
-- Transactions, sessions and check-ins are not scrubbed (they carry names,
-  tags and durations, not request data).
+- Transactions and spans, sessions, check-ins, metrics and profiles are
+  not scrubbed. Span data can contain URLs with query strings and database
+  statements as the SDK recorded them; keep secrets out of them in the SDK
+  (`beforeSendTransaction`, `before_send_transaction`, or the SDK's
+  options for query and header capture).

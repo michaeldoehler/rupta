@@ -2,7 +2,9 @@
 
 rupta is one process with one container image. It needs a volume for its
 working copy and, for durability, an S3-compatible bucket. This chapter
-covers Docker Compose, Docker Swarm, the bucket, TLS and sizing.
+covers Docker Compose, Docker Swarm, the bucket, TLS and sizing. For a
+first try on your own machine, [getting started](getting-started.md) is
+shorter.
 
 ## Docker Compose (single host)
 
@@ -16,9 +18,17 @@ docker compose up -d
 docker compose logs -f rupta
 ```
 
-`generate-env.sh` prints the administrator's password. Open the public URL,
-log in, create a project and copy its DSN into your application's SDK
-configuration (see [SDK compatibility](sdk-compatibility.md)).
+`generate-env.sh` prints the password of the administrator
+`admin@example.com`. Open the public URL, log in, create a project
+(*Settings → All projects → New project*) and copy its DSN into your
+application's Sentry SDK configuration (see [getting started](getting-started.md#send-errors-from-your-application)
+and [SDK compatibility](sdk-compatibility.md)).
+
+**Which variables reach rupta.** `compose.yaml` passes every setting of the
+[configuration](configuration.md) from `.env` to the `rupta` service, except
+`RUPTA_LISTEN`, `RUPTA_DATA_DIR` and `RUPTA_STORAGE_URL`, which the file sets
+itself (the bucket name comes from `RUPTA_BUCKET`). A variable left empty or
+missing in `.env` takes its default.
 
 What runs:
 
@@ -50,6 +60,7 @@ connected to an existing Garage cluster on an external overlay network.
 
 ```sh
 printf '%s' "$(openssl rand -hex 32)" | docker secret create rupta_secret_key -
+printf '%s' "$(openssl rand -base64 18)" | docker secret create rupta_admin_password -
 printf '%s' 'GK…'                     | docker secret create rupta_s3_access_key_id -
 printf '%s' '…'                       | docker secret create rupta_s3_secret_access_key -
 printf '%s' '…'                       | docker secret create rupta_oidc_client_secret -
@@ -75,6 +86,11 @@ The settings that matter:
   upload the last log records on shutdown.
 - **Health check** `rupta healthcheck` calls `/readyz`, which fails when the
   database is not writable or another writer has taken over.
+- **First login.** The stack creates the administrator `RUPTA_ADMIN_EMAIL`
+  (change it to your address) with the password from the
+  `rupta_admin_password` secret on the first start, so no setup screen is
+  open on the public URL. Afterwards both are ignored; change the password
+  in the web app.
 
 Put a reverse proxy (Traefik, Caddy, nginx) in front for TLS and set
 `RUPTA_PUBLIC_URL` to the external `https://` URL and
