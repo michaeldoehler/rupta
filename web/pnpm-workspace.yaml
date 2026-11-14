@@ -1,0 +1,3 @@
+# See .pnpmfile.cjs for how typescript-eslint gets the TypeScript 6 API.
+onlyBuiltDependencies:
+  - esbuild
