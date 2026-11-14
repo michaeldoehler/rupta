@@ -30,10 +30,16 @@ export class ApiError extends Error {
   get isNetwork() {
     return this.status === 0
   }
-  /** Field errors from validation failures: `details.fields = {name: msg}`. */
+  /** Field errors from validation failures (`details.field` or `details.fields`). */
   get fieldErrors(): Record<string, string> {
     const f = this.details.fields
-    return f && typeof f === 'object' ? (f as Record<string, string>) : {}
+    if (f && typeof f === 'object') return f as Record<string, string>
+    // The server names one field: {"details": {"field": "slug", "reason": "..."}}
+    if (typeof this.details.field === 'string') {
+      const msg = this.message.startsWith(`${this.details.field}: `) ? this.message.slice(this.details.field.length + 2) : this.message
+      return { [this.details.field]: msg.charAt(0).toUpperCase() + msg.slice(1) }
+    }
+    return {}
   }
 }
 

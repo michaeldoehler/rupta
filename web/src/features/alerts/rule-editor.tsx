@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ApiError, errorMessage } from '@/api/client'
@@ -21,43 +21,27 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { cn } from '@/lib/utils'
 import { FREQUENCIES, INTERVALS } from './describe'
 
 const EMPTY: AlertRuleInput = {
   name: '',
   enabled: true,
   conditions: [{ type: 'first_seen' }],
-  condition_match: 'any',
   filters: [],
-  filter_match: 'all',
-  actions: [{ type: 'email', target: 'owners' }],
+  actions: [{ type: 'email', user_ids: [], team_ids: [] }],
   frequency_minutes: 30,
   environment: null,
 }
 
 const LEVELS: Level[] = ['fatal', 'error', 'warning', 'info', 'debug']
 
-function Block({
-  step,
-  title,
-  description,
-  children,
-  match,
-  onMatch,
-}: {
-  step: string
-  title: string
-  description: string
-  children: React.ReactNode
-  match?: 'any' | 'all'
-  onMatch?: (m: 'any' | 'all') => void
-}) {
+function Block({ step, title, description, children, match }: { step: string; title: string; description: string; children: React.ReactNode; match?: string }) {
   return (
     <section className="rounded-lg border bg-card">
       <div className="flex flex-wrap items-center gap-3 border-b px-4 py-2.5">
@@ -66,17 +50,7 @@ function Block({
           <h2 className="text-[13px] font-semibold">{title}</h2>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
-        {match && onMatch && (
-          <Select value={match} onValueChange={(v) => onMatch(v as 'any' | 'all')}>
-            <SelectTrigger size="sm" className="w-auto" aria-label={`${title}: match`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any">any of these</SelectItem>
-              <SelectItem value="all">all of these</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
+        {match && <span className="rounded-md border px-2 py-0.5 text-xs text-muted-foreground">{match}</span>}
       </div>
       <div className="space-y-2 p-3">{children}</div>
     </section>
@@ -100,10 +74,11 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
   const qc = useQueryClient()
   const projects = useProjects(org)
   const [project, setProject] = useState(projectSlug ?? '')
+  const projectRef = projects.data?.find((p) => p.slug === projectSlug)
   const existing = useQuery({
     queryKey: qk.alertRule(org, projectSlug ?? '', ruleId ?? ''),
-    queryFn: () => api.projects.alertRule(org, projectSlug!, ruleId!),
-    enabled: !isNew,
+    queryFn: () => api.projects.alertRule(org, projectRef!, ruleId!),
+    enabled: !isNew && Boolean(projectRef),
   })
   const channels = useQuery({ queryKey: qk.channels(org), queryFn: () => api.orgs.channels(org) })
   const members = useMembers(org)
@@ -122,7 +97,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
   useEffect(() => {
     if (existing.data) {
       const { id: _id, project: _p, created_by: _c, created_at: _ca, updated_at: _u, last_fired: _l, ...input } = existing.data
-      setRule(input)
+      setRule({ ...EMPTY, ...input })
     }
   }, [existing.data])
 
@@ -139,7 +114,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
     if (!rule.actions.length) e.actions = 'Add at least one action.'
     rule.actions.forEach((a, i) => {
       if (a.type === 'channel' && !a.channel_id) e[`action-${i}`] = 'Choose a channel.'
-      if (a.type === 'email' && (a.target === 'user' || a.target === 'team') && !a.target_id) e[`action-${i}`] = 'Choose who to email.'
+      if (a.type === 'email' && a.user_ids.length + a.team_ids.length === 0) e[`action-${i}`] = 'Choose who to email.'
     })
     rule.filters.forEach((f, i) => {
       if (f.type === 'tag' && !f.key.trim()) e[`filter-${i}`] = 'Enter a tag key.'
@@ -247,7 +222,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
           </Field>
         </div>
 
-        <Block step="WHEN" title="Triggers" description="What starts the rule" match={rule.condition_match} onMatch={(m) => set('condition_match', m)}>
+        <Block step="WHEN" title="Triggers" description="What starts the rule" match="any of these">
           {rule.conditions.map((c, i) => (
             <Row key={i} onRemove={() => removeAt('conditions', i)} label="trigger">
               <Select
@@ -306,13 +281,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
           </Button>
         </Block>
 
-        <Block
-          step="IF"
-          title="Filters"
-          description="Optional: only for issues that also match"
-          match={rule.filter_match}
-          onMatch={(m) => set('filter_match', m)}
-        >
+        <Block step="IF" title="Filters" description="Optional: only for issues that also match" match="all of these">
           {rule.filters.length === 0 && <p className="px-1 text-[13px] text-muted-foreground">No filters: every issue that triggers the rule counts.</p>}
           {rule.filters.map((f, i) => (
             <div key={i}>
@@ -326,10 +295,8 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                       t === 'level'
                         ? { type: 'level', match: 'gte', level: 'error' }
                         : t === 'tag'
-                          ? { type: 'tag', key: '', match: 'eq', value: '' }
-                          : t === 'environment'
-                            ? { type: 'environment', value: 'production' }
-                            : { type: 'issue_age', older_than_minutes: 60 },
+                          ? { type: 'tag', key: '', value: '' }
+                          : { type: 'environment', value: 'production' },
                     )
                   }
                 >
@@ -340,7 +307,6 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                     <SelectItem value="level">Level</SelectItem>
                     <SelectItem value="tag">Tag</SelectItem>
                     <SelectItem value="environment">Environment</SelectItem>
-                    <SelectItem value="issue_age">Issue age</SelectItem>
                   </SelectContent>
                 </Select>
                 <FilterFields f={f} onChange={(v) => setAt('filters', i, v)} />
@@ -360,7 +326,11 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                 <Select
                   value={a.type}
                   onValueChange={(t) =>
-                    setAt('actions', i, t === 'email' ? { type: 'email', target: 'owners' } : { type: 'channel', channel_id: channels.data?.[0]?.id ?? '' })
+                    setAt(
+                      'actions',
+                      i,
+                      t === 'email' ? { type: 'email', user_ids: [], team_ids: [] } : { type: 'channel', channel_id: channels.data?.[0]?.id ?? '' },
+                    )
                   }
                 >
                   <SelectTrigger size="sm" className="w-auto" aria-label="Action type">
@@ -372,39 +342,13 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                   </SelectContent>
                 </Select>
                 {a.type === 'email' ? (
-                  <>
-                    <Select value={a.target} onValueChange={(t) => setAt('actions', i, { type: 'email', target: t as 'owners' })}>
-                      <SelectTrigger size="sm" className="w-auto" aria-label="Recipients">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="owners">the project's team</SelectItem>
-                        <SelectItem value="members">all members</SelectItem>
-                        <SelectItem value="team">a team</SelectItem>
-                        <SelectItem value="user">a member</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {(a.target === 'team' || a.target === 'user') && (
-                      <Select value={a.target_id ?? ''} onValueChange={(v) => setAt('actions', i, { ...a, target_id: v })}>
-                        <SelectTrigger size="sm" className="w-auto min-w-40" aria-label={a.target === 'team' ? 'Team' : 'Member'}>
-                          <SelectValue placeholder={a.target === 'team' ? 'Choose a team' : 'Choose a member'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {a.target === 'team'
-                            ? teams.data?.map((t) => (
-                                <SelectItem key={t.id} value={t.id}>
-                                  #{t.slug}
-                                </SelectItem>
-                              ))
-                            : members.data?.map((m) => (
-                                <SelectItem key={m.user.id} value={m.user.id}>
-                                  {m.user.name || m.user.email}
-                                </SelectItem>
-                              ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </>
+                  <RecipientPicker
+                    userIds={a.user_ids}
+                    teamIds={a.team_ids}
+                    members={(members.data ?? []).map((m) => ({ id: m.user.id, name: m.user.name || m.user.email }))}
+                    teams={(teams.data ?? []).map((t) => ({ id: t.id, name: `#${t.slug}` }))}
+                    onChange={(user_ids, team_ids) => setAt('actions', i, { type: 'email', user_ids, team_ids })}
+                  />
                 ) : (
                   <Select value={a.channel_id} onValueChange={(v) => setAt('actions', i, { type: 'channel', channel_id: v })}>
                     <SelectTrigger size="sm" className="w-auto min-w-48" aria-label="Channel">
@@ -512,7 +456,6 @@ function FilterFields({ f, onChange }: { f: AlertFilter; onChange: (f: AlertFilt
           <SelectContent>
             <SelectItem value="eq">is</SelectItem>
             <SelectItem value="gte">is at least</SelectItem>
-            <SelectItem value="lte">is at most</SelectItem>
           </SelectContent>
         </Select>
         <Select value={f.level} onValueChange={(l) => onChange({ ...f, level: l as Level })}>
@@ -539,48 +482,76 @@ function FilterFields({ f, onChange }: { f: AlertFilter; onChange: (f: AlertFilt
           className="h-7 w-36 font-mono text-[12.5px]"
           aria-label="Tag key"
         />
-        <Select value={f.match} onValueChange={(m) => onChange({ ...f, match: m as 'eq' })}>
-          <SelectTrigger size="sm" className="w-auto" aria-label="Comparison">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="eq">equals</SelectItem>
-            <SelectItem value="ne">does not equal</SelectItem>
-            <SelectItem value="contains">contains</SelectItem>
-            <SelectItem value="starts_with">starts with</SelectItem>
-            <SelectItem value="is_set">is set</SelectItem>
-          </SelectContent>
-        </Select>
-        {f.match !== 'is_set' && (
-          <Input
-            value={f.value ?? ''}
-            onChange={(e) => onChange({ ...f, value: e.target.value })}
-            placeholder="value"
-            className={cn('h-7 w-40 font-mono text-[12.5px]')}
-            aria-label="Tag value"
-          />
-        )}
-      </>
-    )
-  if (f.type === 'environment')
-    return (
-      <>
-        <span>is</span>
-        <Input value={f.value} onChange={(e) => onChange({ ...f, value: e.target.value })} className="h-7 w-40" aria-label="Environment" />
+        <span>equals</span>
+        <Input
+          value={f.value}
+          onChange={(e) => onChange({ ...f, value: e.target.value })}
+          placeholder="value"
+          className="h-7 w-40 font-mono text-[12.5px]"
+          aria-label="Tag value"
+        />
       </>
     )
   return (
     <>
-      <span>older than</span>
-      <Input
-        type="number"
-        min={1}
-        value={f.older_than_minutes}
-        onChange={(e) => onChange({ ...f, older_than_minutes: Math.max(1, Number(e.target.value)) })}
-        className="h-7 w-24"
-        aria-label="Minutes"
-      />
-      <span>minutes</span>
+      <span>is</span>
+      <Input value={f.value} onChange={(e) => onChange({ ...f, value: e.target.value })} className="h-7 w-40" aria-label="Environment" />
     </>
+  )
+}
+
+function RecipientPicker({
+  userIds,
+  teamIds,
+  members,
+  teams,
+  onChange,
+}: {
+  userIds: string[]
+  teamIds: string[]
+  members: { id: string; name: string }[]
+  teams: { id: string; name: string }[]
+  onChange: (userIds: string[], teamIds: string[]) => void
+}) {
+  const label =
+    [
+      userIds.length && `${userIds.length} ${userIds.length === 1 ? 'person' : 'people'}`,
+      teamIds.length && `${teamIds.length} ${teamIds.length === 1 ? 'team' : 'teams'}`,
+    ]
+      .filter(Boolean)
+      .join(', ') || 'Choose recipients'
+  const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="min-w-40 justify-between font-normal" aria-label="Email recipients">
+          {label} <ChevronDown className="opacity-60" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-80 w-64">
+        <DropdownMenuLabel>Teams</DropdownMenuLabel>
+        {teams.map((t) => (
+          <DropdownMenuCheckboxItem
+            key={t.id}
+            checked={teamIds.includes(t.id)}
+            onCheckedChange={() => onChange(userIds, toggle(teamIds, t.id))}
+            onSelect={(e) => e.preventDefault()}
+          >
+            {t.name}
+          </DropdownMenuCheckboxItem>
+        ))}
+        <DropdownMenuLabel>People</DropdownMenuLabel>
+        {members.map((m) => (
+          <DropdownMenuCheckboxItem
+            key={m.id}
+            checked={userIds.includes(m.id)}
+            onCheckedChange={() => onChange(toggle(userIds, m.id), teamIds)}
+            onSelect={(e) => e.preventDefault()}
+          >
+            {m.name}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

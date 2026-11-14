@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { MessageSquareText } from 'lucide-react'
 import { api } from '@/api/endpoints'
-import { qk } from '@/api/queries'
+import { qk, useProjects } from '@/api/queries'
 import { EmptyState, ErrorState, ListSkeleton } from '@/components/common/states'
 import { FeedbackItem } from '@/features/feedback/feedback-item'
 
 export function FeedbackTab({ org, issueId }: { org: string; issueId: string }) {
-  const q = useQuery({ queryKey: qk.issues.feedback(issueId), queryFn: () => api.issues.feedback(issueId) })
+  const projects = useProjects(org)
+  const q = useQuery({ queryKey: qk.issues.feedback(issueId), queryFn: () => api.issues.feedback(issueId, projects.data ?? []), enabled: projects.isSuccess })
   return (
     <div className="mx-auto max-w-3xl px-4 py-5 sm:px-6">
       {q.isPending ? (

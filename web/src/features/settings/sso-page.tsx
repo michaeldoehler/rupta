@@ -29,6 +29,7 @@ type Form = {
   default_role: Role
   jit_provisioning: boolean
   enforce: boolean
+  owner_local_login: boolean
 }
 
 const PRESETS: Record<string, Partial<Form> & { label: string; issuerHint: string }> = {
@@ -84,6 +85,7 @@ function toForm(c: SsoConfig | null): Form {
     default_role: c?.default_role ?? 'member',
     jit_provisioning: c?.jit_provisioning ?? true,
     enforce: c?.enforce ?? false,
+    owner_local_login: c?.owner_local_login ?? true,
   }
 }
 
@@ -130,6 +132,7 @@ export function SsoPage({ org }: { org: string }) {
     default_role: form.default_role,
     jit_provisioning: form.jit_provisioning,
     enforce: form.enforce,
+    owner_local_login: form.owner_local_login,
   })
 
   function validate() {
@@ -148,9 +151,23 @@ export function SsoPage({ org }: { org: string }) {
     try {
       setTest(await api.orgs.testSso(org, body()))
     } catch (e) {
-      setTest({ ok: false, message: errorMessage(e) })
+      // Servers without a test endpoint: check the discovery document from the browser.
+      if (e instanceof ApiError && (e.status === 404 || e.status === 405)) setTest(await browserDiscoveryCheck(form.issuer.trim().replace(/\/$/, '')))
+      else setTest({ ok: false, message: errorMessage(e) })
     } finally {
       setTesting(false)
+    }
+  }
+
+  async function remove() {
+    try {
+      await api.orgs.deleteSso(org)
+      qc.setQueryData(qk.sso(org), null)
+      setForm(toForm(null))
+      applyPreset('zitadel')
+      toast.success('Single sign-on removed')
+    } catch (err) {
+      toast.error(errorMessage(err))
     }
   }
 
@@ -383,9 +400,17 @@ export function SsoPage({ org }: { org: string }) {
           </ToggleRow>
           <ToggleRow
             title="Require single sign-on"
-            description="Members must sign in through the provider; their passwords stop working for this organization. Owners keep password sign-in as a fallback."
+            description="Members must sign in through the provider; their passwords stop working for this organization."
           >
             <Switch checked={form.enforce} disabled={!owner} onCheckedChange={(v) => set('enforce', v)} aria-label="Require single sign-on" />
+          </ToggleRow>
+          <ToggleRow title="Owners may still use their password" description="A fallback in case the identity provider is down or misconfigured.">
+            <Switch
+              checked={form.owner_local_login}
+              disabled={!owner}
+              onCheckedChange={(v) => set('owner_local_login', v)}
+              aria-label="Owners may still use their password"
+            />
           </ToggleRow>
         </div>
         {form.enforce && !configured && (
@@ -412,7 +437,12 @@ export function SsoPage({ org }: { org: string }) {
         </div>
       )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
+        {configured && (
+          <Button variant="ghost" className="mr-auto text-destructive" disabled={!owner} onClick={() => void remove()}>
+            Remove single sign-on
+          </Button>
+        )}
         <Button variant="outline" disabled={!owner || testing || !form.issuer} onClick={() => void runTest()}>
           {testing && <Loader2 className="animate-spin" />} Test connection
         </Button>
@@ -422,4 +452,26 @@ export function SsoPage({ org }: { org: string }) {
       </div>
     </SettingsPage>
   )
+}
+
+/** Fetches the issuer's discovery document directly; needs CORS on the identity provider. */
+async function browserDiscoveryCheck(issuer: string): Promise<SsoTestResult> {
+  try {
+    const res = await fetch(`${issuer}/.well-known/openid-configuration`, { credentials: 'omit' })
+    if (!res.ok) return { ok: false, message: `${issuer}/.well-known/openid-configuration answered HTTP ${res.status}.` }
+    const doc = (await res.json()) as { issuer?: string; authorization_endpoint?: string }
+    if (doc.issuer && doc.issuer.replace(/\/$/, '') !== issuer) return { ok: false, message: `The discovery document names a different issuer: ${doc.issuer}` }
+    return {
+      ok: true,
+      message: 'Discovery document loaded (checked from this browser; the server checks again at sign-in).',
+      issuer: doc.issuer,
+      authorization_endpoint: doc.authorization_endpoint,
+    }
+  } catch {
+    return {
+      ok: false,
+      message:
+        'Could not load the discovery document from this browser (network error or the provider does not allow cross-origin requests). Save and try a sign-in to check from the server.',
+    }
+  }
 }

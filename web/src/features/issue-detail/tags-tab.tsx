@@ -87,7 +87,9 @@ export function TagsTab({ org, issueId }: { org: string; issueId: string }) {
 
 export function TagDetail({ org, issueId, tagKey }: { org: string; issueId: string; tagKey: string }) {
   const q = useQuery({ queryKey: qk.issues.tagValues(issueId, tagKey), queryFn: () => api.issues.tagValues(issueId, tagKey) })
-  const total = Math.max(1, q.data?.total_values ?? 1)
+  const summary = useQuery({ queryKey: qk.issues.tags(issueId), queryFn: () => api.issues.tags(issueId) })
+  const totalValues = summary.data?.find((t) => t.key === tagKey)?.total_values ?? q.data?.data.reduce((s, v) => s + v.count, 0) ?? 0
+  const total = Math.max(1, totalValues)
   return (
     <div className="space-y-3 px-4 py-4 sm:px-6">
       <div className="flex items-center gap-2">
@@ -98,7 +100,7 @@ export function TagDetail({ org, issueId, tagKey }: { org: string; issueId: stri
         </Button>
         <ChevronRight className="size-3.5 text-muted-foreground" />
         <h2 className="font-mono text-sm font-semibold">{tagKey}</h2>
-        {q.data && <span className="text-xs text-muted-foreground">{thousands(q.data.total_values)} events</span>}
+        {q.data && <span className="text-xs text-muted-foreground">{thousands(totalValues)} events</span>}
       </div>
       <div className="overflow-hidden rounded-lg border bg-card">
         {q.isPending ? (

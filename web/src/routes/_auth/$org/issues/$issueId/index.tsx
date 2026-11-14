@@ -1,10 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { z } from 'zod'
+import * as z from 'zod/mini'
 import { eventQuery } from '@/api/queries'
 import { DetailsTab } from '@/features/issue-detail/details-tab'
 
 export const Route = createFileRoute('/_auth/$org/issues/$issueId/')({
-  validateSearch: z.object({ event: z.string().optional().catch(undefined) }),
+  validateSearch: z.object({ event: z.catch(z.optional(z.string()), undefined) }),
   loaderDeps: ({ search }) => ({ event: search.event ?? 'recommended' }),
   loader: ({ context, params, deps }) => {
     void context.queryClient.prefetchQuery(eventQuery(params.issueId, deps.event))

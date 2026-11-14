@@ -6,8 +6,9 @@ import { toast } from 'sonner'
 import { ApiError, errorMessage } from '@/api/client'
 import { api } from '@/api/endpoints'
 import { qk, useApiMutation, useMembers, useSession, useTeams } from '@/api/queries'
-import type { Role, Team } from '@/api/types'
+import type { Role } from '@/api/types'
 import { UserAvatar } from '@/components/common/avatar'
+import { CopyButton, CopyField } from '@/components/common/copy-button'
 import { Field, FormError } from '@/components/common/field'
 import { CardsSkeleton, EmptyState, ErrorState, ListSkeleton } from '@/components/common/states'
 import { RelativeTime } from '@/components/common/time'
@@ -165,7 +166,6 @@ function RoleSelect({ value, onChange, disabled, id }: { value: Role; onChange: 
 export function MembersPage({ org }: { org: string }) {
   const members = useMembers(org)
   const invites = useQuery({ queryKey: qk.invites(org), queryFn: () => api.orgs.invites(org) })
-  const teams = useTeams(org)
   const { data: session } = useSession()
   const { can } = useRole('admin')
   const [q, setQ] = useState('')
@@ -207,6 +207,7 @@ export function MembersPage({ org }: { org: string }) {
                 <span className="text-xs text-muted-foreground">
                   expires <RelativeTime date={i.expires_at} />
                 </span>
+                {i.accept_url && <CopyButton value={i.accept_url} label="Copy invitation link" toastLabel="Invitation link copied" />}
                 {can && (
                   <Button variant="ghost" size="xs" onClick={() => revoke.mutate(i.id)}>
                     Revoke
@@ -306,7 +307,7 @@ export function MembersPage({ org }: { org: string }) {
           ))}
         </dl>
       </SettingsCard>
-      <InviteDialog org={org} open={inviteOpen} onOpenChange={setInviteOpen} teams={teams.data ?? []} />
+      <InviteDialog org={org} open={inviteOpen} onOpenChange={setInviteOpen} />
       <AlertDialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -325,11 +326,11 @@ export function MembersPage({ org }: { org: string }) {
   )
 }
 
-function InviteDialog({ org, open, onOpenChange, teams }: { org: string; open: boolean; onOpenChange: (o: boolean) => void; teams: Team[] }) {
+function InviteDialog({ org, open, onOpenChange }: { org: string; open: boolean; onOpenChange: (o: boolean) => void }) {
   const qc = useQueryClient()
   const [emails, setEmails] = useState('')
   const [role, setRole] = useState<Role>('member')
-  const [team, setTeam] = useState<string>('__none')
+  const [shareLinks, setShareLinks] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   async function submit(e: React.FormEvent) {
@@ -345,16 +346,20 @@ function InviteDialog({ org, open, onOpenChange, teams }: { org: string; open: b
     setBusy(true)
     setError(null)
     const failed: string[] = []
+    const links: string[] = []
     for (const email of list) {
       try {
-        await api.orgs.invite(org, { email, role, teams: team === '__none' ? [] : [team] })
+        const inv = await api.orgs.invite(org, { email, role })
+        if (inv.email_sent === false && inv.accept_url) links.push(`${email}: ${inv.accept_url}`)
       } catch (err) {
         failed.push(`${email}: ${errorMessage(err)}`)
       }
     }
     setBusy(false)
     void qc.invalidateQueries({ queryKey: qk.invites(org) })
+    if (links.length) setShareLinks(links)
     if (failed.length) setError(failed.join('\n'))
+    else if (links.length) toast.success('Invitations created. Share the links below.')
     else {
       toast.success(list.length === 1 ? `Invitation sent to ${list[0]}` : `${list.length} invitations sent`)
       setEmails('')
@@ -375,7 +380,7 @@ function InviteDialog({ org, open, onOpenChange, teams }: { org: string; open: b
           <Field label="Email addresses" hint="Separate several with commas or spaces.">
             {(p) => <Input {...p} autoFocus value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="ada@example.com, grace@example.com" />}
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4">
             <Field label="Role">
               {(p) => (
                 <Select value={role} onValueChange={(v) => setRole(v as Role)}>
@@ -392,27 +397,24 @@ function InviteDialog({ org, open, onOpenChange, teams }: { org: string; open: b
                 </Select>
               )}
             </Field>
-            <Field label="Team" optional>
-              {(p) => (
-                <Select value={team} onValueChange={setTeam}>
-                  <SelectTrigger id={p.id} className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none">No team</SelectItem>
-                    {teams.map((t) => (
-                      <SelectItem key={t.id} value={t.slug}>
-                        #{t.slug}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </Field>
           </div>
+          {shareLinks.length > 0 && (
+            <div className="space-y-2 rounded-md border border-warning/40 bg-warning-soft p-3 text-[13px]">
+              <p>No email could be sent (SMTP is not configured). Send these links yourself; each works once and expires in 7 days.</p>
+              {shareLinks.map((l) => {
+                const url = l.slice(l.indexOf(': ') + 2)
+                return (
+                  <div key={l}>
+                    <p className="text-xs text-muted-foreground">{l.slice(0, l.indexOf(': '))}</p>
+                    <CopyField value={url} label="Copy invitation link" />
+                  </div>
+                )
+              })}
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {shareLinks.length ? 'Done' : 'Cancel'}
             </Button>
             <Button type="submit" disabled={busy}>
               Send invitations

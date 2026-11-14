@@ -1,6 +1,6 @@
 import { CornerDownLeft, Search, X } from 'lucide-react'
 import { forwardRef, useDeferredValue, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { useTagKeys, useTagValues } from '@/api/queries'
+import { useTagValues } from '@/api/queries'
 import { Kbd } from '@/components/ui/kbd'
 import { applySuggestion, completionContext, dynamicTagFor, suggestKeys, suggestValues, type Suggestion } from '@/lib/search/autocomplete'
 import { tokenize } from '@/lib/search/parse'
@@ -64,15 +64,14 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
   useEffect(() => setDraft(value), [value])
 
   const ctx = useMemo(() => completionContext(draft, caret), [draft, caret])
-  const tagKeys = useTagKeys(org, projects)
   const dynKey = ctx.mode === 'value' && ctx.key ? dynamicTagFor(ctx.key) : null
   const partial = useDeferredValue(ctx.partial)
   const tagValues = useTagValues(org, open ? dynKey : null, projects, partial)
 
   const suggestions: Suggestion[] = useMemo(() => {
-    if (ctx.mode === 'key') return suggestKeys(ctx.partial, tagKeys.data?.map((k) => k.key) ?? [])
+    if (ctx.mode === 'key') return suggestKeys(ctx.partial)
     return suggestValues(ctx.key!, ctx.partial, tagValues.data?.map((v) => v.value) ?? [])
-  }, [ctx, tagKeys.data, tagValues.data])
+  }, [ctx, tagValues.data])
 
   useEffect(() => setActive(0), [ctx.mode, ctx.key, ctx.partial])
 

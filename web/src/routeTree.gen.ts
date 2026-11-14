@@ -15,7 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AuthOrgRouteImport } from './routes/_auth/$org'
 import { Route as AuthOnboardingRouteImport } from './routes/_auth/onboarding'
-import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as AcceptInviteTokenRouteImport } from './routes/accept-invite.$token'
 import { Route as AuthOrgIndexRouteImport } from './routes/_auth/$org/index'
 import { Route as AuthOrgFeedbackRouteImport } from './routes/_auth/$org/feedback'
 import { Route as AuthOrgSettingsRouteImport } from './routes/_auth/$org/settings'
@@ -33,6 +33,7 @@ import { Route as AuthOrgSettingsMembersRouteImport } from './routes/_auth/$org/
 import { Route as AuthOrgSettingsSsoRouteImport } from './routes/_auth/$org/settings/sso'
 import { Route as AuthOrgSettingsTeamsRouteImport } from './routes/_auth/$org/settings/teams'
 import { Route as AuthOrgSettingsTokensRouteImport } from './routes/_auth/$org/settings/tokens'
+import { Route as OrganizationsOrgIssuesIssueIdRouteImport } from './routes/organizations.$org.issues.$issueId'
 import { Route as AuthOrgAlertsProjectRuleIdRouteImport } from './routes/_auth/$org/alerts/$project.$ruleId'
 import { Route as AuthOrgCronsProjectSlugRouteImport } from './routes/_auth/$org/crons/$project.$slug'
 import { Route as AuthOrgIssuesIssueIdIndexRouteImport } from './routes/_auth/$org/issues/$issueId/index'
@@ -83,9 +84,9 @@ const AuthOnboardingRoute = AuthOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthRoute,
 } as any)
-const InviteTokenRoute = InviteTokenRouteImport.update({
-  id: '/invite/$token',
-  path: '/invite/$token',
+const AcceptInviteTokenRoute = AcceptInviteTokenRouteImport.update({
+  id: '/accept-invite/$token',
+  path: '/accept-invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthOrgIndexRoute = AuthOrgIndexRouteImport.update({
@@ -173,6 +174,12 @@ const AuthOrgSettingsTokensRoute = AuthOrgSettingsTokensRouteImport.update({
   path: '/tokens',
   getParentRoute: () => AuthOrgSettingsRoute,
 } as any)
+const OrganizationsOrgIssuesIssueIdRoute =
+  OrganizationsOrgIssuesIssueIdRouteImport.update({
+    id: '/organizations/$org/issues/$issueId',
+    path: '/organizations/$org/issues/$issueId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthOrgAlertsProjectRuleIdRoute =
   AuthOrgAlertsProjectRuleIdRouteImport.update({
     id: '/alerts/$project/$ruleId',
@@ -299,7 +306,7 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/$org': typeof AuthOrgRouteWithChildren
   '/onboarding': typeof AuthOnboardingRoute
-  '/invite/$token': typeof InviteTokenRoute
+  '/accept-invite/$token': typeof AcceptInviteTokenRoute
   '/$org/feedback': typeof AuthOrgFeedbackRoute
   '/$org/settings': typeof AuthOrgSettingsRouteWithChildren
   '/$org/': typeof AuthOrgIndexRoute
@@ -312,6 +319,7 @@ export interface FileRoutesByFullPath {
   '/$org/settings/sso': typeof AuthOrgSettingsSsoRoute
   '/$org/settings/teams': typeof AuthOrgSettingsTeamsRoute
   '/$org/settings/tokens': typeof AuthOrgSettingsTokensRoute
+  '/organizations/$org/issues/$issueId': typeof OrganizationsOrgIssuesIssueIdRoute
   '/$org/alerts/': typeof AuthOrgAlertsIndexRoute
   '/$org/crons/': typeof AuthOrgCronsIndexRoute
   '/$org/issues/': typeof AuthOrgIssuesIndexRoute
@@ -343,7 +351,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/onboarding': typeof AuthOnboardingRoute
-  '/invite/$token': typeof InviteTokenRoute
+  '/accept-invite/$token': typeof AcceptInviteTokenRoute
   '/$org/feedback': typeof AuthOrgFeedbackRoute
   '/$org': typeof AuthOrgIndexRoute
   '/$org/alerts/new': typeof AuthOrgAlertsNewRoute
@@ -354,6 +362,7 @@ export interface FileRoutesByTo {
   '/$org/settings/sso': typeof AuthOrgSettingsSsoRoute
   '/$org/settings/teams': typeof AuthOrgSettingsTeamsRoute
   '/$org/settings/tokens': typeof AuthOrgSettingsTokensRoute
+  '/organizations/$org/issues/$issueId': typeof OrganizationsOrgIssuesIssueIdRoute
   '/$org/alerts': typeof AuthOrgAlertsIndexRoute
   '/$org/crons': typeof AuthOrgCronsIndexRoute
   '/$org/issues': typeof AuthOrgIssuesIndexRoute
@@ -387,7 +396,7 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/_auth/$org': typeof AuthOrgRouteWithChildren
   '/_auth/onboarding': typeof AuthOnboardingRoute
-  '/invite/$token': typeof InviteTokenRoute
+  '/accept-invite/$token': typeof AcceptInviteTokenRoute
   '/_auth/$org/feedback': typeof AuthOrgFeedbackRoute
   '/_auth/$org/settings': typeof AuthOrgSettingsRouteWithChildren
   '/_auth/$org/': typeof AuthOrgIndexRoute
@@ -400,6 +409,7 @@ export interface FileRoutesById {
   '/_auth/$org/settings/sso': typeof AuthOrgSettingsSsoRoute
   '/_auth/$org/settings/teams': typeof AuthOrgSettingsTeamsRoute
   '/_auth/$org/settings/tokens': typeof AuthOrgSettingsTokensRoute
+  '/organizations/$org/issues/$issueId': typeof OrganizationsOrgIssuesIssueIdRoute
   '/_auth/$org/alerts/': typeof AuthOrgAlertsIndexRoute
   '/_auth/$org/crons/': typeof AuthOrgCronsIndexRoute
   '/_auth/$org/issues/': typeof AuthOrgIssuesIndexRoute
@@ -434,7 +444,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/$org'
     | '/onboarding'
-    | '/invite/$token'
+    | '/accept-invite/$token'
     | '/$org/feedback'
     | '/$org/settings'
     | '/$org/'
@@ -447,6 +457,7 @@ export interface FileRouteTypes {
     | '/$org/settings/sso'
     | '/$org/settings/teams'
     | '/$org/settings/tokens'
+    | '/organizations/$org/issues/$issueId'
     | '/$org/alerts/'
     | '/$org/crons/'
     | '/$org/issues/'
@@ -478,7 +489,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/setup'
     | '/onboarding'
-    | '/invite/$token'
+    | '/accept-invite/$token'
     | '/$org/feedback'
     | '/$org'
     | '/$org/alerts/new'
@@ -489,6 +500,7 @@ export interface FileRouteTypes {
     | '/$org/settings/sso'
     | '/$org/settings/teams'
     | '/$org/settings/tokens'
+    | '/organizations/$org/issues/$issueId'
     | '/$org/alerts'
     | '/$org/crons'
     | '/$org/issues'
@@ -521,7 +533,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/_auth/$org'
     | '/_auth/onboarding'
-    | '/invite/$token'
+    | '/accept-invite/$token'
     | '/_auth/$org/feedback'
     | '/_auth/$org/settings'
     | '/_auth/$org/'
@@ -534,6 +546,7 @@ export interface FileRouteTypes {
     | '/_auth/$org/settings/sso'
     | '/_auth/$org/settings/teams'
     | '/_auth/$org/settings/tokens'
+    | '/organizations/$org/issues/$issueId'
     | '/_auth/$org/alerts/'
     | '/_auth/$org/crons/'
     | '/_auth/$org/issues/'
@@ -566,7 +579,8 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   LoginRoute: typeof LoginRoute
   SetupRoute: typeof SetupRoute
-  InviteTokenRoute: typeof InviteTokenRoute
+  AcceptInviteTokenRoute: typeof AcceptInviteTokenRoute
+  OrganizationsOrgIssuesIssueIdRoute: typeof OrganizationsOrgIssuesIssueIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -613,11 +627,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthOnboardingRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/invite/$token': {
-      id: '/invite/$token'
-      path: '/invite/$token'
-      fullPath: '/invite/$token'
-      preLoaderRoute: typeof InviteTokenRouteImport
+    '/accept-invite/$token': {
+      id: '/accept-invite/$token'
+      path: '/accept-invite/$token'
+      fullPath: '/accept-invite/$token'
+      preLoaderRoute: typeof AcceptInviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth/$org/': {
@@ -738,6 +752,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$org/settings/tokens'
       preLoaderRoute: typeof AuthOrgSettingsTokensRouteImport
       parentRoute: typeof AuthOrgSettingsRoute
+    }
+    '/organizations/$org/issues/$issueId': {
+      id: '/organizations/$org/issues/$issueId'
+      path: '/organizations/$org/issues/$issueId'
+      fullPath: '/organizations/$org/issues/$issueId'
+      preLoaderRoute: typeof OrganizationsOrgIssuesIssueIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_auth/$org/alerts/$project/$ruleId': {
       id: '/_auth/$org/alerts/$project/$ruleId'
@@ -1022,7 +1043,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   LoginRoute: LoginRoute,
   SetupRoute: SetupRoute,
-  InviteTokenRoute: InviteTokenRoute,
+  AcceptInviteTokenRoute: AcceptInviteTokenRoute,
+  OrganizationsOrgIssuesIssueIdRoute: OrganizationsOrgIssuesIssueIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

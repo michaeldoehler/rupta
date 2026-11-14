@@ -17,7 +17,14 @@ export function FeedbackPage() {
   const projects = useProjects(org)
   const targets = (projects.data ?? []).filter((p) => !selected.length || selected.includes(p.id))
   const results = useQueries({
-    queries: targets.map((p) => ({ queryKey: qk.feedback(org, p.slug, query), queryFn: () => api.projects.feedback(org, p.slug, { query }) })),
+    queries: targets.map((p) => ({
+      queryKey: qk.feedback(org, p.slug, query),
+      queryFn: () =>
+        api.projects.feedback(org, p).then((pg) => ({
+          ...pg,
+          data: pg.data.filter((f) => !query || `${f.message} ${f.email ?? ''} ${f.name ?? ''}`.toLowerCase().includes(query.toLowerCase())),
+        })),
+    })),
   })
   const pending = projects.isPending || results.some((r) => r.isPending)
   const error = projects.error ?? results.find((r) => r.error)?.error

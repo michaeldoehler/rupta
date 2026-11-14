@@ -10,16 +10,12 @@ import type {
   Issue,
   IssueDetail,
   IssueUpdate,
-  Member,
   Monitor,
   Project,
-  Release,
-  ReleaseDetail,
   Role,
   Session,
   SsoConfig,
   TagDistribution,
-  Team,
   User,
   UserProfile,
 } from '@/api/types'
@@ -158,7 +154,15 @@ function assigneeOut(a: DbIssue['assignee']): Assignee | null {
   return t ? { type: 'team', id: t.id, name: `#${t.slug}` } : null
 }
 
-function issueOut(i: DbIssue, period: '24h' | '14d' = '24h'): Issue {
+const PERIOD_MS: Record<string, number> = { '24h': DAY, '7d': 7 * DAY, '14d': 14 * DAY, '30d': 30 * DAY, '90d': 90 * DAY }
+
+/** Sparkline like the server: hourly up to 48 hours, daily beyond. */
+function periodSeries(i: DbIssue, period: string) {
+  const ms = PERIOD_MS[period] ?? DAY
+  return ms <= 2 * DAY ? issueSeries(i, world.now, Math.round(ms / HOUR), HOUR) : issueSeries(i, world.now, Math.round(ms / DAY), DAY)
+}
+
+function issueOut(i: DbIssue, period = '24h'): Issue {
   const p = world.projects.find((x) => x.id === i.project_id)!
   const t = i.title
   const colon = t.indexOf(': ')
@@ -182,7 +186,7 @@ function issueOut(i: DbIssue, period: '24h' | '14d' = '24h'): Issue {
       i.type === 'error' && colon > 0
         ? { type: t.slice(0, colon), value: t.slice(colon + 2), filename: i.culprit.match(/\(([^)]+)\)/)?.[1], function: i.culprit.split('(')[0] }
         : { value: t },
-    stats: period === '24h' ? issueSeries(i, world.now, 24, HOUR) : issueSeries(i, world.now, 14, DAY),
+    stats: periodSeries(i, period),
     priority: i.priority,
     is_bookmarked: auth.userId ? i.bookmarked_by.has(auth.userId) : false,
     has_seen: auth.userId ? i.seen_by.has(auth.userId) : false,
@@ -200,10 +204,12 @@ function issueDetail(i: DbIssue): IssueDetail {
   void stats
   const s24 = issueSeries(i, world.now, 24, HOUR).reduce((a, [, c]) => a + c, 0)
   const s30 = issueSeries(i, world.now, 30, DAY).reduce((a, [, c]) => a + c, 0)
+  void releaseRef
   return {
     ...rest,
-    first_release: releaseRef(i.first_release),
-    last_release: releaseRef(i.last_release),
+    // the server sends release versions as plain strings
+    first_release: i.first_release as never,
+    last_release: i.last_release as never,
     resolved_in_release: i.resolved_in_release,
     ignore_until: i.ignore_until ? iso(i.ignore_until) : null,
     ignore_count: i.ignore_count,
@@ -271,6 +277,8 @@ function matchFilter(i: DbIssue, f: FilterToken, me: string): boolean {
             return i.assignee === null
           case 'bookmarked':
             return i.bookmarked_by.has(me)
+          case 'unseen':
+            return !i.seen_by.has(me)
           case 'for_review':
             return i.status === 'unresolved' && i.substatus === 'new'
           default:
@@ -302,20 +310,20 @@ function matchFilter(i: DbIssue, f: FilterToken, me: string): boolean {
     case 'platform':
       r = any((x) => i.platform === x)
       break
-    case 'error.handled':
-      r = any((x) => (x === 'yes' || x === 'true' || x === '1') === i.handled)
+    case 'has':
+      r = any((x) => (x === 'release' ? Boolean(i.last_release) : x === 'user' ? i.user_count > 0 : Boolean(i.tags[x])))
       break
-    case 'age':
+    case 'first_seen':
     case 'last_seen': {
       const ms = parseRelative(f.values[0] ?? '')
-      const at = f.key === 'age' ? i.first_seen : i.last_seen
+      const at = f.key === 'first_seen' ? i.first_seen : i.last_seen
       r = ms === null ? true : f.values[0].startsWith('+') ? at < world.now - ms : at >= world.now - ms
       break
     }
     case 'times_seen':
       r = cmp(i.count, f.values[0])
       break
-    case 'users':
+    case 'users_seen':
       r = cmp(i.user_count, f.values[0])
       break
     case 'error.value':
@@ -348,6 +356,8 @@ function searchIssues(orgId: string, url: URL): DbIssue[] {
   let out = world.issues.filter((i) => orgProjects.has(i.project_id))
   if (projects.length) out = out.filter((i) => projects.includes(i.project_id))
   if (envs.length) out = out.filter((i) => envs.includes(i.tags.environment))
+  const period = url.searchParams.get('period')
+  if (period && PERIOD_MS[period]) out = out.filter((i) => i.last_seen >= world.now - PERIOD_MS[period])
   for (const f of filters) out = out.filter((i) => matchFilter(i, f, me))
   for (const t of text) {
     const needle = t.toLowerCase()
@@ -392,7 +402,10 @@ function applyIssueUpdate(i: DbIssue, body: IssueUpdate) {
     }
   }
   if (body.assignee !== undefined) {
-    i.assignee = body.assignee ? { type: body.assignee.type, id: body.assignee.id } : null
+    // server format: "user:{id}", "team:{id}", "me" or null
+    const raw = body.assignee as unknown as string | null
+    const [type, id] = raw === 'me' ? ['user', me] : raw ? raw.split(':') : [null, null]
+    i.assignee = type ? { type: type === 'team' ? 'team' : 'user', id: id! } : null
     add(body.assignee ? 'assigned' : 'unassigned', { assignee: assigneeOut(i.assignee) })
   }
   if (body.priority) {
@@ -454,7 +467,7 @@ function issueTags(i: DbIssue): TagDistribution[] {
   return out
 }
 
-function releaseOut(r: World['releases'][number], projectFilter: string[]): Release {
+function releaseOut(r: World['releases'][number], projectFilter: string[]) {
   const projects = r.project_ids.filter((pid) => !projectFilter.length || projectFilter.includes(pid)).map((pid) => world.projects.find((p) => p.id === pid)!)
   const last = [...r.deploys].sort((a, b) => b.date_finished - a.date_finished)[0]
   return {
@@ -465,12 +478,19 @@ function releaseOut(r: World['releases'][number], projectFilter: string[]): Rele
     date_released: r.date_released ? iso(r.date_released) : null,
     first_event: iso(r.date_created + HOUR),
     last_event: iso(Math.min(world.now, r.date_created + 10 * DAY)),
-    projects: projects.map((p) => ({ ...projectRef(p), new_issues: r.new_issues })),
+    short_version: r.version.slice(r.version.indexOf('@') + 1),
+    projects: projects.map((p) => ({ id: p.id, slug: p.slug, name: p.name, new_issues: r.new_issues })),
     new_issues: r.new_issues,
-    crash_free_sessions: r.crash_free_sessions,
-    crash_free_users: r.crash_free_users,
-    adoption: r.adoption,
-    sessions: r.sessions,
+    // server shape: health object
+    health: {
+      total_sessions: r.sessions,
+      crashed_sessions: Math.round(r.sessions * (1 - r.crash_free_sessions / 100)),
+      errored_sessions: Math.round(r.sessions * 0.01),
+      abnormal_sessions: 0,
+      crash_free_sessions: r.crash_free_sessions,
+      crash_free_users: null,
+      adoption: r.adoption,
+    },
     last_deploy: last ? { ...last, date_started: last.date_started ? iso(last.date_started) : null, date_finished: iso(last.date_finished) } : null,
     stats: r.health.map((h) => [h.ts, h.total] as [number, number]),
   }
@@ -479,7 +499,8 @@ function releaseOut(r: World['releases'][number], projectFilter: string[]): Rele
 function monitorOut(m: World['monitors'][number]): Monitor {
   const { checkins, project_id, ...rest } = m
   const p = world.projects.find((x) => x.id === project_id)!
-  return { ...rest, project: projectRef(p), recent_checkins: checkins.slice(0, 40) }
+  void p
+  return { ...rest, checkins: checkins.slice(0, 40) } as unknown as Monitor
 }
 
 function ruleOut(r: World['rules'][number]): AlertRule {
@@ -578,7 +599,7 @@ export const handlers = [
     if (!u || body.password !== u.password) return err(401, 'invalid_credentials', 'Email or password is incorrect.')
     auth.userId = u.id
     saveAuth()
-    return json({ user: publicUser(u) })
+    return json(session() as unknown as JsonBodyType)
   }),
   http.post(`${BASE}/auth/logout`, async () => {
     auth.userId = null
@@ -604,21 +625,14 @@ export const handlers = [
     return json(session() as unknown as JsonBodyType)
   }),
 
-  http.get(`${BASE}/invitations/:token`, async ({ params }) => {
+  http.get(`${BASE}/invites/:token`, async ({ params }) => {
     await wait()
     const inv = world.invites.find((i) => i.token === p(params, 'token'))
     if (!inv) return err(404, 'not_found', 'This invitation is invalid or has expired.')
     const org = world.orgs.find((o) => o.id === inv.org_id)!
-    return json({
-      org: { slug: org.slug, name: org.name },
-      email: inv.email,
-      role: inv.role,
-      invited_by: world.users[0].name,
-      expires_at: inv.expires_at,
-      user_exists: false,
-    })
+    return json({ org_slug: org.slug, org_name: org.name, email: inv.email, role: inv.role, expires_at: inv.expires_at, user_exists: false })
   }),
-  http.post(`${BASE}/invitations/:token/accept`, async ({ params, request }) => {
+  http.post(`${BASE}/invites/:token/accept`, async ({ params, request }) => {
     await wait()
     const inv = world.invites.find((i) => i.token === p(params, 'token'))
     if (!inv) return err(404, 'not_found', 'This invitation is invalid or has expired.')
@@ -647,7 +661,7 @@ export const handlers = [
   // Everything below requires a session.
   http.all(`${BASE}/*`, async ({ request }) => {
     const path = new URL(request.url).pathname
-    if (path.startsWith(`${BASE}/auth/`) || path.startsWith(`${BASE}/invitations/`)) return undefined
+    if (path.startsWith(`${BASE}/auth/`) || path.startsWith(`${BASE}/invites/`)) return undefined
     return requireAuth() ?? undefined
   }),
 
@@ -658,25 +672,35 @@ export const handlers = [
   }),
   http.patch(`${BASE}/user`, async ({ request }) => {
     const u = currentUser()!
-    const body = (await request.json()) as Partial<UserProfile>
+    const body = (await request.json()) as { name?: string; avatar_url?: string | null; current_password?: string; new_password?: string }
+    if (body.new_password !== undefined) {
+      if (body.current_password !== u.password) return err(403, 'forbidden', 'The current password is incorrect.', { field: 'current_password' })
+      if (body.new_password.length < 10) return err(422, 'validation_failed', 'new_password: use at least 10 characters', { field: 'new_password' })
+      u.password = body.new_password
+    }
     if (body.name !== undefined) u.name = body.name
-    if (body.preferences)
-      u.preferences = { ...u.preferences, ...body.preferences, notifications: { ...u.preferences.notifications, ...body.preferences.notifications } }
-    return json(userProfile(u) as unknown as JsonBodyType)
+    return json(publicUser(u) as unknown as JsonBodyType)
   }),
-  http.post(`${BASE}/user/password`, async ({ request }) => {
-    const u = currentUser()!
-    const body = (await request.json()) as { current_password: string; new_password: string }
-    if (body.current_password !== u.password)
-      return err(422, 'validation_failed', 'The current password is incorrect.', { fields: { current_password: 'Incorrect password.' } })
-    if ((body.new_password ?? '').length < 10)
-      return err(422, 'validation_failed', 'Some fields are invalid.', { fields: { new_password: 'Use at least 10 characters.' } })
-    u.password = body.new_password
-    return new HttpResponse(null, { status: 204 })
-  }),
+  http.get(`${BASE}/scopes`, () =>
+    json(
+      [
+        'org:read',
+        'org:write',
+        'org:admin',
+        'member:read',
+        'member:write',
+        'project:read',
+        'project:write',
+        'project:admin',
+        'project:releases',
+        'issue:write',
+        'release:write',
+      ].map((scope) => ({ scope, description: scope })),
+    ),
+  ),
   http.get(`${BASE}/user/tokens`, () => json(world.userTokens.filter((t) => t.user_id === auth.userId) as unknown as JsonBodyType)),
   http.post(`${BASE}/user/tokens`, async ({ request }) => {
-    const body = (await request.json()) as { name: string; scopes: string[]; expires_at?: string | null }
+    const body = (await request.json()) as { name: string; scopes: string[]; expires_in_days?: number | null }
     const token = `rpt_${new Rng(Date.now()).hex(40)}`
     const t = {
       id: nid(),
@@ -686,7 +710,7 @@ export const handlers = [
       scopes: body.scopes as never,
       created_at: iso(Date.now()),
       last_used_at: null,
-      expires_at: body.expires_at ?? null,
+      expires_at: body.expires_in_days ? iso(Date.now() + body.expires_in_days * DAY) : null,
     }
     world.userTokens.push(t)
     return json({ ...t, token }, 201)
@@ -729,16 +753,23 @@ export const handlers = [
     await wait()
     const r = withOrg(params)
     if ('error' in r) return r.error
-    const out: Member[] = world.members
+    // server shape: Page_Member with flat members
+    const out = world.members
       .filter((m) => m.org_id === r.org.id)
-      .map((m) => ({
-        user: publicUser(world.users.find((u) => u.id === m.user_id)!),
-        role: m.role,
-        created_at: m.created_at,
-        sso: m.sso,
-        teams: world.teams.filter((t) => t.org_id === r.org.id && t.member_ids.includes(m.user_id)).map((t) => t.slug),
-      }))
-    return json(out as unknown as JsonBodyType)
+      .map((m) => {
+        const u = world.users.find((x) => x.id === m.user_id)!
+        return {
+          user_id: u.id,
+          email: u.email,
+          name: u.name,
+          avatar_url: u.avatar_url,
+          role: m.role,
+          created_at: m.created_at,
+          sso_linked: m.sso,
+          teams: world.teams.filter((t) => t.org_id === r.org.id && t.member_ids.includes(m.user_id)).map((t) => t.slug),
+        }
+      })
+    return json({ data: out, next_cursor: null } as unknown as JsonBodyType)
   }),
   http.post(`${BASE}/orgs/:org/members`, async ({ params, request }) => {
     const r = withOrg(params)
@@ -759,7 +790,19 @@ export const handlers = [
     }
     world.invites.push(inv)
     audit(r.org.id, 'member.invite', 'member', inv.id, { email: body.email, role: body.role })
-    return json(inv, 201)
+    // without SMTP the server answers with a link to share
+    return json(
+      {
+        id: inv.id,
+        email: inv.email,
+        role: inv.role,
+        created_at: inv.created_at,
+        expires_at: inv.expires_at,
+        email_sent: false,
+        accept_url: `${location.origin}/accept-invite/${inv.token}`,
+      },
+      201,
+    )
   }),
   http.patch(`${BASE}/orgs/:org/members/:user`, async ({ params, request }) => {
     const r = withOrg(params)
@@ -780,14 +823,16 @@ export const handlers = [
     audit(r.org.id, 'member.remove', 'member', p(params, 'user'))
     return new HttpResponse(null, { status: 204 })
   }),
-  http.get(`${BASE}/orgs/:org/invitations`, ({ params }) => {
+  http.get(`${BASE}/orgs/:org/invites`, ({ params }) => {
     const r = withOrg(params)
     if ('error' in r) return r.error
     return json(
-      world.invites.filter((i) => i.org_id === r.org.id).map(({ token, org_id, ...rest }) => (void token, void org_id, rest)) as unknown as JsonBodyType,
+      world.invites
+        .filter((i) => i.org_id === r.org.id)
+        .map(({ token, org_id, ...rest }) => (void org_id, { ...rest, accept_url: `${location.origin}/accept-invite/${token}` })) as unknown as JsonBodyType,
     )
   }),
-  http.delete(`${BASE}/orgs/:org/invitations/:id`, ({ params }) => {
+  http.delete(`${BASE}/orgs/:org/invites/:id`, ({ params }) => {
     world.invites = world.invites.filter((i) => i.id !== p(params, 'id'))
     return new HttpResponse(null, { status: 204 })
   }),
@@ -796,15 +841,17 @@ export const handlers = [
     await wait()
     const r = withOrg(params)
     if ('error' in r) return r.error
-    const out: Team[] = world.teams
+    const out = world.teams
       .filter((t) => t.org_id === r.org.id)
       .map((t) => ({
         id: t.id,
         slug: t.slug,
         name: t.name,
         created_at: t.created_at,
-        members: t.member_ids.map((id) => publicUser(world.users.find((u) => u.id === id)!)),
-        projects: world.projects.filter((pp) => pp.team_id === t.id).map((pp) => ({ id: pp.id, slug: pp.slug })),
+        members: t.member_ids.map((id) => {
+          const u = world.users.find((x) => x.id === id)!
+          return { user_id: u.id, email: u.email, name: u.name }
+        }),
       }))
     return json(out as unknown as JsonBodyType)
   }),
@@ -841,16 +888,18 @@ export const handlers = [
     if ('error' in r) return r.error
     const url = new URL(request.url)
     const action = url.searchParams.get('action')
-    const actor = url.searchParams.get('actor')
     let items = world.audit.filter((a) => a.org_id === r.org.id)
     if (action) items = items.filter((a) => a.action.startsWith(action))
-    if (actor) items = items.filter((a) => a.actor.id === actor)
-    return json(
-      page(
-        items.map(({ org_id, ...rest }) => (void org_id, rest)),
-        url,
-      ) as unknown as JsonBodyType,
-    )
+    // server shape: actor {user_id, email, token_id}
+    const out = items.map(({ org_id, actor, ...rest }) => {
+      void org_id
+      const u = actor.type === 'user' ? world.users.find((x) => x.id === actor.id) : undefined
+      return {
+        ...rest,
+        actor: { user_id: actor.type === 'user' ? actor.id : null, email: u?.email ?? null, token_id: actor.type === 'token' ? actor.id : null },
+      }
+    })
+    return json(page(out, url) as unknown as JsonBodyType)
   }),
 
   http.get(`${BASE}/orgs/:org/sso`, ({ params }) => {
@@ -883,12 +932,21 @@ export const handlers = [
       ...prev,
       ...rest,
       has_client_secret: Boolean(client_secret) || Boolean(prev?.has_client_secret),
-      redirect_uri: `${location.origin}/auth/sso/${r.org.slug}/callback`,
+      owner_local_login: body.owner_local_login ?? prev?.owner_local_login ?? true,
+      provider_id: `org-${r.org.slug}`,
+      redirect_uri: `${location.origin}/auth/sso/org-${r.org.slug}/callback`,
     }
     world.sso.set(r.org.id, cfg)
     audit(r.org.id, 'sso.update', 'sso_config', r.org.id, { provider: cfg.provider_name })
     return json(cfg as unknown as JsonBodyType)
   }),
+  http.delete(`${BASE}/orgs/:org/sso`, ({ params }) => {
+    const r = withOrg(params)
+    if ('error' in r) return r.error
+    world.sso.delete(r.org.id)
+    return new HttpResponse(null, { status: 204 })
+  }),
+  // beyond the API (the page falls back to a browser check when this is missing)
   http.post(`${BASE}/orgs/:org/sso/test`, async ({ request }) => {
     await delay(600)
     const body = (await request.json()) as Partial<SsoConfig>
@@ -910,7 +968,7 @@ export const handlers = [
   http.post(`${BASE}/orgs/:org/tokens`, async ({ params, request }) => {
     const r = withOrg(params)
     if ('error' in r) return r.error
-    const body = (await request.json()) as { name: string; scopes: string[]; expires_at?: string | null }
+    const body = (await request.json()) as { name: string; scopes: string[]; expires_in_days?: number | null }
     if (!body.name?.trim()) return err(422, 'validation_failed', 'Enter a name.', { fields: { name: 'Enter a name.' } })
     if (!body.scopes?.length) return err(422, 'validation_failed', 'Choose at least one scope.', { fields: { scopes: 'Choose at least one scope.' } })
     const token = `rpt_${new Rng(Date.now()).hex(40)}`
@@ -922,7 +980,7 @@ export const handlers = [
       scopes: body.scopes as never,
       created_at: iso(Date.now()),
       last_used_at: null,
-      expires_at: body.expires_at ?? null,
+      expires_at: body.expires_in_days ? iso(Date.now() + body.expires_in_days * DAY) : null,
     }
     world.orgTokens.push(t)
     audit(r.org.id, 'api_token.create', 'api_token', t.id, { name: t.name, scopes: t.scopes })
@@ -966,56 +1024,28 @@ export const handlers = [
       : json({ ok: true, message: `Test notification sent to ${c.name}.` })
   }),
 
-  http.get(`${BASE}/orgs/:org/environments`, ({ params }) => {
+  // Event query: only the group_by form, which the UI uses for value suggestions.
+  http.get(`${BASE}/orgs/:org/events`, ({ params, request }) => {
     const r = withOrg(params)
     if ('error' in r) return r.error
-    return json(['production', 'staging', 'development'])
-  }),
-  http.get(`${BASE}/orgs/:org/tags`, ({ params }) => {
-    const r = withOrg(params)
-    if ('error' in r) return r.error
-    return json(
-      [
-        'environment',
-        'release',
-        'browser',
-        'browser.name',
-        'os',
-        'os.name',
-        'device',
-        'url',
-        'transaction',
-        'server_name',
-        'runtime',
-        'handled',
-        'mechanism',
-        'level',
-        'user',
-        'customer_tier',
-        'feature.new_checkout',
-      ].map((key) => ({ key, name: key, total_values: 0 })),
-    )
-  }),
-  http.get(`${BASE}/orgs/:org/tags/:key/values`, ({ params, request }) => {
-    const r = withOrg(params)
-    if ('error' in r) return r.error
-    const key = p(params, 'key')
-    const q = (new URL(request.url).searchParams.get('query') ?? '').toLowerCase()
-    const orgProjects = new Set(world.projects.filter((x) => x.org_id === r.org.id).map((x) => x.id))
+    const url = new URL(request.url)
+    const col = url.searchParams.get('group_by')
+    if (!col) return json({ data: [] })
+    const key = { user_email: 'user.email', user_id: 'user.id', exception_type: 'error.type' }[col] ?? col
+    const projects = listParam(url, 'project')
+    const orgProjects = new Set(world.projects.filter((x) => x.org_id === r.org.id && (!projects.length || projects.includes(x.id))).map((x) => x.id))
     const counts = new Map<string, number>()
     for (const i of world.issues) {
       if (!orgProjects.has(i.project_id)) continue
-      const v = key === 'release' ? i.last_release : key === 'platform' ? i.platform : key === 'customer_tier' ? null : i.tags[key]
+      const v = key === 'release' ? i.last_release : key === 'platform' ? i.platform : key === 'level' ? i.level : i.tags[key]
       if (v) counts.set(v, (counts.get(v) ?? 0) + i.count)
+      if (key === 'environment') for (const e of ['staging', 'development']) counts.set(e, (counts.get(e) ?? 0) + 1)
     }
-    if (key === 'customer_tier') ['free', 'pro', 'business'].forEach((v, idx) => counts.set(v, 1000 - idx))
-    if (key === 'handled') ['yes', 'no'].forEach((v) => counts.set(v, 1))
-    const out = [...counts.entries()]
-      .filter(([v]) => v.toLowerCase().includes(q))
+    const data = [...counts.entries()]
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 20)
-      .map(([value, count]) => ({ value, count }))
-    return json(out)
+      .slice(0, Number(url.searchParams.get('limit') ?? 50))
+      .map(([value, count]) => ({ [col]: value, count }))
+    return json({ data } as unknown as JsonBodyType)
   }),
 
   http.get(`${BASE}/orgs/:org/saved-searches`, ({ params }) => {
@@ -1026,8 +1056,18 @@ export const handlers = [
   http.post(`${BASE}/orgs/:org/saved-searches`, async ({ params, request }) => {
     const r = withOrg(params)
     if ('error' in r) return r.error
-    const body = (await request.json()) as { name: string; query: string; sort: 'last_seen'; is_shared: boolean }
-    const s = { id: nid(), org_id: r.org.id, user_id: body.is_shared ? null : auth.userId, created_at: iso(Date.now()), ...body }
+    const body = (await request.json()) as { name: string; query: string; sort: 'last_seen'; shared: boolean }
+    const s = {
+      id: nid(),
+      org_id: r.org.id,
+      user_id: body.shared ? null : auth.userId,
+      created_at: iso(Date.now()),
+      name: body.name,
+      query: body.query,
+      sort: body.sort,
+      is_shared: body.shared,
+      shared: body.shared,
+    }
     world.savedSearches.push(s)
     return json(s, 201)
   }),
@@ -1046,7 +1086,7 @@ export const handlers = [
   http.post(`${BASE}/orgs/:org/projects`, async ({ params, request }) => {
     const r = withOrg(params)
     if ('error' in r) return r.error
-    const body = (await request.json()) as { name: string; slug?: string; platform?: string; team_id?: string | null }
+    const body = (await request.json()) as { name: string; slug?: string; platform?: string; team?: string | null }
     const slug = (body.slug || body.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')
     if (world.projects.some((x) => x.org_id === r.org.id && x.slug === slug))
       return err(409, 'conflict', 'A project with this slug exists.', { fields: { name: 'Already taken.' } })
@@ -1056,7 +1096,7 @@ export const handlers = [
       slug,
       name: body.name,
       platform: body.platform ?? null,
-      team_id: body.team_id ?? null,
+      team_id: body.team ?? null,
       created_at: iso(Date.now()),
       prefix: slug.toUpperCase().slice(0, 5),
       settings: {
@@ -1181,7 +1221,7 @@ export const handlers = [
       ...body,
       id: nid(),
       project_id: r.project.id,
-      created_by: publicUser(u),
+      created_by: u.name,
       created_at: iso(Date.now()),
       updated_at: iso(Date.now()),
       last_fired: null,
@@ -1244,7 +1284,7 @@ export const handlers = [
     const r = withOrg(params)
     if ('error' in r) return r.error
     const url = new URL(request.url)
-    const period = url.searchParams.get('period') === '14d' ? '14d' : '24h'
+    const period = url.searchParams.get('period') ?? '24h'
     const found = searchIssues(r.org.id, url)
     const pg = page(found, url)
     return json({ data: pg.data.map((i) => issueOut(i, period)), next_cursor: pg.next_cursor, total: found.length } as unknown as JsonBodyType)
@@ -1392,7 +1432,8 @@ export const handlers = [
     const i = findIssue(p(params, 'id'))
     if (!i) return err(404, 'not_found', 'Issue not found.')
     const period = new URL(request.url).searchParams.get('period')
-    return json(period === '30d' ? issueSeries(i, world.now, 30, DAY) : issueSeries(i, world.now, 24, HOUR))
+    const events = period === '30d' ? issueSeries(i, world.now, 30, DAY) : issueSeries(i, world.now, 24, HOUR)
+    return json({ period: period ?? '24h', resolution: period === '30d' ? 86400 : 3600, events, users: events.map(([t, c]) => [t, Math.ceil(c / 3)]) })
   }),
   http.get(`${BASE}/issues/:id/feedback`, ({ params }) =>
     json(world.feedback.filter((f) => f.issue_id === p(params, 'id')).map(feedbackOut) as unknown as JsonBodyType),
@@ -1448,7 +1489,7 @@ export const handlers = [
       adoption: (a, b) => b.adoption - a.adoption,
     }
     list = [...list].sort(sorters[sort] ?? sorters.date)
-    return json(list.map((x) => releaseOut(x, projects)) as unknown as JsonBodyType)
+    return json({ data: list.map((x) => releaseOut(x, projects)), next_cursor: null } as unknown as JsonBodyType)
   }),
   http.get(`${BASE}/orgs/:org/releases/:version`, async ({ params }) => {
     await wait()
@@ -1456,12 +1497,18 @@ export const handlers = [
     if ('error' in r) return r.error
     const rel = world.releases.find((x) => x.org_id === r.org.id && x.version === p(params, 'version'))
     if (!rel) return err(404, 'not_found', 'Release not found.')
-    const out: ReleaseDetail = {
+    // server shape: daily [[unix_seconds, sessions, crashed]] of the last 14 days
+    const byDay = new Map<number, [number, number]>()
+    for (const h of rel.health) {
+      const d = Math.floor(h.ts / 86400) * 86400
+      const cur = byDay.get(d) ?? [0, 0]
+      byDay.set(d, [cur[0] + h.total, cur[1] + h.crashed])
+    }
+    const out = {
       ...releaseOut(rel, []),
       deploys: rel.deploys.map((d) => ({ ...d, date_started: d.date_started ? iso(d.date_started) : null, date_finished: iso(d.date_finished) })),
-      health: rel.health,
-      users: rel.users,
-      commit_count: 12,
+      project_health: [],
+      sessions: [...byDay.entries()].sort((a, b) => a[0] - b[0]).map(([t, [n, c]]) => [t, n, c]),
     }
     return json(out as unknown as JsonBodyType)
   }),

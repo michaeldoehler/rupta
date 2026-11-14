@@ -18,7 +18,7 @@ export function CronsPage() {
   const { org, projects: selected } = useGlobalFilters()
   const projects = useProjects(org)
   const targets = (projects.data ?? []).filter((p) => !selected.length || selected.includes(p.id))
-  const results = useQueries({ queries: targets.map((p) => ({ queryKey: qk.monitors(org, p.slug), queryFn: () => api.projects.monitors(org, p.slug) })) })
+  const results = useQueries({ queries: targets.map((p) => ({ queryKey: qk.monitors(org, p.slug), queryFn: () => api.projects.monitors(org, p) })) })
   const pending = projects.isPending || results.some((r) => r.isPending)
   const error = projects.error ?? results.find((r) => r.error)?.error
   const order: Record<string, number> = { error: 0, timeout: 0, missed: 1, ok: 2, unknown: 3 }

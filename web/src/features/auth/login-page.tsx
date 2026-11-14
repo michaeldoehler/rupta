@@ -4,7 +4,7 @@ import { KeyRound, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { ApiError, errorMessage } from '@/api/client'
 import { api } from '@/api/endpoints'
-import { authConfigQuery, qk, sessionQuery } from '@/api/queries'
+import { orgAuthConfigQuery, qk, sessionQuery } from '@/api/queries'
 import { Field, FormError } from '@/components/common/field'
 import { ErrorState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
@@ -13,13 +13,20 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AuthLayout } from './auth-layout'
 
-export function LoginPage({ next, ssoError }: { next?: string; ssoError?: string }) {
-  const config = useQuery(authConfigQuery)
+const SSO_ERRORS: Record<string, string> = {
+  sso_failed: 'Single sign-on failed. Try again or contact your administrator.',
+  sso_denied: 'The identity provider did not allow the sign-in.',
+  not_invited: 'Your account is not a member of this organization yet. Ask an administrator for an invitation.',
+  disabled: 'Your account is disabled.',
+}
+
+export function LoginPage({ next, ssoError, org }: { next?: string; ssoError?: string; org?: string }) {
+  const config = useQuery(orgAuthConfigQuery(org ?? ''))
   const qc = useQueryClient()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(ssoError ? `Single sign-on failed: ${ssoError}` : null)
+  const [error, setError] = useState<string | null>(ssoError ? (SSO_ERRORS[ssoError] ?? `Single sign-on failed (${ssoError}).`) : null)
   const [busy, setBusy] = useState(false)
   const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/'
 
@@ -28,11 +35,16 @@ export function LoginPage({ next, ssoError }: { next?: string; ssoError?: string
     setBusy(true)
     setError(null)
     try {
-      await api.auth.login({ email, password })
-      await qc.invalidateQueries({ queryKey: qk.session })
-      await qc.fetchQuery(sessionQuery)
+      const session = await api.auth.login({ email, password })
+      if (session?.user) qc.setQueryData(qk.session, session)
+      else await qc.fetchQuery({ ...sessionQuery, staleTime: 0 })
       await navigate({ to: safeNext })
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'sso_required' && typeof err.details.provider === 'string') {
+        // The organization requires single sign-on: continue there.
+        window.location.assign(api.auth.ssoStartUrl(err.details.provider, safeNext))
+        return
+      }
       setError(err instanceof ApiError && err.status === 401 ? 'Email or password is incorrect.' : errorMessage(err))
     } finally {
       setBusy(false)

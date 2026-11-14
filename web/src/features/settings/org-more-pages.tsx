@@ -84,14 +84,15 @@ export function AuditLogPage({ org }: { org: string }) {
   const [action, setAction] = useState('')
   const [actor, setActor] = useState('')
   const members = useMembers(org)
-  const filters = { action, actor }
+  const filters = { action }
   const q = useInfiniteQuery({
     queryKey: qk.audit(org, filters),
-    queryFn: ({ pageParam }) => api.orgs.auditLog(org, { action: action || undefined, actor: actor || undefined, cursor: pageParam ?? undefined, limit: 50 }),
+    queryFn: ({ pageParam }) => api.orgs.auditLog(org, { action: action || undefined, cursor: pageParam ?? undefined, limit: 50 }),
     initialPageParam: null as string | null,
     getNextPageParam: (l) => l.next_cursor,
   })
-  const rows = q.data?.pages.flatMap((p) => p.data) ?? []
+  // The API filters by action; the actor filter applies to the loaded entries.
+  const rows = (q.data?.pages.flatMap((p) => p.data) ?? []).filter((e) => !actor || e.actor.id === actor)
   return (
     <SettingsPage
       title="Audit log"
@@ -195,10 +196,7 @@ const CHANNEL_KINDS: {
     kind: 'slack',
     label: 'Slack',
     icon: Hash,
-    fields: [
-      { key: 'webhook_url', label: 'Incoming webhook URL', placeholder: 'https://hooks.slack.com/services/…', secret: true },
-      { key: 'channel', label: 'Channel', placeholder: '#alerts' },
-    ],
+    fields: [{ key: 'webhook_url', label: 'Incoming webhook URL', placeholder: 'https://hooks.slack.com/services/…', secret: true }],
   },
   {
     kind: 'teams',
@@ -210,7 +208,7 @@ const CHANNEL_KINDS: {
     kind: 'email',
     label: 'Email',
     icon: Mail,
-    fields: [{ key: 'recipients', label: 'Recipients', placeholder: 'oncall@example.com, team@example.com', hint: 'Separate addresses with commas.' }],
+    fields: [{ key: 'to', label: 'Recipients', placeholder: 'oncall@example.com, team@example.com', hint: 'Separate addresses with commas (up to 50).' }],
   },
   {
     kind: 'webhook',
@@ -233,7 +231,9 @@ function ChannelDialog({ org, channel, open, onOpenChange }: { org: string; chan
   const qc = useQueryClient()
   const [kind, setKind] = useState<ChannelKind>(channel?.kind ?? 'slack')
   const [name, setName] = useState(channel?.name ?? '')
-  const [config, setConfig] = useState<Record<string, string>>(channel?.config ?? {})
+  const [config, setConfig] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(channel?.config ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : ''])),
+  )
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const def = CHANNEL_KINDS.find((k) => k.kind === kind)!
@@ -245,8 +245,12 @@ function ChannelDialog({ org, channel, open, onOpenChange }: { org: string; chan
     setBusy(true)
     setError(null)
     try {
-      if (channel) await api.orgs.updateChannel(org, channel.id, { name, config })
-      else await api.orgs.createChannel(org, { kind, name, config })
+      // Server shapes: email {to: [...]}, webhook {url, secret?}, slack/teams {webhook_url}.
+      const body: Record<string, unknown> = { ...config }
+      if (kind === 'email') body.to = (config.to ?? '').split(/[\s,;]+/).filter(Boolean)
+      if (kind === 'webhook' && channel && !config.secret) delete body.secret
+      if (channel) await api.orgs.updateChannel(org, channel.id, { name, config: body })
+      else await api.orgs.createChannel(org, { kind, name, config: body })
       await qc.invalidateQueries({ queryKey: qk.channels(org) })
       toast.success(channel ? 'Channel saved' : 'Channel added')
       onOpenChange(false)
@@ -364,11 +368,14 @@ export function ChannelsPage({ org }: { org: string }) {
           {q.data.map((c) => {
             const def = CHANNEL_KINDS.find((k) => k.kind === c.kind)
             const Icon = def?.icon ?? Globe
-            const target =
-              c.config.channel ??
-              c.config.recipients ??
-              c.config.url ??
-              (c.config.webhook_url ? c.config.webhook_url.replace(/(https:\/\/[^/]+\/).+/, '$1…') : '')
+            const cfg = c.config as Record<string, unknown>
+            const target = Array.isArray(cfg.to)
+              ? cfg.to.join(', ')
+              : typeof cfg.url === 'string'
+                ? cfg.url
+                : typeof cfg.webhook_url === 'string'
+                  ? cfg.webhook_url.replace(/(https:\/\/[^/]+\/).+/, '$1…')
+                  : ''
             return (
               <li key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">

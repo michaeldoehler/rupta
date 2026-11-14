@@ -40,25 +40,22 @@ export function describeCondition(c: AlertCondition): string {
 export function describeFilter(f: AlertFilter): string {
   switch (f.type) {
     case 'level':
-      return `level ${f.match === 'eq' ? 'is' : f.match === 'gte' ? 'is at least' : 'is at most'} ${f.level}`
+      return `level ${f.match === 'eq' ? 'is' : 'is at least'} ${f.level}`
     case 'tag':
-      return f.match === 'is_set'
-        ? `tag ${f.key} is set`
-        : `tag ${f.key} ${{ eq: 'equals', ne: 'does not equal', contains: 'contains', starts_with: 'starts with', is_set: '' }[f.match]} “${f.value ?? ''}”`
+      return `tag ${f.key} is “${f.value}”`
     case 'environment':
       return `environment is ${f.value}`
-    case 'issue_age':
-      return `issue is older than ${f.older_than_minutes} minutes`
   }
 }
 
-export function describeAction(a: AlertAction, channels: Channel[], teams: Team[]): string {
+export function describeAction(a: AlertAction, channels: Channel[], teams: Team[], members: { id: string; name: string }[] = []): string {
   if (a.type === 'channel') {
     const c = channels.find((x) => x.id === a.channel_id)
     return c ? `Notify ${c.name} (${c.kind})` : 'Notify a deleted channel'
   }
-  if (a.target === 'owners') return 'Email the project team'
-  if (a.target === 'members') return 'Email all members'
-  if (a.target === 'team') return `Email #${teams.find((t) => t.id === a.target_id)?.slug ?? 'team'}`
-  return 'Email a member'
+  const names = [
+    ...a.team_ids.map((id) => `#${teams.find((t) => t.id === id)?.slug ?? 'team'}`),
+    ...a.user_ids.map((id) => members.find((m) => m.id === id)?.name ?? 'a member'),
+  ]
+  return names.length ? `Email ${names.join(', ')}` : 'Email nobody'
 }

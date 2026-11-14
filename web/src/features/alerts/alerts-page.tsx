@@ -2,7 +2,7 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Bell, Plus } from 'lucide-react'
 import { api } from '@/api/endpoints'
-import { qk, useApiMutation, useProjects, useTeams } from '@/api/queries'
+import { qk, useApiMutation, useMembers, useProjects, useTeams } from '@/api/queries'
 import type { AlertRule } from '@/api/types'
 import { PlatformIcon } from '@/components/common/platform-icon'
 import { EmptyState, ErrorState, ListSkeleton } from '@/components/common/states'
@@ -17,9 +17,10 @@ export function AlertsPage() {
   const { org, projects: selected } = useGlobalFilters()
   const projects = useProjects(org)
   const teams = useTeams(org)
+  const members = useMembers(org)
   const channels = useQuery({ queryKey: qk.channels(org), queryFn: () => api.orgs.channels(org) })
   const targets = (projects.data ?? []).filter((p) => !selected.length || selected.includes(p.id))
-  const results = useQueries({ queries: targets.map((p) => ({ queryKey: qk.alertRules(org, p.slug), queryFn: () => api.projects.alertRules(org, p.slug) })) })
+  const results = useQueries({ queries: targets.map((p) => ({ queryKey: qk.alertRules(org, p.slug), queryFn: () => api.projects.alertRules(org, p) })) })
   const rules: AlertRule[] = results.flatMap((r) => r.data ?? [])
   const pending = projects.isPending || results.some((r) => r.isPending)
   const error = projects.error ?? results.find((r) => r.error)?.error
@@ -74,20 +75,26 @@ export function AlertsPage() {
                     {r.name}
                   </Link>
                   <p className="mt-0.5 text-[13px] text-muted-foreground">
-                    <span className="text-foreground/80">When</span>{' '}
-                    {r.conditions
-                      .map(describeCondition)
-                      .join(r.condition_match === 'all' ? ' and ' : ' or ')
-                      .toLowerCase()}
+                    <span className="text-foreground/80">When</span> {r.conditions.map(describeCondition).join(' or ').toLowerCase()}
                     {r.filters.length > 0 && (
                       <>
-                        , <span className="text-foreground/80">if</span> {r.filters.map(describeFilter).join(r.filter_match === 'all' ? ' and ' : ' or ')}
+                        , <span className="text-foreground/80">if</span> {r.filters.map(describeFilter).join(' and ')}
                       </>
                     )}
                     {r.environment && <> in {r.environment}</>}
                   </p>
                   <p className="mt-0.5 text-[13px] text-muted-foreground">
-                    <span className="text-foreground/80">Then</span> {r.actions.map((a) => describeAction(a, channels.data ?? [], teams.data ?? [])).join(', ')}{' '}
+                    <span className="text-foreground/80">Then</span>{' '}
+                    {r.actions
+                      .map((a) =>
+                        describeAction(
+                          a,
+                          channels.data ?? [],
+                          teams.data ?? [],
+                          (members.data ?? []).map((m) => ({ id: m.user.id, name: m.user.name || m.user.email })),
+                        ),
+                      )
+                      .join(', ')}{' '}
                     · at most once every {FREQUENCIES.find(([m]) => m === r.frequency_minutes)?.[1] ?? `${r.frequency_minutes} minutes`}
                   </p>
                 </div>

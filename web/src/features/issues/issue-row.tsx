@@ -40,7 +40,7 @@ interface RowProps {
   onToggle: (id: string, shift: boolean) => void
   onFocus: (id: string) => void
   onAssign: (issue: Issue, a: Assignee | null) => void
-  statsPeriod: '24h' | '14d'
+  statsPeriod: string
 }
 
 /** One dense row in the issue stream. Memoised: the list re-renders often. */

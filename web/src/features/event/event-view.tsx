@@ -137,7 +137,7 @@ function Attachments({ issueId, eventId }: { issueId: string; eventId: string })
               {a.content_type?.startsWith('image/') ? <Image className="size-4" /> : <FileText className="size-4" />}
             </span>
             <div className="min-w-0 flex-1">
-              <a href={api.issues.attachmentUrl(a.id)} className="block truncate text-[13px] font-medium hover:underline" download>
+              <a href={a.download_url ?? api.issues.attachmentUrl(a.id)} className="block truncate text-[13px] font-medium hover:underline" download>
                 {a.name}
               </a>
               <div className="text-xs text-muted-foreground">

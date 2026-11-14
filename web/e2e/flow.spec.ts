@@ -63,7 +63,8 @@ test('setup, sign out and in, triage an issue, read its details and change setti
   await sections.getByRole('link', { name: /^Activity/ }).click()
   await page.getByLabel('Comment', { exact: true }).fill('Looking into this now.')
   await page.getByRole('button', { name: 'Comment' }).click()
-  await expect(page.getByText('Looking into this now.')).toBeVisible()
+  await expect(page.locator('ol').getByText('Looking into this now.')).toBeVisible()
+  await expect(page.getByLabel('Comment', { exact: true })).toHaveValue('')
   expect(title.length).toBeGreaterThan(0)
 
   // Settings: DSN and single sign-on.

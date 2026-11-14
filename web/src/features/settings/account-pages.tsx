@@ -105,7 +105,7 @@ export function ProfilePage() {
         </RadioGroup>
       </SettingsCard>
 
-      <SettingsCard title="Time" description={`Times are shown like this: ${absolute(new Date(), { seconds: true })}`}>
+      <SettingsCard title="Time" description={`Saved in this browser. Times are shown like this: ${absolute(new Date(), { seconds: true })}`}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Timezone">
             {(p) => (
@@ -245,7 +245,7 @@ export function SecurityPage() {
       <CreateTokenDialog
         open={create}
         onOpenChange={setCreate}
-        defaultScopes={['event:read', 'project:read']}
+        defaultScopes={['project:read']}
         onCreate={async (body) => {
           const t = await api.user.createToken(body)
           void qc.invalidateQueries({ queryKey: qk.userTokens })
@@ -302,7 +302,10 @@ export function NotificationsPage() {
           </ToggleRow>
         </div>
       </SettingsCard>
-      <p className="text-xs text-muted-foreground">Email delivery needs SMTP to be configured on the server (RUPTA_SMTP_URL).</p>
+      <p className="text-xs text-muted-foreground">
+        These choices are saved in this browser only: the server does not store per-user notification preferences yet. Today, who gets emailed is decided by the
+        recipients of each alert rule. Email delivery needs SMTP on the server (RUPTA_SMTP_URL).
+      </p>
     </SettingsPage>
   )
 }

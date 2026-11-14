@@ -42,18 +42,24 @@ export function InvitePage({ token }: { token: string }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (password.length < 10) {
+    if (!inv.data?.user_exists && password.length < 10) {
       setFieldErrors({ password: 'Use at least 10 characters.' })
       return
     }
     setBusy(true)
     setError(null)
     try {
-      const session = await api.invitations.accept(token, { name, password })
+      const session = await api.invitations.accept(token, inv.data?.user_exists ? {} : { name, password })
       qc.setQueryData(qk.session, session)
       await navigate({ to: '/$org/issues', params: { org: inv.data!.org.slug } })
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        // An existing account accepts while signed in.
+        await navigate({ to: '/login', search: { next: `/accept-invite/${token}` } })
+        return
+      }
       if (err instanceof ApiError && Object.keys(err.fieldErrors).length) setFieldErrors(err.fieldErrors)
+      else if (err instanceof ApiError && typeof err.details.field === 'string') setFieldErrors({ [err.details.field]: err.message })
       else setError(errorMessage(err))
     } finally {
       setBusy(false)
@@ -76,12 +82,20 @@ export function InvitePage({ token }: { token: string }) {
       <form onSubmit={submit} className="grid gap-3.5" noValidate>
         <FormError message={error} />
         <Field label="Email">{(p) => <Input {...p} value={d.email} disabled readOnly />}</Field>
-        <Field label="Name" error={fieldErrors.name}>
-          {(p) => <Input {...p} autoFocus autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />}
-        </Field>
-        <Field label="Choose a password" error={fieldErrors.password} hint="At least 10 characters.">
-          {(p) => <Input {...p} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />}
-        </Field>
+        {d.user_exists ? (
+          <p className="text-[13px] text-muted-foreground">
+            You already have an account. Accepting adds this organization to it; you may be asked to sign in first.
+          </p>
+        ) : (
+          <>
+            <Field label="Name" error={fieldErrors.name}>
+              {(p) => <Input {...p} autoFocus autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />}
+            </Field>
+            <Field label="Choose a password" error={fieldErrors.password} hint="At least 10 characters.">
+              {(p) => <Input {...p} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />}
+            </Field>
+          </>
+        )}
         <Button type="submit" variant="brand" className="mt-1 h-9" disabled={busy}>
           {busy && <Loader2 className="animate-spin" />} Accept and join
         </Button>

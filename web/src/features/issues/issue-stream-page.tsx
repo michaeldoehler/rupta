@@ -5,7 +5,7 @@ import { ArrowDownUp, ArrowUp, Bookmark, BookmarkCheck, ChevronDown, CircleCheck
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/api/endpoints'
 import { qk, useApiMutation, useDeleteIssues, useIssueList, useSavedSearches, useSession, useUpdateIssues } from '@/api/queries'
-import type { Assignee, Issue, IssueQueryParams, IssueSort, IssueUpdate, Page, StatsPeriod } from '@/api/types'
+import type { Assignee, Issue, IssueQueryParams, IssueSort, IssueUpdate, Page } from '@/api/types'
 import { ErrorState, EmptyState, ListSkeleton } from '@/components/common/states'
 import {
   AlertDialog,
@@ -50,7 +50,7 @@ export const DEFAULT_QUERY = 'is:unresolved'
 
 export const TABS: { id: string; label: string; is: string | null; hint: string }[] = [
   { id: 'unresolved', label: 'Unresolved', is: 'unresolved', hint: 'All open issues' },
-  { id: 'for_review', label: 'For review', is: 'for_review', hint: 'New issues from the last 7 days that nobody has looked at' },
+  { id: 'for_review', label: 'For review', is: 'new', hint: 'New issues that have not been triaged yet' },
   { id: 'regressed', label: 'Regressed', is: 'regressed', hint: 'Resolved issues that came back' },
   { id: 'escalating', label: 'Escalating', is: 'escalating', hint: 'Issues with sharply rising event volume' },
   { id: 'ignored', label: 'Archived', is: 'ignored', hint: 'Ignored issues' },
@@ -58,7 +58,7 @@ export const TABS: { id: string; label: string; is: string | null; hint: string 
   { id: 'all', label: 'All', is: null, hint: 'Every issue' },
 ]
 
-const STATUS_VALUES = new Set(['unresolved', 'resolved', 'ignored', 'archived', 'for_review', 'new', 'ongoing', 'regressed', 'escalating'])
+const STATUS_VALUES = new Set(['unresolved', 'resolved', 'ignored', 'archived', 'new', 'ongoing', 'regressed', 'escalating'])
 
 export function currentTab(query: string): string {
   const statusTokens = tokenize(query).filter(
@@ -88,12 +88,12 @@ const SORTS: { id: IssueSort; label: string }[] = [
   { id: 'priority', label: 'Priority' },
 ]
 
-const PERIOD_FILTER: Record<string, string> = { '24h': '-24h', '7d': '-7d', '14d': '-14d', '30d': '-30d', '90d': '-90d' }
-
 type ListData = InfiniteData<Page<Issue> & { total?: number }, string | null>
 
-export function IssueStreamPage({ query, sort, stats }: { query: string; sort: IssueSort; stats: StatsPeriod }) {
-  const { org, projects, environments, period } = useGlobalFilters()
+export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSort }) {
+  const { org, projects, environments, period, update: updateGlobal } = useGlobalFilters()
+  // The period limits the stream to issues seen in it and sets the sparkline range.
+  const stats = period
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data: session } = useSession()
@@ -101,15 +101,9 @@ export function IssueStreamPage({ query, sort, stats }: { query: string; sort: I
   const searchRef = useRef<SearchBarHandle>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // The global period limits the stream to issues seen in that window.
-  const effectiveQuery = useMemo(() => {
-    const hasLastSeen = tokenize(query).some((t) => t.type === 'filter' && (t.key === 'last_seen' || t.key === 'age'))
-    return hasLastSeen ? query : `${query} last_seen:${PERIOD_FILTER[period]}`.trim()
-  }, [query, period])
-
   const params: IssueQueryParams = useMemo(
-    () => ({ project: projects, environment: environments, query: effectiveQuery, sort, period: stats }),
-    [projects, environments, effectiveQuery, sort, stats],
+    () => ({ project: projects, environment: environments, query, sort, period }),
+    [projects, environments, query, sort, period],
   )
   const list = useIssueList(org, params)
   const issues = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data])
@@ -154,7 +148,7 @@ export function IssueStreamPage({ query, sort, stats }: { query: string; sort: I
   useEffect(() => {
     setSelected(new Set())
     setFocusedId(null)
-  }, [org, effectiveQuery, sort, projects, environments])
+  }, [org, query, period, sort, projects, environments])
 
   const toggle = useCallback(
     (id: string, shift: boolean) => {
@@ -271,7 +265,7 @@ export function IssueStreamPage({ query, sort, stats }: { query: string; sort: I
   )
 
   // ---- search params
-  const setSearch = (patch: { query?: string; sort?: IssueSort; stats?: StatsPeriod }) =>
+  const setSearch = (patch: { query?: string; sort?: IssueSort }) =>
     void navigate({
       to: '/$org/issues',
       params: { org },
@@ -281,7 +275,6 @@ export function IssueStreamPage({ query, sort, stats }: { query: string; sort: I
           ...next,
           query: next.query === DEFAULT_QUERY ? undefined : next.query,
           sort: next.sort === 'last_seen' ? undefined : next.sort,
-          stats: next.stats === '24h' ? undefined : next.stats,
         }
       },
     })
@@ -389,7 +382,7 @@ export function IssueStreamPage({ query, sort, stats }: { query: string; sort: I
           <ToggleGroup
             type="single"
             value={stats}
-            onValueChange={(v) => v && setSearch({ stats: v as StatsPeriod })}
+            onValueChange={(v) => v && updateGlobal({ period: v as '24h' | '14d' })}
             aria-label="Graph period"
             className="hidden md:inline-flex"
           >

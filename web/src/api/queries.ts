@@ -69,7 +69,10 @@ export const qk = {
 
 // ---- auth --------------------------------------------------------------------
 
-export const authConfigQuery = queryOptions({ queryKey: qk.authConfig, queryFn: api.auth.config, staleTime: 60_000 })
+export const authConfigQuery = queryOptions({ queryKey: qk.authConfig, queryFn: () => api.auth.config(), staleTime: 60_000 })
+/** The login page's config; with an org slug it also lists that org's own SSO provider. */
+export const orgAuthConfigQuery = (org: string) =>
+  queryOptions({ queryKey: [...qk.authConfig, org], queryFn: () => api.auth.config(org || undefined), staleTime: 60_000 })
 export const sessionQuery = queryOptions({
   queryKey: qk.session,
   queryFn: async () => {
@@ -105,10 +108,6 @@ export function useTeams(org: string) {
 
 export function useEnvironments(org: string, projects: string[]) {
   return useQuery({ queryKey: qk.environments(org, projects), queryFn: () => api.orgs.environments(org, projects), staleTime: 5 * 60_000 })
-}
-
-export function useTagKeys(org: string, projects: string[]) {
-  return useQuery({ queryKey: qk.tagKeys(org, projects), queryFn: () => api.orgs.tagKeys(org, projects), staleTime: 5 * 60_000 })
 }
 
 export function useTagValues(org: string, key: string | null, projects: string[], query: string) {

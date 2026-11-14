@@ -5,7 +5,6 @@ import { onUnauthorized } from '@/api/client'
 import { qk } from '@/api/queries'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { createAppRouter, createQueryClient } from './router'
 
 export function App() {
@@ -29,10 +28,8 @@ export function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <RouterProvider router={router} />
-          <Toaster />
-        </TooltipProvider>
+        <RouterProvider router={router} />
+        <Toaster />
       </QueryClientProvider>
     </ThemeProvider>
   )

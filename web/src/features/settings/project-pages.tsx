@@ -73,7 +73,7 @@ export function ProjectsPage({ org }: { org: string }) {
     e.preventDefault()
     if (!form.name.trim()) return setError('Enter a name.')
     try {
-      const p = await api.projects.create(org, { name: form.name.trim(), platform: form.platform, team_id: form.team === '__none' ? null : form.team })
+      const p = await api.projects.create(org, { name: form.name.trim(), platform: form.platform, team: form.team === '__none' ? null : form.team })
       await qc.invalidateQueries({ queryKey: qk.projects(org) })
       toast.success(`Project ${p.slug} created`)
       setOpen(false)
@@ -274,7 +274,7 @@ export function ProjectGeneralPage({ org, project }: { org: string; project: str
         name: form.name,
         slug: form.slug,
         platform: form.platform || null,
-        team_id: form.team === '__none' ? null : form.team,
+        team: form.team === '__none' ? null : form.team,
       }),
     {
       success: 'Project saved',

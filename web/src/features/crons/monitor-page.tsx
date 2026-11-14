@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
 import { api } from '@/api/endpoints'
-import { qk, useApiMutation } from '@/api/queries'
+import { qk, useApiMutation, useProjects } from '@/api/queries'
 import { CodeBlock } from '@/components/common/code-block'
 import { PlatformIcon } from '@/components/common/platform-icon'
 import { ErrorState, ListSkeleton } from '@/components/common/states'
@@ -17,7 +17,9 @@ import { describeSchedule } from './cron-utils'
 import { HealthBadge } from './health-badge'
 
 export function MonitorPage({ org, project, slug }: { org: string; project: string; slug: string }) {
-  const m = useQuery({ queryKey: qk.monitor(org, project, slug), queryFn: () => api.projects.monitor(org, project, slug) })
+  const projects = useProjects(org)
+  const ref = projects.data?.find((p) => p.slug === project)
+  const m = useQuery({ queryKey: qk.monitor(org, project, slug), queryFn: () => api.projects.monitor(org, ref!, slug), enabled: Boolean(ref) })
   const checkins = useInfiniteQuery({
     queryKey: qk.checkins(org, project, slug),
     queryFn: ({ pageParam }) => api.projects.checkins(org, project, slug, { cursor: pageParam ?? undefined }),

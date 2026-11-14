@@ -41,7 +41,7 @@ export interface OrgRef {
 
 export interface Session {
   user: User
-  csrf_token: string
+  csrf_token: string | null
   orgs: OrgRef[]
 }
 
@@ -98,6 +98,9 @@ export interface PendingInvite {
   role: Role
   created_at: Iso
   expires_at: Iso
+  /** Link to share when no email could be sent. */
+  accept_url?: string | null
+  email_sent?: boolean | null
 }
 
 export interface Team {
@@ -135,6 +138,9 @@ export interface SsoConfig {
   jit_provisioning: boolean
   enforce: boolean
   redirect_uri: string
+  provider_id?: string
+  /** Owners may still use their password while SSO is enforced. */
+  owner_local_login?: boolean
 }
 
 export interface SsoTestResult {
@@ -144,17 +150,7 @@ export interface SsoTestResult {
   authorization_endpoint?: string
 }
 
-export type TokenScope =
-  | 'org:read'
-  | 'org:write'
-  | 'project:read'
-  | 'project:write'
-  | 'project:releases'
-  | 'event:read'
-  | 'event:write'
-  | 'member:read'
-  | 'member:write'
-  | 'alerts:write'
+export type TokenScope = string
 
 export interface ApiToken {
   id: Id
@@ -174,7 +170,7 @@ export interface Channel {
   id: Id
   kind: ChannelKind
   name: string
-  config: Record<string, string>
+  config: Record<string, unknown>
   created_at: Iso
 }
 
@@ -241,6 +237,7 @@ export interface ArtifactBundle {
   file_count: number
   size: number
   created_at: Iso
+  download_url?: string | null
 }
 
 // --- issues -----------------------------------------------------------------
@@ -284,7 +281,7 @@ export interface Issue {
 
 export interface ReleaseRef {
   version: string
-  date: Iso
+  date: Iso | null
 }
 
 export interface IssueDetail extends Omit<Issue, 'stats'> {
@@ -323,7 +320,7 @@ export interface IssueQueryParams {
 }
 
 export type IssueSort = 'last_seen' | 'first_seen' | 'freq' | 'users' | 'priority'
-export type StatsPeriod = '24h' | '14d'
+export type StatsPeriod = '24h' | '7d' | '14d' | '30d' | '90d'
 
 export interface TagValue {
   value: string
@@ -356,7 +353,7 @@ export interface Activity {
     | 'unassigned'
     | 'set_priority'
     | string
-  user: User | null
+  user: { id: Id; name: string; email: string } | null
   data: Record<string, unknown> & { text?: string }
   created_at: Iso
 }
@@ -380,6 +377,7 @@ export interface Attachment {
   content_type: string | null
   size: number
   created_at: Iso
+  download_url?: string | null
 }
 
 export interface SavedSearch {
@@ -548,6 +546,7 @@ export interface Deploy {
 
 export interface Release {
   version: string
+  short_version?: string | null
   ref: string | null
   url: string | null
   date_created: Iso
@@ -576,7 +575,7 @@ export interface ReleaseHealthPoint {
 export interface ReleaseDetail extends Release {
   deploys: Deploy[]
   health: ReleaseHealthPoint[]
-  users: number
+  users: number | null
   commit_count?: number
 }
 
@@ -620,26 +619,22 @@ export type AlertCondition =
   | { type: 'user_frequency'; count: number; interval: string }
 
 export type AlertFilter =
-  | { type: 'level'; match: 'eq' | 'gte' | 'lte'; level: Level }
-  | { type: 'tag'; key: string; match: 'eq' | 'ne' | 'contains' | 'starts_with' | 'is_set'; value?: string }
-  | { type: 'environment'; value: string }
-  | { type: 'issue_age'; older_than_minutes: number }
+  { type: 'level'; match: 'eq' | 'gte'; level: Level } | { type: 'tag'; key: string; value: string } | { type: 'environment'; value: string }
 
-export type AlertAction = { type: 'email'; target: 'owners' | 'members' | 'user' | 'team'; target_id?: Id } | { type: 'channel'; channel_id: Id }
+export type AlertAction = { type: 'email'; user_ids: Id[]; team_ids: Id[] } | { type: 'channel'; channel_id: Id }
 
 export interface AlertRule {
   id: Id
   project: ProjectRef
   name: string
   enabled: boolean
+  /** The rule fires when any condition holds and all filters match. */
   conditions: AlertCondition[]
-  condition_match: 'any' | 'all'
   filters: AlertFilter[]
-  filter_match: 'any' | 'all'
   actions: AlertAction[]
   frequency_minutes: number
   environment: string | null
-  created_by: User | null
+  created_by: string | null
   created_at: Iso
   updated_at: Iso
   last_fired?: Iso | null
