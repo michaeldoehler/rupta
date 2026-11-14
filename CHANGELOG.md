@@ -83,7 +83,8 @@ The first release.
   and per-organization enforcement, organizations, teams, four roles,
   invitations, scoped API tokens, audit log.
 - **REST API** with an OpenAPI 3.1 description.
-- **Web app** in React with light and dark themes, keyboard navigation and
+- **Web app** in React with a dark interface, top navigation, issue preview
+  and context panels, keyboard navigation and
   a command palette, embedded in the server binary.
 - **Storage** on the embedded squad database with a durable copy in any
   S3-compatible bucket (Garage, AWS S3, MinIO), automatic restore of a
