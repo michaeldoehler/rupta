@@ -417,7 +417,8 @@ async fn resolve_in_next_release_and_ignore_until_users() {
 
 #[tokio::test]
 async fn escalating_alert_condition() {
-    let app = TestApp::new();
+    // The test receiver listens on loopback, refused by default.
+    let app = TestApp::with_config(|c| c.integrations_allow_private_hosts = true);
     let org = app.org("acme");
     let project = app.project(org, "web");
     let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
