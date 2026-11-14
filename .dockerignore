@@ -1,0 +1,12 @@
+target
+**/target
+web/node_modules
+web/dist
+web/test-results
+web/playwright-report
+.git
+.github
+.env
+data
+docs/images
+benchmarks

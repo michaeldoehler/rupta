@@ -10,9 +10,26 @@ repository.workspace = true
 [dependencies]
 rupta-core.workspace = true
 rupta-store.workspace = true
-axum.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
+chrono.workspace = true
+http.workspace = true
+openidconnect.workspace = true
+argon2.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+hkdf.workspace = true
+chacha20poly1305.workspace = true
+subtle.workspace = true
+rand.workspace = true
+base64.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+rsa = { version = "0.9", features = ["pem"] }
+rand_core06 = { package = "rand_core", version = "0.6", features = ["getrandom"] }
