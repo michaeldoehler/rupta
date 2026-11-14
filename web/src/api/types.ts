@@ -165,7 +165,7 @@ export interface ApiToken {
   token?: string
 }
 
-export type ChannelKind = 'email' | 'slack' | 'webhook' | 'teams'
+export type ChannelKind = 'email' | 'slack' | 'webhook' | 'teams' | 'pagerduty' | 'opsgenie'
 
 export interface Channel {
   id: Id
@@ -632,7 +632,10 @@ export type AlertCondition =
 export type AlertFilter =
   { type: 'level'; match: 'eq' | 'gte'; level: Level } | { type: 'tag'; key: string; value: string } | { type: 'environment'; value: string }
 
-export type AlertAction = { type: 'email'; user_ids: Id[]; team_ids: Id[] } | { type: 'channel'; channel_id: Id }
+export type AlertAction =
+  | { type: 'email'; user_ids: Id[]; team_ids: Id[] }
+  | { type: 'channel'; channel_id: Id }
+  | { type: 'create_ticket'; integration_id: Id; target?: string; issue_type?: string; project?: string; labels?: string[] }
 
 export interface AlertRule {
   id: Id

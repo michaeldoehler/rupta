@@ -223,9 +223,9 @@ export const api = {
       request<Channel>(`/orgs/${e(org)}/channels/${e(id)}`, { method: 'PATCH', body }),
     deleteChannel: (org: string, id: Id) => request<void>(`/orgs/${e(org)}/channels/${e(id)}`, { method: 'DELETE' }),
     testChannel: (org: string, id: Id) =>
-      request<{ ok?: boolean; message?: string } | undefined>(`/orgs/${e(org)}/channels/${e(id)}/test`, { method: 'POST' }).then((r) => ({
-        ok: r?.ok ?? true,
-        message: r?.message ?? 'Test notification sent.',
+      request<{ ok?: boolean; message?: string; error?: string } | undefined>(`/orgs/${e(org)}/channels/${e(id)}/test`, { method: 'POST' }).then((r) => ({
+        ok: r?.ok ?? !r?.error,
+        message: r?.message ?? r?.error ?? 'Test notification sent.',
       })),
 
     environments: (org: string, project?: string[]) => eventValues(org, 'environment', project).then((l) => l.map((v) => v.value)),

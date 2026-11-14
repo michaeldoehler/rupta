@@ -22,6 +22,7 @@ import type {
 import { parseQuery, parseRelative, type FilterToken } from '@/lib/search/parse'
 import { Rng } from './rng'
 import { buildEvent, eventIds, eventSummary } from './fixtures/events'
+import { integrationHandlers, seedIntegrations } from './integrations-handlers'
 import { telemetryHandlers } from './telemetry-handlers'
 import { createWorld, DAY, HOUR, iso, issueSeries, type DbIssue, type DbOrg, type DbProject, type World } from './fixtures/world'
 
@@ -57,6 +58,28 @@ function saveAuth() {
   } catch {
     /* ignore */
   }
+}
+
+const WRITE_ONLY_KEYS = ['routing_key', 'api_key']
+
+/** Channels as the server shows them: PagerDuty and Opsgenie keys are write-only. */
+function channelOut(c: World['channels'][number]) {
+  const cfg = { ...(c.config as Record<string, unknown>) }
+  let has = false
+  for (const k of WRITE_ONLY_KEYS) {
+    if (!(k in cfg)) continue
+    has = Boolean(cfg[k])
+    delete cfg[k]
+  }
+  return { ...c, config: c.kind === 'pagerduty' || c.kind === 'opsgenie' ? { ...cfg, has_secret: has } : cfg }
+}
+
+/** Like the server (62d1e17): internal webhook targets are refused. */
+function privateUrl(cfg: Record<string, unknown> | undefined): string | null {
+  const url = String(cfg?.url ?? cfg?.webhook_url ?? cfg?.api_url ?? '')
+  if (/^https?:\/\/(localhost|127\.|10\.|192\.168\.|169\.254\.|\[::1\])/.test(url))
+    return 'url: the address is internal (loopback or private network); set RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS=true on the server to allow it'
+  return null
 }
 
 /** Resets the mock world (tests, `?mock=fresh`, `?mock_scale=`). */
@@ -1032,21 +1055,26 @@ export const handlers = [
     await wait()
     const r = withOrg(params)
     if ('error' in r) return r.error
-    return json(world.channels.filter((c) => c.org_id === r.org.id) as unknown as JsonBodyType)
+    return json(world.channels.filter((c) => c.org_id === r.org.id).map(channelOut) as unknown as JsonBodyType)
   }),
   http.post(`${BASE}/orgs/:org/channels`, async ({ params, request }) => {
     const r = withOrg(params)
     if ('error' in r) return r.error
     const body = (await request.json()) as { kind: 'email'; name: string; config: Record<string, string> }
+    const refused = privateUrl(body.config)
+    if (refused) return err(422, 'validation_failed', refused, { field: 'config.url' })
     const c = { id: nid(), org_id: r.org.id, created_at: iso(Date.now()), ...body }
     world.channels.push(c)
-    return json(c, 201)
+    return json(channelOut(c) as unknown as JsonBodyType, 201)
   }),
   http.patch(`${BASE}/orgs/:org/channels/:id`, async ({ params, request }) => {
     const c = world.channels.find((x) => x.id === p(params, 'id'))
     if (!c) return err(404, 'not_found', 'Channel not found.')
-    Object.assign(c, await request.json())
-    return json(c as unknown as JsonBodyType)
+    const body = (await request.json()) as { name?: string; config?: Record<string, unknown> }
+    if (body.name) c.name = body.name
+    // write-only keys: a PATCH without them keeps the stored ones
+    if (body.config) c.config = { ...c.config, ...body.config }
+    return json(channelOut(c) as unknown as JsonBodyType)
   }),
   http.delete(`${BASE}/orgs/:org/channels/:id`, ({ params }) => {
     world.channels = world.channels.filter((c) => c.id !== p(params, 'id'))
@@ -1056,6 +1084,8 @@ export const handlers = [
     await delay(400)
     const c = world.channels.find((x) => x.id === p(params, 'id'))
     if (!c) return err(404, 'not_found', 'Channel not found.')
+    const refused = privateUrl(c.config as Record<string, unknown>)
+    if (refused) return err(422, 'validation_failed', refused)
     return c.kind === 'teams'
       ? json({ ok: false, message: 'The webhook answered HTTP 410 Gone. The connector may have been removed.' })
       : json({ ok: true, message: `Test notification sent to ${c.name}.` })
@@ -1437,6 +1467,7 @@ export const handlers = [
   }),
   http.get(`${BASE}/issues/:id/activity`, async ({ params }) => {
     await wait()
+    seedIntegrations(world)
     const acts = world.activity.get(p(params, 'id')) ?? []
     return json([...acts].reverse() as unknown as JsonBodyType)
   }),
@@ -1557,5 +1588,22 @@ export const handlers = [
       const role = roleIn(orgId)
       return role !== null && role !== 'viewer'
     },
+  }),
+  ...integrationHandlers({
+    world: () => world,
+    withOrg: (params) => withOrg(params as Params),
+    canWrite: (orgId) => {
+      const role = roleIn(orgId)
+      return role !== null && role !== 'viewer'
+    },
+    isAdmin: (orgId) => {
+      const role = roleIn(orgId)
+      return role === 'admin' || role === 'owner'
+    },
+    actor: () => {
+      const u = currentUser()
+      return u ? publicUser(u) : null
+    },
+    nid,
   }),
 ]
