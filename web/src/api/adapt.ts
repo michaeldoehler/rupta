@@ -269,6 +269,15 @@ export function normMonitor(raw: unknown, project: ProjectRef): Monitor {
 function normAction(a: unknown): AlertAction {
   const o = obj(a)
   if (o.type === 'channel') return { type: 'channel', channel_id: String(o.channel_id ?? '') }
+  if (o.type === 'create_ticket')
+    return {
+      type: 'create_ticket',
+      integration_id: String(o.integration_id ?? ''),
+      ...(o.target ? { target: String(o.target) } : {}),
+      ...(o.issue_type ? { issue_type: String(o.issue_type) } : {}),
+      ...(o.project ? { project: String(o.project) } : {}),
+      ...(Array.isArray(o.labels) ? { labels: o.labels.map(String) } : {}),
+    }
   return { type: 'email', user_ids: ((o.user_ids as unknown[]) ?? []).map(String), team_ids: ((o.team_ids as unknown[]) ?? []).map(String) }
 }
 

@@ -39,6 +39,7 @@ import { Route as AuthOrgReplaysIndexRouteImport } from './routes/_auth/$org/rep
 import { Route as AuthOrgSettingsIndexRouteImport } from './routes/_auth/$org/settings/index'
 import { Route as AuthOrgSettingsAuditLogRouteImport } from './routes/_auth/$org/settings/audit-log'
 import { Route as AuthOrgSettingsChannelsRouteImport } from './routes/_auth/$org/settings/channels'
+import { Route as AuthOrgSettingsIntegrationsRouteImport } from './routes/_auth/$org/settings/integrations'
 import { Route as AuthOrgSettingsMembersRouteImport } from './routes/_auth/$org/settings/members'
 import { Route as AuthOrgSettingsSsoRouteImport } from './routes/_auth/$org/settings/sso'
 import { Route as AuthOrgSettingsTeamsRouteImport } from './routes/_auth/$org/settings/teams'
@@ -64,6 +65,7 @@ import { Route as AuthOrgIssuesIssueIdTagsIndexRouteImport } from './routes/_aut
 import { Route as AuthOrgIssuesIssueIdTagsTagKeyRouteImport } from './routes/_auth/$org/issues/$issueId/tags.$tagKey'
 import { Route as AuthOrgSettingsProjectsProjectIndexRouteImport } from './routes/_auth/$org/settings/projects/$project/index'
 import { Route as AuthOrgSettingsProjectsProjectFiltersRouteImport } from './routes/_auth/$org/settings/projects/$project/filters'
+import { Route as AuthOrgSettingsProjectsProjectIntegrationsRouteImport } from './routes/_auth/$org/settings/projects/$project/integrations'
 import { Route as AuthOrgSettingsProjectsProjectKeysRouteImport } from './routes/_auth/$org/settings/projects/$project/keys'
 import { Route as AuthOrgSettingsProjectsProjectLimitsRouteImport } from './routes/_auth/$org/settings/projects/$project/limits'
 import { Route as AuthOrgSettingsProjectsProjectScrubbingRouteImport } from './routes/_auth/$org/settings/projects/$project/scrubbing'
@@ -224,6 +226,12 @@ const AuthOrgSettingsChannelsRoute = AuthOrgSettingsChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => AuthOrgSettingsRoute,
 } as any)
+const AuthOrgSettingsIntegrationsRoute =
+  AuthOrgSettingsIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
+    getParentRoute: () => AuthOrgSettingsRoute,
+  } as any)
 const AuthOrgSettingsMembersRoute = AuthOrgSettingsMembersRouteImport.update({
   id: '/members',
   path: '/members',
@@ -367,6 +375,12 @@ const AuthOrgSettingsProjectsProjectFiltersRoute =
     path: '/filters',
     getParentRoute: () => AuthOrgSettingsProjectsProjectRoute,
   } as any)
+const AuthOrgSettingsProjectsProjectIntegrationsRoute =
+  AuthOrgSettingsProjectsProjectIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
+    getParentRoute: () => AuthOrgSettingsProjectsProjectRoute,
+  } as any)
 const AuthOrgSettingsProjectsProjectKeysRoute =
   AuthOrgSettingsProjectsProjectKeysRouteImport.update({
     id: '/keys',
@@ -423,6 +437,7 @@ export interface FileRoutesByFullPath {
   '/$org/releases/$version': typeof AuthOrgReleasesVersionRoute
   '/$org/settings/audit-log': typeof AuthOrgSettingsAuditLogRoute
   '/$org/settings/channels': typeof AuthOrgSettingsChannelsRoute
+  '/$org/settings/integrations': typeof AuthOrgSettingsIntegrationsRoute
   '/$org/settings/members': typeof AuthOrgSettingsMembersRoute
   '/$org/settings/sso': typeof AuthOrgSettingsSsoRoute
   '/$org/settings/teams': typeof AuthOrgSettingsTeamsRoute
@@ -457,6 +472,7 @@ export interface FileRoutesByFullPath {
   '/$org/settings/projects/': typeof AuthOrgSettingsProjectsIndexRoute
   '/$org/issues/$issueId/tags/$tagKey': typeof AuthOrgIssuesIssueIdTagsTagKeyRoute
   '/$org/settings/projects/$project/filters': typeof AuthOrgSettingsProjectsProjectFiltersRoute
+  '/$org/settings/projects/$project/integrations': typeof AuthOrgSettingsProjectsProjectIntegrationsRoute
   '/$org/settings/projects/$project/keys': typeof AuthOrgSettingsProjectsProjectKeysRoute
   '/$org/settings/projects/$project/limits': typeof AuthOrgSettingsProjectsProjectLimitsRoute
   '/$org/settings/projects/$project/scrubbing': typeof AuthOrgSettingsProjectsProjectScrubbingRoute
@@ -482,6 +498,7 @@ export interface FileRoutesByTo {
   '/$org/releases/$version': typeof AuthOrgReleasesVersionRoute
   '/$org/settings/audit-log': typeof AuthOrgSettingsAuditLogRoute
   '/$org/settings/channels': typeof AuthOrgSettingsChannelsRoute
+  '/$org/settings/integrations': typeof AuthOrgSettingsIntegrationsRoute
   '/$org/settings/members': typeof AuthOrgSettingsMembersRoute
   '/$org/settings/sso': typeof AuthOrgSettingsSsoRoute
   '/$org/settings/teams': typeof AuthOrgSettingsTeamsRoute
@@ -515,6 +532,7 @@ export interface FileRoutesByTo {
   '/$org/settings/projects': typeof AuthOrgSettingsProjectsIndexRoute
   '/$org/issues/$issueId/tags/$tagKey': typeof AuthOrgIssuesIssueIdTagsTagKeyRoute
   '/$org/settings/projects/$project/filters': typeof AuthOrgSettingsProjectsProjectFiltersRoute
+  '/$org/settings/projects/$project/integrations': typeof AuthOrgSettingsProjectsProjectIntegrationsRoute
   '/$org/settings/projects/$project/keys': typeof AuthOrgSettingsProjectsProjectKeysRoute
   '/$org/settings/projects/$project/limits': typeof AuthOrgSettingsProjectsProjectLimitsRoute
   '/$org/settings/projects/$project/scrubbing': typeof AuthOrgSettingsProjectsProjectScrubbingRoute
@@ -545,6 +563,7 @@ export interface FileRoutesById {
   '/_auth/$org/releases/$version': typeof AuthOrgReleasesVersionRoute
   '/_auth/$org/settings/audit-log': typeof AuthOrgSettingsAuditLogRoute
   '/_auth/$org/settings/channels': typeof AuthOrgSettingsChannelsRoute
+  '/_auth/$org/settings/integrations': typeof AuthOrgSettingsIntegrationsRoute
   '/_auth/$org/settings/members': typeof AuthOrgSettingsMembersRoute
   '/_auth/$org/settings/sso': typeof AuthOrgSettingsSsoRoute
   '/_auth/$org/settings/teams': typeof AuthOrgSettingsTeamsRoute
@@ -579,6 +598,7 @@ export interface FileRoutesById {
   '/_auth/$org/settings/projects/': typeof AuthOrgSettingsProjectsIndexRoute
   '/_auth/$org/issues/$issueId/tags/$tagKey': typeof AuthOrgIssuesIssueIdTagsTagKeyRoute
   '/_auth/$org/settings/projects/$project/filters': typeof AuthOrgSettingsProjectsProjectFiltersRoute
+  '/_auth/$org/settings/projects/$project/integrations': typeof AuthOrgSettingsProjectsProjectIntegrationsRoute
   '/_auth/$org/settings/projects/$project/keys': typeof AuthOrgSettingsProjectsProjectKeysRoute
   '/_auth/$org/settings/projects/$project/limits': typeof AuthOrgSettingsProjectsProjectLimitsRoute
   '/_auth/$org/settings/projects/$project/scrubbing': typeof AuthOrgSettingsProjectsProjectScrubbingRoute
@@ -609,6 +629,7 @@ export interface FileRouteTypes {
     | '/$org/releases/$version'
     | '/$org/settings/audit-log'
     | '/$org/settings/channels'
+    | '/$org/settings/integrations'
     | '/$org/settings/members'
     | '/$org/settings/sso'
     | '/$org/settings/teams'
@@ -643,6 +664,7 @@ export interface FileRouteTypes {
     | '/$org/settings/projects/'
     | '/$org/issues/$issueId/tags/$tagKey'
     | '/$org/settings/projects/$project/filters'
+    | '/$org/settings/projects/$project/integrations'
     | '/$org/settings/projects/$project/keys'
     | '/$org/settings/projects/$project/limits'
     | '/$org/settings/projects/$project/scrubbing'
@@ -668,6 +690,7 @@ export interface FileRouteTypes {
     | '/$org/releases/$version'
     | '/$org/settings/audit-log'
     | '/$org/settings/channels'
+    | '/$org/settings/integrations'
     | '/$org/settings/members'
     | '/$org/settings/sso'
     | '/$org/settings/teams'
@@ -701,6 +724,7 @@ export interface FileRouteTypes {
     | '/$org/settings/projects'
     | '/$org/issues/$issueId/tags/$tagKey'
     | '/$org/settings/projects/$project/filters'
+    | '/$org/settings/projects/$project/integrations'
     | '/$org/settings/projects/$project/keys'
     | '/$org/settings/projects/$project/limits'
     | '/$org/settings/projects/$project/scrubbing'
@@ -730,6 +754,7 @@ export interface FileRouteTypes {
     | '/_auth/$org/releases/$version'
     | '/_auth/$org/settings/audit-log'
     | '/_auth/$org/settings/channels'
+    | '/_auth/$org/settings/integrations'
     | '/_auth/$org/settings/members'
     | '/_auth/$org/settings/sso'
     | '/_auth/$org/settings/teams'
@@ -764,6 +789,7 @@ export interface FileRouteTypes {
     | '/_auth/$org/settings/projects/'
     | '/_auth/$org/issues/$issueId/tags/$tagKey'
     | '/_auth/$org/settings/projects/$project/filters'
+    | '/_auth/$org/settings/projects/$project/integrations'
     | '/_auth/$org/settings/projects/$project/keys'
     | '/_auth/$org/settings/projects/$project/limits'
     | '/_auth/$org/settings/projects/$project/scrubbing'
@@ -995,6 +1021,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthOrgSettingsChannelsRouteImport
       parentRoute: typeof AuthOrgSettingsRoute
     }
+    '/_auth/$org/settings/integrations': {
+      id: '/_auth/$org/settings/integrations'
+      path: '/integrations'
+      fullPath: '/$org/settings/integrations'
+      preLoaderRoute: typeof AuthOrgSettingsIntegrationsRouteImport
+      parentRoute: typeof AuthOrgSettingsRoute
+    }
     '/_auth/$org/settings/members': {
       id: '/_auth/$org/settings/members'
       path: '/members'
@@ -1170,6 +1203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthOrgSettingsProjectsProjectFiltersRouteImport
       parentRoute: typeof AuthOrgSettingsProjectsProjectRoute
     }
+    '/_auth/$org/settings/projects/$project/integrations': {
+      id: '/_auth/$org/settings/projects/$project/integrations'
+      path: '/integrations'
+      fullPath: '/$org/settings/projects/$project/integrations'
+      preLoaderRoute: typeof AuthOrgSettingsProjectsProjectIntegrationsRouteImport
+      parentRoute: typeof AuthOrgSettingsProjectsProjectRoute
+    }
     '/_auth/$org/settings/projects/$project/keys': {
       id: '/_auth/$org/settings/projects/$project/keys'
       path: '/keys'
@@ -1217,6 +1257,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthOrgSettingsProjectsProjectRouteChildren {
   AuthOrgSettingsProjectsProjectFiltersRoute: typeof AuthOrgSettingsProjectsProjectFiltersRoute
+  AuthOrgSettingsProjectsProjectIntegrationsRoute: typeof AuthOrgSettingsProjectsProjectIntegrationsRoute
   AuthOrgSettingsProjectsProjectKeysRoute: typeof AuthOrgSettingsProjectsProjectKeysRoute
   AuthOrgSettingsProjectsProjectLimitsRoute: typeof AuthOrgSettingsProjectsProjectLimitsRoute
   AuthOrgSettingsProjectsProjectScrubbingRoute: typeof AuthOrgSettingsProjectsProjectScrubbingRoute
@@ -1230,6 +1271,8 @@ const AuthOrgSettingsProjectsProjectRouteChildren: AuthOrgSettingsProjectsProjec
   {
     AuthOrgSettingsProjectsProjectFiltersRoute:
       AuthOrgSettingsProjectsProjectFiltersRoute,
+    AuthOrgSettingsProjectsProjectIntegrationsRoute:
+      AuthOrgSettingsProjectsProjectIntegrationsRoute,
     AuthOrgSettingsProjectsProjectKeysRoute:
       AuthOrgSettingsProjectsProjectKeysRoute,
     AuthOrgSettingsProjectsProjectLimitsRoute:
@@ -1254,6 +1297,7 @@ const AuthOrgSettingsProjectsProjectRouteWithChildren =
 interface AuthOrgSettingsRouteChildren {
   AuthOrgSettingsAuditLogRoute: typeof AuthOrgSettingsAuditLogRoute
   AuthOrgSettingsChannelsRoute: typeof AuthOrgSettingsChannelsRoute
+  AuthOrgSettingsIntegrationsRoute: typeof AuthOrgSettingsIntegrationsRoute
   AuthOrgSettingsMembersRoute: typeof AuthOrgSettingsMembersRoute
   AuthOrgSettingsSsoRoute: typeof AuthOrgSettingsSsoRoute
   AuthOrgSettingsTeamsRoute: typeof AuthOrgSettingsTeamsRoute
@@ -1269,6 +1313,7 @@ interface AuthOrgSettingsRouteChildren {
 const AuthOrgSettingsRouteChildren: AuthOrgSettingsRouteChildren = {
   AuthOrgSettingsAuditLogRoute: AuthOrgSettingsAuditLogRoute,
   AuthOrgSettingsChannelsRoute: AuthOrgSettingsChannelsRoute,
+  AuthOrgSettingsIntegrationsRoute: AuthOrgSettingsIntegrationsRoute,
   AuthOrgSettingsMembersRoute: AuthOrgSettingsMembersRoute,
   AuthOrgSettingsSsoRoute: AuthOrgSettingsSsoRoute,
   AuthOrgSettingsTeamsRoute: AuthOrgSettingsTeamsRoute,

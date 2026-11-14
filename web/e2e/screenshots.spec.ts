@@ -2,6 +2,7 @@
 //   pnpm screenshots                  -> docs/images (README set)
 //   REVIEW_DIR=/path pnpm screenshots -> also a review set of every screen, with index.md
 //   REVIEW_WAVE=2 REVIEW_DIR=/path    -> only the telemetry screens
+//   REVIEW_WAVE=3 REVIEW_DIR=/path    -> only the integration screens
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
@@ -19,6 +20,7 @@ const README_SHOTS = new Set([
   'logs',
   'flamegraph',
   'replay',
+  'linked-tickets',
 ])
 const WAVE = process.env.REVIEW_WAVE
 // SHOTS=45,46 retakes only these numbers (the index still lists every shot).
@@ -32,7 +34,7 @@ type Shot = {
   mobile?: boolean
   wide?: boolean
   readme?: string
-  wave?: 2
+  wave?: 2 | 3
   note?: string
   streaming?: boolean
 }
@@ -53,6 +55,22 @@ async function openIssue(page: Page, search = '"reading"') {
   await stream(page, `?query=${encodeURIComponent(`is:unresolved ${search}`)}`)
   await page.getByRole('grid', { name: 'Issues' }).getByRole('row').first().locator('[data-issue-link]').click()
   await expect(page.locator('#exception')).toBeVisible()
+}
+
+/** The busiest unresolved issue; the mock links tickets to it. */
+async function openLinked(page: Page) {
+  await stream(page, '?sort=freq')
+  await page.getByRole('grid', { name: 'Issues' }).getByRole('row').first().locator('[data-issue-link]').click()
+  await expect(page.getByTestId('linked-tickets').getByRole('listitem').first()).toBeVisible()
+}
+
+async function connectDialog(page: Page) {
+  await page.goto('/acme/settings/integrations')
+  await page.getByRole('button', { name: 'Connect tracker' }).click()
+  const d = page.getByRole('dialog', { name: 'Connect an issue tracker' })
+  await d.getByLabel('Site URL').fill('https://ops.atlassian.net')
+  await d.getByLabel('Account email').fill('rupta-bot@acme.dev')
+  return d
 }
 
 const shots: Shot[] = [
@@ -713,6 +731,270 @@ shots.push(
     note: 'Keyboard shortcuts including the telemetry pages',
     go: async (p) => void (await stream(p), await p.keyboard.press('Shift+?'), await expect(p.getByRole('dialog')).toBeVisible()),
   },
+  {
+    n: '82',
+    wave: 3,
+    screen: 'settings-integrations',
+    state: 'list-tested',
+    note: 'Organization integrations: last error of GitHub, Jira tested, Linear disabled',
+    go: async (p) => {
+      await p.goto('/acme/settings/integrations')
+      const list = p.getByRole('list', { name: 'Integrations' })
+      await list.getByRole('listitem', { name: 'Jira' }).getByRole('button', { name: 'Test' }).click()
+      await expect(list.getByRole('listitem', { name: 'Jira' }).getByRole('status')).toBeVisible()
+      await list.getByRole('listitem', { name: 'GitHub' }).getByRole('button', { name: 'Test' }).click()
+      await expect(list.getByRole('listitem', { name: 'GitHub' }).getByRole('status')).toBeVisible()
+    },
+  },
+  {
+    n: '83',
+    wave: 3,
+    screen: 'settings-integrations',
+    state: 'connect-jira',
+    note: 'Connect dialog for Jira Cloud with the token hint',
+    go: async (p) => void (await (await connectDialog(p)).getByLabel('API token').fill('ATATT3xFfGF0secret')),
+  },
+  {
+    n: '84',
+    wave: 3,
+    screen: 'settings-integrations',
+    state: 'connect-refused',
+    note: 'The tracker refused the token (422 from the server)',
+    go: async (p) => {
+      const d = await connectDialog(p)
+      await d.getByLabel('API token').fill('bad-token')
+      await d.getByRole('button', { name: 'Connect' }).click()
+      await expect(d.getByText(/refused the token/)).toBeVisible()
+    },
+  },
+  {
+    n: '85',
+    wave: 3,
+    screen: 'settings-integrations',
+    state: 'connect-linear',
+    note: 'Linear: the signing secret comes from Linear and is pasted here',
+    go: async (p) => {
+      await p.goto('/acme/settings/integrations')
+      await p.getByRole('button', { name: 'Connect tracker' }).click()
+      await p
+        .getByRole('dialog')
+        .getByRole('radio', { name: /Linear/ })
+        .click()
+    },
+  },
+  {
+    n: '86',
+    wave: 3,
+    screen: 'settings-integrations',
+    state: 'webhook-secret',
+    note: 'After connecting: webhook URL, the one-time secret and the setup steps',
+    go: async (p) => {
+      const d = await connectDialog(p)
+      await d.getByLabel('API token').fill('ATATT3xFfGF0secret')
+      await d.getByRole('button', { name: 'Connect' }).click()
+      await expect(p.getByRole('dialog', { name: /Set up the webhook/ }).getByText(/^whsec_/)).toBeVisible()
+    },
+  },
+  {
+    n: '87',
+    wave: 3,
+    screen: 'settings-integrations',
+    state: 'edit',
+    note: 'Editing: the token is write-only, only its hint is shown',
+    go: async (p) => void (await p.goto('/acme/settings/integrations'), await p.getByRole('button', { name: 'Edit Jira' }).click()),
+  },
+  {
+    n: '88',
+    wave: 3,
+    screen: 'settings-integrations',
+    state: 'remove-confirm',
+    go: async (p) => void (await p.goto('/acme/settings/integrations'), await p.getByRole('button', { name: 'Delete GitHub' }).click()),
+  },
+  {
+    n: '89',
+    wave: 3,
+    screen: 'project-integrations',
+    state: 'defaults',
+    note: 'Project defaults: target from the tracker, issue type, labels, sync switches',
+    go: async (p) =>
+      void (await p.goto('/acme/settings/projects/web-app/integrations'), await expect(p.getByText('New tickets go to Web storefront.')).toBeVisible()),
+  },
+  {
+    n: '90',
+    wave: 3,
+    screen: 'project-integrations',
+    state: 'target-picker',
+    go: async (p) => {
+      await p.goto('/acme/settings/projects/web-app/integrations')
+      await p.getByRole('combobox', { name: 'Jira project' }).first().click()
+      await expect(p.getByRole('option', { name: /Payments/ })).toBeVisible()
+    },
+  },
+  {
+    n: '91',
+    wave: 3,
+    screen: 'issue-detail',
+    state: 'linked-tickets',
+    readme: 'linked-tickets',
+    wide: true,
+    note: 'Context panel with linked tickets (1920x1080)',
+    go: async (p) => void (await openLinked(p), await p.getByTestId('linked-tickets').scrollIntoViewIfNeeded()),
+  },
+  {
+    n: '92',
+    wave: 3,
+    screen: 'issue-detail',
+    state: 'actions-menu-tickets',
+    go: async (p) => void (await openLinked(p), await p.getByRole('button', { name: 'More issue actions' }).click()),
+  },
+  {
+    n: '93',
+    wave: 3,
+    screen: 'issue-detail',
+    state: 'create-ticket',
+    note: 'Create ticket, prefilled from the ticket draft',
+    go: async (p) => {
+      await openLinked(p)
+      await p.getByTestId('linked-tickets').getByRole('button', { name: 'Create ticket' }).click()
+      await expect(p.getByRole('dialog').getByLabel('Title')).not.toHaveValue('')
+    },
+  },
+  {
+    n: '94',
+    wave: 3,
+    screen: 'issue-detail',
+    state: 'create-ticket-preview',
+    go: async (p) => {
+      await openLinked(p)
+      await p.getByTestId('linked-tickets').getByRole('button', { name: 'Create ticket' }).click()
+      const d = p.getByRole('dialog')
+      await expect(d.getByLabel('Title')).not.toHaveValue('')
+      await d.getByRole('button', { name: 'Preview' }).click()
+      await expect(d.getByText('Top tags')).toBeVisible()
+    },
+  },
+  {
+    n: '95',
+    wave: 3,
+    screen: 'issue-detail',
+    state: 'link-existing-error',
+    note: 'Link existing: an unknown reference (422)',
+    go: async (p) => {
+      await openLinked(p)
+      await p.getByTestId('linked-tickets').getByRole('button', { name: 'Link existing' }).click()
+      const d = p.getByRole('dialog')
+      await d.getByRole('textbox', { name: 'Ticket' }).fill('see the ticket')
+      await d.getByRole('button', { name: 'Link ticket' }).click()
+      await expect(d.getByText(/Use a key or URL/)).toBeVisible()
+    },
+  },
+  {
+    n: '96',
+    wave: 3,
+    screen: 'issue-detail',
+    state: 'activity-tickets',
+    note: 'Activity with ticket entries: linked, status in the tracker, failed and done sync',
+    go: async (p) => {
+      await openLinked(p)
+      await p
+        .getByRole('navigation', { name: 'Issue sections' })
+        .getByRole('link', { name: /^Activity/ })
+        .click()
+      await expect(p.getByText(/could not update/)).toBeVisible()
+    },
+  },
+  {
+    n: '97',
+    wave: 3,
+    screen: 'issues',
+    state: 'split-preview-tickets',
+    wide: true,
+    note: 'Split view preview with the linked tickets (1920x1080)',
+    go: async (p) => {
+      await stream(p, '?sort=freq')
+      await p.evaluate(() => localStorage.setItem('rupta-issue-split', '1'))
+      await p.reload()
+      await expect(p.getByRole('grid', { name: 'Issues' }).getByRole('row').first()).toBeVisible()
+      await p.keyboard.press('j')
+      await expect(p.getByTestId('issue-preview').getByTestId('linked-tickets').getByRole('listitem').first()).toBeVisible()
+    },
+  },
+  {
+    n: '98',
+    wave: 3,
+    screen: 'alerts',
+    state: 'rule-create-ticket',
+    note: 'Alert rule action: create a ticket',
+    go: async (p) => {
+      await p.goto('/acme/alerts/new')
+      await p.getByLabel('Name').fill('Ticket for new errors in web-app')
+      await p.getByRole('combobox', { name: 'Action type' }).first().click()
+      await p.getByRole('option', { name: 'Create a ticket in' }).click()
+      await p.getByLabel('Ticket target (optional)').fill('WEB')
+    },
+  },
+  {
+    n: '99',
+    wave: 3,
+    screen: 'settings-channels',
+    state: 'pagerduty',
+    note: 'PagerDuty channel: routing key write-only, region',
+    go: async (p) => {
+      await p.goto('/acme/settings/channels')
+      await p.getByRole('button', { name: 'Add channel' }).click()
+      const d = p.getByRole('dialog')
+      await d.getByRole('radio', { name: 'PagerDuty' }).click()
+      await d.getByLabel('Name').fill('Primary on-call')
+      await d.getByLabel(/Integration key/).fill('R0UT1NGKEY0123456789abcdef012345')
+    },
+  },
+  {
+    n: '100',
+    wave: 3,
+    screen: 'settings-channels',
+    state: 'internal-url-refused',
+    note: 'A webhook to an internal address, refused by the server',
+    go: async (p) => {
+      await p.goto('/acme/settings/channels')
+      await p.getByRole('button', { name: 'Add channel' }).click()
+      const d = p.getByRole('dialog')
+      await d.getByRole('radio', { name: 'Webhook' }).click()
+      await d.getByLabel('Name').fill('Local hook')
+      await d.getByLabel(/URL/).fill('http://10.0.0.12:9000/hook')
+      await d.getByRole('button', { name: 'Add channel' }).click()
+      await expect(d.getByText(/the address is internal/)).toBeVisible()
+    },
+  },
+  {
+    n: '101',
+    wave: 3,
+    screen: 'settings-channels',
+    state: 'list-paging',
+    note: 'Channels with PagerDuty and Opsgenie (keys stored)',
+    go: async (p) => {
+      await p.goto('/acme/settings/channels')
+      for (const [kind, name, field, key] of [
+        ['PagerDuty', 'Primary on-call', /Integration key/, 'R0UT1NGKEY0123456789abcdef012345'],
+        ['Opsgenie', 'Ops team', /API key/, '0a1b2c3d-genie'],
+      ] as const) {
+        await p.getByRole('button', { name: 'Add channel' }).click()
+        const d = p.getByRole('dialog')
+        await d.getByRole('radio', { name: kind }).click()
+        await d.getByLabel('Name').fill(name)
+        await d.getByLabel(field).fill(key)
+        await d.getByRole('button', { name: 'Add channel' }).click()
+        await expect(d).toBeHidden()
+      }
+    },
+  },
+  {
+    n: '102',
+    wave: 3,
+    mobile: true,
+    screen: 'issue-detail',
+    state: 'mobile-linked-tickets',
+    go: async (p) => void (await openLinked(p), await p.getByTestId('linked-tickets').scrollIntoViewIfNeeded()),
+  },
 )
 
 for (const theme of ['dark'] as const) {
@@ -722,7 +1004,7 @@ for (const theme of ['dark'] as const) {
     if (REVIEW) mkdirSync(REVIEW, { recursive: true })
     for (const s of shots) {
       if (!REVIEW && !s.readme) continue
-      if (WAVE === '2' && s.wave !== 2) continue
+      if (WAVE && String(s.wave) !== WAVE) continue
       if (ONLY && !ONLY.has(s.n)) continue
       const ctx = await browser.newContext({
         colorScheme: theme,
@@ -747,7 +1029,7 @@ for (const theme of ['dark'] as const) {
     }
     if (REVIEW) {
       const rows = shots
-        .filter((s) => WAVE !== '2' || s.wave === 2)
+        .filter((s) => !WAVE || String(s.wave) === WAVE)
         .map((s) => {
           const size = s.mobile ? '390x844 @2x' : s.wide ? '1920x1080 @1x' : '1440x900 @2x'
           return `| ${s.n} | ${s.screen} | ${s.state} | ${size} | ${s.note ?? ''} | [${s.n}-${s.screen}-${s.state}.png](${s.n}-${s.screen}-${s.state}.png) |`

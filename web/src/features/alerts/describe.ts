@@ -50,7 +50,17 @@ export function describeFilter(f: AlertFilter): string {
   }
 }
 
-export function describeAction(a: AlertAction, channels: Channel[], teams: Team[], members: { id: string; name: string }[] = []): string {
+export function describeAction(
+  a: AlertAction,
+  channels: Channel[],
+  teams: Team[],
+  members: { id: string; name: string }[] = [],
+  integrations: { id: string; name: string }[] = [],
+): string {
+  if (a.type === 'create_ticket') {
+    const i = integrations.find((x) => x.id === a.integration_id)
+    return `Create a ticket in ${i?.name ?? 'an issue tracker'}${a.target ? ` (${a.target})` : ''}`
+  }
   if (a.type === 'channel') {
     const c = channels.find((x) => x.id === a.channel_id)
     return c ? `Notify ${c.name} (${c.kind})` : 'Notify a deleted channel'

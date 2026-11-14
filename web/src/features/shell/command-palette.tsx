@@ -23,6 +23,7 @@ const SETTINGS_PAGES = [
   { to: '/$org/settings/sso', label: 'Organization: single sign-on' },
   { to: '/$org/settings/tokens', label: 'Organization: API tokens' },
   { to: '/$org/settings/audit-log', label: 'Organization: audit log' },
+  { to: '/$org/settings/integrations', label: 'Organization: integrations (Jira, Linear, GitHub, GitLab)' },
   { to: '/$org/settings/channels', label: 'Organization: notification channels' },
   { to: '/$org/settings/projects', label: 'Projects' },
 ] as const

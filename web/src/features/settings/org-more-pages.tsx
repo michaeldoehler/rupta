@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BellRing, Globe, Hash, Mail, MessagesSquare, Pencil, Plus, ScrollText, Send, Trash2, Webhook } from 'lucide-react'
+import { BellRing, Globe, Hash, Mail, MessagesSquare, Pencil, Plus, ScrollText, Send, Siren, Trash2, Webhook } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { errorMessage } from '@/api/client'
@@ -190,7 +190,7 @@ const CHANNEL_KINDS: {
   kind: ChannelKind
   label: string
   icon: React.ComponentType<{ className?: string }>
-  fields: { key: string; label: string; placeholder: string; secret?: boolean; hint?: string }[]
+  fields: { key: string; label: string; placeholder: string; secret?: boolean; hint?: string; options?: { value: string; label: string }[] }[]
 }[] = [
   {
     kind: 'slack',
@@ -225,6 +225,48 @@ const CHANNEL_KINDS: {
       },
     ],
   },
+  {
+    kind: 'pagerduty',
+    label: 'PagerDuty',
+    icon: Siren,
+    fields: [
+      {
+        key: 'routing_key',
+        label: 'Integration key (routing key)',
+        placeholder: '32 characters',
+        secret: true,
+        hint: 'From a service’s Events API v2 integration.',
+      },
+      {
+        key: 'region',
+        label: 'Region',
+        placeholder: 'us',
+        options: [
+          { value: 'us', label: 'US' },
+          { value: 'eu', label: 'EU' },
+        ],
+      },
+      { key: 'api_url', label: 'Events API URL', placeholder: 'optional', hint: 'Only for proxies; set by the region otherwise.' },
+    ],
+  },
+  {
+    kind: 'opsgenie',
+    label: 'Opsgenie',
+    icon: Siren,
+    fields: [
+      { key: 'api_key', label: 'API key', placeholder: 'GenieKey', secret: true, hint: 'From an API integration of a team (create and update alerts).' },
+      {
+        key: 'region',
+        label: 'Region',
+        placeholder: 'us',
+        options: [
+          { value: 'us', label: 'US' },
+          { value: 'eu', label: 'EU' },
+        ],
+      },
+      { key: 'api_url', label: 'API URL', placeholder: 'optional', hint: 'Only for proxies; set by the region otherwise.' },
+    ],
+  },
 ]
 
 function ChannelDialog({ org, channel, open, onOpenChange }: { org: string; channel: Channel | null; open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -237,10 +279,12 @@ function ChannelDialog({ org, channel, open, onOpenChange }: { org: string; chan
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const def = CHANNEL_KINDS.find((k) => k.kind === kind)!
+  // PagerDuty and Opsgenie keys are write-only: the server says only that one is stored.
+  const storedSecret = Boolean(channel && (channel.config as Record<string, unknown>).has_secret)
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return setError('Enter a name.')
-    const missing = def.fields.find((f) => f.placeholder !== 'optional' && !config[f.key]?.trim())
+    const missing = def.fields.find((f) => f.placeholder !== 'optional' && !f.options && !config[f.key]?.trim() && !(f.secret && storedSecret))
     if (missing) return setError(`Enter the ${missing.label.toLowerCase()}.`)
     setBusy(true)
     setError(null)
@@ -249,6 +293,12 @@ function ChannelDialog({ org, channel, open, onOpenChange }: { org: string; chan
       const body: Record<string, unknown> = { ...config }
       if (kind === 'email') body.to = (config.to ?? '').split(/[\s,;]+/).filter(Boolean)
       if (kind === 'webhook' && channel && !config.secret) delete body.secret
+      delete body.has_secret
+      for (const f of def.fields) {
+        if (f.options && !body[f.key]) body[f.key] = f.options[0].value
+        if (f.secret && channel && !config[f.key]?.trim()) delete body[f.key]
+        if (f.placeholder === 'optional' && !config[f.key]?.trim()) delete body[f.key]
+      }
       if (channel) await api.orgs.updateChannel(org, channel.id, { name, config: body })
       else await api.orgs.createChannel(org, { kind, name, config: body })
       await qc.invalidateQueries({ queryKey: qk.channels(org) })
@@ -270,7 +320,7 @@ function ChannelDialog({ org, channel, open, onOpenChange }: { org: string; chan
           </DialogHeader>
           <FormError message={error} />
           {!channel && (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Channel type">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" role="radiogroup" aria-label="Channel type">
               {CHANNEL_KINDS.map((k) => (
                 <button
                   key={k.kind}
@@ -292,18 +342,38 @@ function ChannelDialog({ org, channel, open, onOpenChange }: { org: string; chan
             {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'slack' ? '#alerts-prod' : 'On-call'} />}
           </Field>
           {def.fields.map((f) => (
-            <Field key={f.key} label={f.label} hint={f.hint} optional={f.placeholder === 'optional'}>
-              {(p) => (
-                <Input
-                  {...p}
-                  type={f.secret ? 'password' : 'text'}
-                  value={config[f.key] ?? ''}
-                  placeholder={f.placeholder === 'optional' ? '' : f.placeholder}
-                  onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
-                  className="font-mono text-[13px]"
-                  autoComplete="off"
-                />
-              )}
+            <Field
+              key={f.key}
+              label={f.label}
+              hint={f.secret && storedSecret ? `A key is stored; leave empty to keep it. ${f.hint ?? ''}` : f.hint}
+              optional={f.placeholder === 'optional'}
+            >
+              {(p) =>
+                f.options ? (
+                  <Select value={config[f.key] || f.options[0].value} onValueChange={(v) => setConfig((c) => ({ ...c, [f.key]: v }))}>
+                    <SelectTrigger id={p.id} className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {f.options.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    {...p}
+                    type={f.secret ? 'password' : 'text'}
+                    value={config[f.key] ?? ''}
+                    placeholder={f.placeholder === 'optional' ? '' : f.placeholder}
+                    onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
+                    className="font-mono text-[13px]"
+                    autoComplete="off"
+                  />
+                )
+              }
             </Field>
           ))}
           <DialogFooter>
@@ -360,7 +430,7 @@ export function ChannelsPage({ org }: { org: string }) {
             compact
             icon={<BellRing />}
             title="No channels"
-            description="Add Slack, Microsoft Teams, email or webhook channels to use them in alert rules."
+            description="Add Slack, Microsoft Teams, PagerDuty, Opsgenie, email or webhook channels to use them in alert rules."
           />
         </SettingsCard>
       ) : (
@@ -375,7 +445,9 @@ export function ChannelsPage({ org }: { org: string }) {
                 ? cfg.url
                 : typeof cfg.webhook_url === 'string'
                   ? cfg.webhook_url.replace(/(https:\/\/[^/]+\/).+/, '$1…')
-                  : ''
+                  : c.kind === 'pagerduty' || c.kind === 'opsgenie'
+                    ? `${String(cfg.region ?? 'us').toUpperCase()} region · ${cfg.has_secret ? 'key stored' : 'no key'}`
+                    : ''
             return (
               <li key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">

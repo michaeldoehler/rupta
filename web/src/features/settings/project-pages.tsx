@@ -195,6 +195,7 @@ const PROJECT_TABS = [
   ['/$org/settings/projects/$project/security', 'Security'],
   ['/$org/settings/projects/$project/limits', 'Rate limits & retention'],
   ['/$org/settings/projects/$project/telemetry', 'Telemetry data'],
+  ['/$org/settings/projects/$project/integrations', 'Integrations'],
   ['/$org/settings/projects/$project/source-maps', 'Source maps'],
 ] as const
 

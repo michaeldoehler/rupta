@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { Bookmark, ChevronRight, Ellipsis, Share2, Trash2 } from 'lucide-react'
+import { Bookmark, ChevronRight, Ellipsis, Link2, Share2, Ticket, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/api/endpoints'
 import { qk, useDeleteIssues, useIssue, useSession, useUpdateIssues } from '@/api/queries'
@@ -29,6 +29,7 @@ import { compact, shortVersion, thousands } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { type ActionHandler } from '@/features/issues/actions'
 import { StatusBadge } from '@/features/issues/issue-row'
+import { openTicketDialog } from '@/features/integrations/linked-tickets'
 import { IssueContextPanel } from './context-panel'
 
 function PanelSkeleton() {
@@ -199,6 +200,13 @@ function Header({ d, org, act, permalink, onDelete }: { d: IssueDetail; org: str
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => openTicketDialog('create')}>
+                <Ticket /> Create ticket…
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openTicketDialog('link')}>
+                <Link2 /> Link existing ticket…
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void copyText(d.title, 'Title copied')}>Copy title</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void copyText(`[${d.short_id}] ${d.title}\n${permalink}`, 'Copied as text')}>Copy as text</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void copyText(`[${d.short_id}: ${d.title}](${permalink})`, 'Markdown link copied')}>
