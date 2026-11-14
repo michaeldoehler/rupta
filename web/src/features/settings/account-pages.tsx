@@ -87,7 +87,12 @@ export function ProfilePage() {
       </SettingsCard>
 
       <SettingsCard title="Theme" description="Stored in this browser.">
-        <RadioGroup value={theme} onValueChange={(v) => setTheme(v as Theme)} className="grid grid-cols-3 gap-3" aria-label="Theme">
+        <RadioGroup
+          value={theme}
+          onValueChange={(v) => {
+            setTheme(v as Theme)
+            update.mutate({ preferences: { ...prefs, theme: v as Theme } })
+          }} className="grid grid-cols-3 gap-3" aria-label="Theme">
           {themes.map((t) => (
             <label
               key={t.v}
@@ -297,13 +302,14 @@ export function NotificationsPage() {
           <ToggleRow title="Deploys" description="When a release you contributed to is deployed.">
             <Switch checked={n.deploys ?? false} onCheckedChange={(v) => setN({ deploys: v })} aria-label="Deploy notifications" />
           </ToggleRow>
-          <ToggleRow title="Weekly report" description="A summary of new, resolved and busiest issues every Monday.">
+          <ToggleRow title="Weekly report" description="A summary of new, resolved and busiest issues every Monday (not sent yet).">
             <Switch checked={n.weekly_report ?? true} onCheckedChange={(v) => setN({ weekly_report: v })} aria-label="Weekly report" />
           </ToggleRow>
         </div>
       </SettingsCard>
       <p className="text-xs text-muted-foreground">
-        These choices are saved in this browser only: the server does not store per-user notification preferences yet. Today, who gets emailed is decided by the
+        Issue alerts, workflow and the weekly report are saved on the server; deploy notifications only in this browser. No weekly report is sent yet: the
+        choice is stored for when it is. Today, who gets emailed is decided by the
         recipients of each alert rule. Email delivery needs SMTP on the server (RUPTA_SMTP_URL).
       </p>
     </SettingsPage>

@@ -31,7 +31,13 @@ describe('adapters for the server API', () => {
   it('sends assignees as "user:{id}" and "team:{id}"', () => {
     expect(issueUpdateBody({ assignee: { type: 'team', id: '2' } })).toEqual({ assignee: 'team:2' })
     expect(issueUpdateBody({ assignee: null })).toEqual({ assignee: null })
-    expect(issueUpdateBody({ status: 'resolved', resolved_in_next_release: true })).toEqual({ status: 'resolved' })
+    expect(issueUpdateBody({ status: 'resolved', resolved_in_next_release: true })).toEqual({ status: 'resolved', resolved_in: 'next_release' })
+    expect(issueUpdateBody({ status: 'ignored', ignore_user_count: 100, ignore_user_window: 60 })).toEqual({ status: 'ignored', ignore_user_count: 100, ignore_user_window: 60 })
+  })
+
+  it('reads issues resolved in the next release', () => {
+    const i = normIssueDetail({ id: '1', status: 'resolved', resolved_in_mode: 'next_release', resolved_in_release: null, project: {}, metadata: {} })
+    expect(i.resolved_in_release).toBe('next')
   })
 
   it('maps flat members, audit actors and feedback', () => {

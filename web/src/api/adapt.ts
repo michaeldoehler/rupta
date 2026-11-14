@@ -79,7 +79,8 @@ export function normIssueDetail(raw: unknown): IssueDetail {
     ...base,
     first_release: releaseRef(o.first_release),
     last_release: releaseRef(o.last_release),
-    resolved_in_release: str(o.resolved_in_release),
+    // `resolved_in_mode: "next_release"` has no version yet.
+    resolved_in_release: str(o.resolved_in_release) ?? (o.resolved_in_mode === 'next_release' || o.substatus === 'in_next_release' ? 'next' : null),
     ignore_until: str(o.ignore_until),
     ignore_count: o.ignore_count === null || o.ignore_count === undefined ? null : num(o.ignore_count),
     permalink: str(o.permalink) ?? undefined,
@@ -93,11 +94,13 @@ export function normIssueStats(raw: unknown): [number, number][] {
 
 /** View-level issue update to the server's body (`assignee` as "user:{id}"). */
 export function issueUpdateBody(u: IssueUpdate): Record<string, unknown> {
-  const { assignee: a, resolved_in_next_release, ignore_user_count: _users, ...rest } = u
+  const { assignee: a, resolved_in_next_release, ...rest } = u
   const body: Record<string, unknown> = { ...rest }
   if (a !== undefined) body.assignee = a ? `${a.type}:${a.id}` : null
-  // The server has no "next release" marker yet; the issue is resolved now.
-  if (resolved_in_next_release) body.status = 'resolved'
+  if (resolved_in_next_release) {
+    body.status = 'resolved'
+    body.resolved_in = 'next_release'
+  }
   return body
 }
 

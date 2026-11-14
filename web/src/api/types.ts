@@ -148,6 +148,7 @@ export interface SsoTestResult {
   message: string
   issuer?: string
   authorization_endpoint?: string
+  problems?: string[]
 }
 
 export type TokenScope = string
@@ -305,6 +306,8 @@ export interface IssueUpdate {
   ignore_duration?: number
   ignore_count?: number
   ignore_user_count?: number
+  /** Minutes over which `ignore_user_count` users are counted (default: since ignoring). */
+  ignore_user_window?: number
   resolved_in_release?: string
   resolved_in_next_release?: boolean
   is_bookmarked?: boolean
@@ -624,6 +627,7 @@ export type AlertCondition =
   | { type: 'reappeared' }
   | { type: 'event_frequency'; count: number; interval: string }
   | { type: 'user_frequency'; count: number; interval: string }
+  | { type: 'escalating' }
 
 export type AlertFilter =
   { type: 'level'; match: 'eq' | 'gte'; level: Level } | { type: 'tag'; key: string; value: string } | { type: 'environment'; value: string }

@@ -386,10 +386,12 @@ function applyIssueUpdate(i: DbIssue, body: IssueUpdate) {
     i.status = body.status
     if (body.status === 'resolved') {
       i.substatus = null
-      if (body.resolved_in_next_release) i.resolved_in_release = 'next'
+      // The server's body says `resolved_in: "next_release"`.
+      const next = body.resolved_in_next_release || (body as { resolved_in?: string }).resolved_in === 'next_release'
+      if (next) i.resolved_in_release = 'next'
       else if (body.resolved_in_release) i.resolved_in_release = body.resolved_in_release
-      add(body.resolved_in_release || body.resolved_in_next_release ? 'set_resolved_in_release' : 'set_resolved', {
-        version: body.resolved_in_release ?? (body.resolved_in_next_release ? 'the next release' : null),
+      add(body.resolved_in_release || next ? 'set_resolved_in_release' : 'set_resolved', {
+        version: body.resolved_in_release ?? null,
       })
     } else if (body.status === 'ignored') {
       i.substatus = body.ignore_duration || body.ignore_count ? 'archived_until_condition_met' : (body.substatus ?? 'archived_until_escalating')
@@ -558,10 +560,17 @@ function findIssue(id: string) {
   return world.issues.find((i) => i.id === id)
 }
 
+/** Preferences in the server's shape (`clock`, `timezone: null` for the browser's zone). */
+function serverPrefs(u: World['users'][number]) {
+  const p = u.preferences
+  const { deploys: _local, ...notifications } = p.notifications ?? {}
+  return { timezone: !p.timezone || p.timezone === 'browser' ? null : p.timezone, clock: p.clock_24h === false ? '12h' : '24h', theme: p.theme ?? 'system', notifications }
+}
+
 function userProfile(u: World['users'][number]): UserProfile {
   return {
     ...publicUser(u),
-    preferences: u.preferences,
+    preferences: serverPrefs(u) as unknown as UserProfile['preferences'],
     created_at: u.created_at,
     last_login_at: u.last_login_at,
     has_password: true,
@@ -673,14 +682,30 @@ export const handlers = [
   }),
   http.patch(`${BASE}/user`, async ({ request }) => {
     const u = currentUser()!
-    const body = (await request.json()) as { name?: string; avatar_url?: string | null; current_password?: string; new_password?: string }
+    const body = (await request.json()) as {
+      name?: string
+      avatar_url?: string | null
+      current_password?: string
+      new_password?: string
+      preferences?: { timezone?: string | null; clock?: '24h' | '12h'; theme?: 'system' | 'light' | 'dark'; notifications?: Record<string, unknown> }
+    }
+    if (body.preferences) {
+      const p = body.preferences
+      u.preferences = {
+        ...u.preferences,
+        ...(p.timezone !== undefined ? { timezone: p.timezone ?? 'browser' } : {}),
+        ...(p.clock ? { clock_24h: p.clock === '24h' } : {}),
+        ...(p.theme ? { theme: p.theme } : {}),
+        notifications: { ...u.preferences.notifications, ...(p.notifications as object) },
+      }
+    }
     if (body.new_password !== undefined) {
       if (body.current_password !== u.password) return err(403, 'forbidden', 'The current password is incorrect.', { field: 'current_password' })
       if (body.new_password.length < 10) return err(422, 'validation_failed', 'new_password: use at least 10 characters', { field: 'new_password' })
       u.password = body.new_password
     }
     if (body.name !== undefined) u.name = body.name
-    return json(publicUser(u) as unknown as JsonBodyType)
+    return json(userProfile(u) as unknown as JsonBodyType)
   }),
   http.get(`${BASE}/scopes`, () =>
     json(

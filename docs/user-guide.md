@@ -268,10 +268,10 @@ the server lists the replay's issues without times.
 
 ## Settings
 
-- **Account:** name, theme (light, dark, system), timezone and 12/24-hour
-  clock, password, personal API tokens and notification choices. Theme,
-  timezone, clock and notification choices are saved in the browser; the
-  server does not store them yet.
+- **Account:** name, timezone and 12/24-hour clock, password, personal API
+  tokens and notification choices. Timezone, clock, issue alert, workflow
+  and weekly report choices are saved on the server (no weekly report is
+  sent yet); deploy notifications only in the browser.
 - **Organization:** name and slug, members and invitations with roles
   (owner, admin, member, viewer), teams, single sign-on, API tokens,
   notification channels (Slack, Microsoft Teams, email, webhook, each with
@@ -281,9 +281,9 @@ the server lists the replay's issues without times.
   names from the ID token to rupta roles, choose a default role, whether
   accounts are created on first sign-in, whether single sign-on is
   required and whether owners keep password sign-in. The server checks the
-  issuer when you save; the **Test connection** button checks it from the
-  browser when the server has no test endpoint, which needs the provider to
-  allow cross-origin requests.
+  issuer when you save (internal issuers are refused unless the server
+  allows them) and shows why it refused; **Test connection** asks the
+  server to load the provider's discovery document and lists any problems.
 - **API tokens** are shown once when created. Choose scopes and an
   expiry.
 - **Projects:** each project has general settings, client keys (DSN) with
@@ -390,11 +390,6 @@ custom tags are not suggested yet.
   no support for Internet Explorer).
 - Times use your browser's timezone unless you choose another one in your
   account settings; that choice is per browser.
-- Jumping to an issue by short id from the command palette needs a lookup
-  endpoint the server does not have yet; searching for the issue's text
-  works.
-- The list of uploaded source map bundles needs a server endpoint that
-  does not exist yet; uploads work regardless.
 - Log facets count the lines loaded in the browser (up to 1,000), not the
   whole period.
 - Dashboards store each widget's width in quarters of the page; the

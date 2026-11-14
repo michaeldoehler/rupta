@@ -11,10 +11,11 @@ const REVIEW = process.env.REVIEW_DIR
 const README_SHOTS = new Set(['issues', 'issue-detail', 'stacktrace', 'release-detail', 'project-keys', 'command-palette', 'trace', 'logs', 'flamegraph', 'replay'])
 const WAVE = process.env.REVIEW_WAVE
 
-type Shot = { n: string; screen: string; state: string; go: (page: Page) => Promise<void>; mobile?: boolean; readme?: string; wave?: 2; note?: string }
+type Shot = { n: string; screen: string; state: string; go: (page: Page) => Promise<void>; mobile?: boolean; readme?: string; wave?: 2; note?: string; streaming?: boolean }
 
-async function ready(page: Page) {
-  await page.waitForLoadState('networkidle')
+async function ready(page: Page, streaming = false) {
+  // A live tail keeps a request open, so the network never goes idle.
+  if (!streaming) await page.waitForLoadState('networkidle')
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: 10_000 })
   await page.waitForTimeout(400)
 }
@@ -277,7 +278,7 @@ shots.push(
   { n: '52', wave: 2, screen: 'logs', state: 'explorer', readme: 'logs', note: 'Logs: level histogram, facets, virtualised table', go: async (p) => void (await p.goto('/acme/logs?period=24h'), await grid(p, 'Log lines')) },
   { n: '53', wave: 2, screen: 'logs', state: 'autocomplete', note: 'Query bar suggesting attribute keys', go: async (p) => void (await p.goto('/acme/logs?period=24h'), await grid(p, 'Log lines'), await p.getByRole('combobox', { name: 'Search logs' }).click(), await p.getByRole('combobox', { name: 'Search logs' }).pressSequentially('http.'), await expect(p.getByRole('option').first()).toBeVisible()) },
   { n: '54', wave: 2, screen: 'logs', state: 'expanded-row', note: 'Expanded line with all attributes, trace link and issues of the trace', go: async (p) => void (await p.goto('/acme/logs?period=24h&query=level%3Awarn%20service.name%3Aapi'), await grid(p, 'Log lines'), await p.getByRole('grid', { name: 'Log lines' }).getByRole('row').filter({ has: p.getByRole('link', { name: 'Open trace' }) }).first().click(), await expect(p.getByText('View trace')).toBeVisible()) },
-  { n: '55', wave: 2, screen: 'logs', state: 'live-tail', note: 'Live tail streaming new lines over Server-Sent Events', go: async (p) => void (await p.goto('/acme/logs?period=1h&live=true'), await expect(p.getByRole('status').getByText('Live', { exact: true })).toBeVisible({ timeout: 10_000 }), await p.waitForTimeout(3000)) },
+  { n: '55', wave: 2, streaming: true, screen: 'logs', state: 'live-tail', note: 'Live tail streaming new lines over Server-Sent Events', go: async (p) => void (await p.goto('/acme/logs?period=1h&live=true'), await expect(p.getByRole('status').getByText('Live', { exact: true })).toBeVisible({ timeout: 10_000 }), await p.waitForTimeout(3000)) },
   { n: '56', wave: 2, screen: 'logs', state: 'empty', note: 'No lines match', go: async (p) => void (await p.goto('/acme/logs?query=%22no%20such%20line%22'), await expect(p.getByText('No log lines match')).toBeVisible()) },
   { n: '57', wave: 2, screen: 'mobile-logs', state: 'default', mobile: true, note: 'Logs on a phone', go: async (p) => void (await p.goto('/acme/logs?period=24h'), await grid(p, 'Log lines')) },
   { n: '58', wave: 2, screen: 'metrics', state: 'explorer-grouped', note: 'Metric explorer: p95 by route, area chart, series table', go: async (p) => void (await p.goto('/acme/metrics?name=http.server.duration&op=p95&group_by=route&chart=area'), await expect(p.getByRole('table', { name: 'Series summary' })).toBeVisible()) },
@@ -325,7 +326,7 @@ for (const theme of ['light', 'dark'] as const) {
         await expect(page.getByRole('grid', { name: 'Issues' }).getByRole('row').first()).toBeVisible()
       }
       await s.go(page)
-      await ready(page)
+      await ready(page, s.streaming)
       const name = `${s.n}-${s.screen}-${s.state}-${theme}.png`
       if (REVIEW) await page.screenshot({ path: `${REVIEW}/${name}` })
       if (s.readme && README_SHOTS.has(s.readme)) await page.screenshot({ path: `${DOCS}${s.readme}-${theme}.png` })
