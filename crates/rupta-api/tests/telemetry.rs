@@ -429,6 +429,21 @@ async fn replays_and_their_issues() {
     assert!(seg.body["next_cursor"].is_null());
     let events = seg.body["data"][0].as_array().unwrap();
     assert!(events.iter().any(|e| e["type"] == 2) && events.iter().any(|e| e["type"] == 4));
+    // Browsers ask for compressed responses; the streamed body must survive
+    // the compression layer the server puts in front of the API.
+    let compressed = tower::Layer::layer(&tower_http::compression::CompressionLayer::new(), app.router.clone());
+    let req = Request::builder()
+        .uri(d.body["recording_url"].as_str().unwrap())
+        .header("cookie", format!("rupta_session={}", viewer.cookie.clone().unwrap()))
+        .header("accept-encoding", "gzip")
+        .body(Body::empty())
+        .unwrap();
+    let res = compressed.oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers()["content-encoding"], "gzip");
+    let gz =
+        axum::body::to_bytes(Body::new(res.into_body()), usize::MAX).await.expect("the compressed body ends cleanly");
+    assert!(!gz.is_empty());
 
     // From the issue: its replays, and the event names the replay.
     let issue_id = d.body["issues"]
