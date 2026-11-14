@@ -151,7 +151,6 @@ pub(crate) struct EnvelopeState<'a> {
     conn: &'a rupta_store::squad::Connection,
     project: &'a crate::auth::ProjectInfo,
     /// The envelope headers (`event_id`, `dsn`, `sdk`, `trace`, `sent_at`, ...).
-    #[allow(dead_code)]
     headers: &'a Map<String, Value>,
     project_id: i64,
     org_id: i64,
@@ -222,10 +221,13 @@ fn handle_item(st: &mut EnvelopeState<'_>, item: &Item) {
         "client_report" => client_report(st, item),
         "user_report" => user_report(st, item),
         "check_in" => check_in(st, item),
+        // Streamed spans: segment (root) spans are kept as transactions,
+        // child spans are not stored yet.
+        "span" => span(st, item),
         // Acknowledged but not stored yet: replays, profiles, metrics,
-        // spans and logs. Handlers for them plug in here.
+        // OpenTelemetry spans and logs. Handlers for them plug in here.
         "replay_event" | "replay_recording" | "replay_video" | "profile" | "profile_chunk" | "statsd"
-        | "metric_buckets" | "metric_meta" | "trace_metric" | "span" | "otel_span" | "log" | "otel_log" => {
+        | "metric_buckets" | "metric_meta" | "trace_metric" | "otel_span" | "log" | "otel_log" => {
             unsupported(st, item, &item.ty.clone())
         }
         _ => unsupported(st, item, "unknown_item"),
@@ -466,6 +468,90 @@ fn transaction(env: &mut EnvelopeState<'_>, raw: &Value, id: uuid::Uuid) {
     env.outcome(Category::Transaction, Outcome::Accepted, "", 1);
 }
 
+/// A span attribute's value (`{"value": ..., "type": ...}` or a plain value).
+fn attribute<'v>(span: &'v Value, key: &str) -> Option<&'v Value> {
+    let a = span.get("attributes")?.get(key)?;
+    match a.get("value") {
+        Some(v) => Some(v),
+        None => Some(a),
+    }
+}
+
+/// `span` items: a single span, or a v2 container `{"items": [...]}` as
+/// sent by SDKs that stream spans. Segment spans (the root of a trace
+/// segment) are stored as transactions; child spans are counted as
+/// `dropped_unsupported`.
+fn span(st: &mut EnvelopeState<'_>, item: &Item) {
+    let raw: Value = match serde_json::from_slice(&item.payload) {
+        Ok(v) => v,
+        Err(_) => {
+            st.outcome(Category::Span, Outcome::Invalid, "invalid_json", 1);
+            return;
+        }
+    };
+    let spans: Vec<&Value> = match raw.get("items").and_then(Value::as_array) {
+        Some(items) => items.iter().collect(),
+        None => vec![&raw],
+    };
+    let trace = st.headers.get("trace");
+    let mut children = 0;
+    for s in &spans {
+        let parent = opt_str(s.get("parent_span_id"), 32);
+        let segment = s.get("is_segment").and_then(Value::as_bool).unwrap_or(parent.is_none());
+        if !segment {
+            children += 1;
+            continue;
+        }
+        let span_id = opt_str(s.get("span_id"), 32);
+        let start = s.get("start_timestamp").and_then(parse_timestamp);
+        let end = s.get("end_timestamp").or(s.get("timestamp")).and_then(parse_timestamp).unwrap_or(st.received);
+        let attr = |k: &str| opt_str(attribute(s, k), 250);
+        let tags: Map<String, Value> = s
+            .get("attributes")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+            .filter(|(k, _)| !k.starts_with("sentry."))
+            .filter_map(|(k, _)| Some((k.clone(), Value::String(opt_str(attribute(s, k), 200)?))))
+            .take(50)
+            .collect();
+        let span_count = spans
+            .iter()
+            .filter(|c| {
+                span_id.is_some()
+                    && opt_str(attribute(c, "sentry.segment.id"), 32) == span_id
+                    && c.get("is_segment").and_then(Value::as_bool) != Some(true)
+            })
+            .count();
+        st.out.transactions.push(TransactionRow {
+            project_id: st.project_id,
+            event_id: *uuid::Uuid::new_v4().as_bytes(),
+            trace_id: opt_str(s.get("trace_id"), 64),
+            span_id,
+            parent_span_id: parent,
+            name: opt_str(s.get("name"), 200).or_else(|| attr("sentry.segment.name")),
+            op: attr("sentry.op"),
+            status: opt_str(s.get("status"), 32),
+            timestamp: end,
+            start_timestamp: start,
+            duration_ms: start.map(|b| (end - b).num_microseconds().unwrap_or(0) as f64 / 1000.0),
+            received: st.received,
+            environment: attr("sentry.environment").or_else(|| opt_str(trace.and_then(|t| t.get("environment")), 64)),
+            release: attr("sentry.release").or_else(|| opt_str(trace.and_then(|t| t.get("release")), 250)),
+            platform: attr("sentry.platform"),
+            sdk: attr("sentry.sdk.name"),
+            user_hash: attr("user.id").or_else(|| attr("user.email")).map(|u| xxh3_64(u.as_bytes()) as i64),
+            span_count: Some(span_count.min(i32::MAX as usize) as i32),
+            tags: Value::Object(tags).to_string(),
+            measurements: "{}".into(),
+        });
+        st.outcome(Category::Transaction, Outcome::Accepted, "", 1);
+    }
+    if children > 0 {
+        st.outcome(Category::Span, Outcome::DroppedUnsupported, "span", children);
+    }
+}
+
 fn feedback(env: &mut EnvelopeState<'_>, raw: &Value, _id: uuid::Uuid) {
     let fb = raw.get("contexts").and_then(|c| c.get("feedback"));
     let Some(message) = opt_str(fb.and_then(|f| f.get("message")), 10_000) else {
@@ -573,12 +659,12 @@ fn session(env: &mut EnvelopeState<'_>, item: &Item) {
         return;
     };
     let status = raw.get("status").and_then(Value::as_str).unwrap_or("ok").to_ascii_lowercase();
+    // `unhandled` (an unhandled error ended the session) counts as a
+    // crash; unknown statuses count as still running.
     let status = match status.as_str() {
         "ok" | "exited" | "crashed" | "abnormal" | "errored" => status,
-        _ => {
-            env.outcome(Category::Session, Outcome::Invalid, "invalid_status", 1);
-            return;
-        }
+        "unhandled" => "crashed".to_string(),
+        _ => "ok".to_string(),
     };
     env.out.sessions.push(SessionUpdate {
         project_id: env.project_id,

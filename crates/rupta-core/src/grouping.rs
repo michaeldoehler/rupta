@@ -267,6 +267,17 @@ pub fn issue_info(ev: &Event) -> IssueInfo {
     let culprit = ev.transaction.clone().or(frame_culprit).map(|c| truncate(&c, 200));
 
     if let Some(e) = ev.main_exception() {
+        // Some SDKs send messages as an exception without a type (a
+        // synthetic mechanism) to attach a stack trace: titled by the text.
+        if e.ty.is_none() {
+            let text = ev.message.clone().or_else(|| e.value.clone()).unwrap_or_else(|| "<unlabeled event>".into());
+            let first_line = text.lines().next().unwrap_or("").to_string();
+            return IssueInfo {
+                title: truncate(&first_line, 200),
+                culprit,
+                metadata: json!({"type": null, "value": truncate(&text, 1024), "filename": filename, "function": function, "title": first_line}),
+            };
+        }
         let ty = e.ty.clone().unwrap_or_else(|| "Error".into());
         let value = e.value.clone().unwrap_or_default();
         let first_line = value.lines().next().unwrap_or("").to_string();
@@ -389,6 +400,10 @@ mod tests {
         assert_eq!(info.title, "TypeError: x is undefined");
         assert_eq!(info.culprit.as_deref(), Some("handleClick(src/app.js)"));
         assert_eq!(info.metadata["function"], "handleClick");
+        let e = ev(
+            json!({"message": "hello", "exception": [{"value": "hello", "mechanism": {"type": "generic", "synthetic": true}}]}),
+        );
+        assert_eq!(issue_info(&e).title, "hello");
         let e = ev(json!({"message": "hello\nworld", "transaction": "/checkout"}));
         let info = issue_info(&e);
         assert_eq!(info.title, "hello");

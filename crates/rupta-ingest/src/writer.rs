@@ -35,18 +35,19 @@ pub(crate) fn outcome_key(
     }
 }
 
-/// Which transitions of a session were counted already.
+/// Which parts of a session were counted already.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 struct SessionFlags {
+    started: bool,
     errored: bool,
     crashed: bool,
     abnormal: bool,
 }
 
-/// Sessions seen recently, so that a session counts once on `init` and
-/// each of its errored/crashed/abnormal transitions once. Two
-/// generations approximate an LRU: when the current one is full it
-/// becomes the previous one.
+/// Sessions seen recently, so that a session counts once when it starts
+/// and each of its errored/crashed/abnormal transitions once, even when
+/// updates arrive out of order or repeatedly. Two generations approximate
+/// an LRU: when the current one is full it becomes the previous one.
 #[derive(Default)]
 pub(crate) struct SessionTracker {
     current: HashMap<(i64, String), SessionFlags>,
@@ -59,11 +60,10 @@ impl SessionTracker {
     /// Applies an update; returns `(total, errored, crashed, abnormal)` to add.
     pub fn apply(&mut self, u: &SessionUpdate) -> (i64, i64, i64, i64) {
         let key = (u.project_id, u.sid.clone());
-        let known = self.current.remove(&key).or_else(|| self.previous.remove(&key));
-        let mut flags = known.unwrap_or_default();
+        let mut flags = self.current.remove(&key).or_else(|| self.previous.remove(&key)).unwrap_or_default();
         let mut d = (0, 0, 0, 0);
-        // A session counts when it starts; a repeated init does not count again.
-        if u.init && known.is_none() {
+        if u.init && !flags.started {
+            flags.started = true;
             d.0 = 1;
         }
         let errored = u.errors > 0 || matches!(u.status.as_str(), "errored" | "crashed" | "abnormal");
@@ -79,13 +79,10 @@ impl SessionTracker {
             flags.abnormal = true;
             d.3 = 1;
         }
-        let ended = matches!(u.status.as_str(), "exited" | "crashed" | "abnormal");
-        if !ended {
-            if self.current.len() >= SESSION_GENERATION {
-                self.previous = std::mem::take(&mut self.current);
-            }
-            self.current.insert(key, flags);
+        if self.current.len() >= SESSION_GENERATION {
+            self.previous = std::mem::take(&mut self.current);
         }
+        self.current.insert(key, flags);
         d
     }
 }
@@ -555,11 +552,14 @@ mod tests {
         assert_eq!(t.apply(&upd("a", false, "ok", 1)), (0, 1, 0, 0));
         assert_eq!(t.apply(&upd("a", false, "ok", 2)), (0, 0, 0, 0));
         assert_eq!(t.apply(&upd("a", false, "crashed", 2)), (0, 0, 1, 0));
-        assert!(t.current.is_empty());
+        // Repeated final updates count nothing.
+        assert_eq!(t.apply(&upd("a", false, "crashed", 2)), (0, 0, 0, 0));
         // Init and end in one update (the SDK only sends the final state).
         assert_eq!(t.apply(&upd("b", true, "exited", 0)), (1, 0, 0, 0));
         assert_eq!(t.apply(&upd("c", true, "abnormal", 0)), (1, 1, 0, 1));
-        // An update for a session not seen (e.g. after a restart).
+        // An update for a session not seen (e.g. after a restart), and its
+        // init arriving late.
         assert_eq!(t.apply(&upd("d", false, "errored", 1)), (0, 1, 0, 0));
+        assert_eq!(t.apply(&upd("d", true, "ok", 1)), (1, 0, 0, 0));
     }
 }

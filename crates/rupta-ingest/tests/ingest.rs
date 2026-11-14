@@ -288,7 +288,7 @@ async fn every_item_type_is_accepted() {
         (json!({"type": "profile_chunk"}), b"{}".to_vec()),
         (json!({"type": "statsd"}), b"a:1|c".to_vec()),
         (json!({"type": "metric_buckets"}), b"[]".to_vec()),
-        (json!({"type": "span"}), b"{}".to_vec()),
+        (json!({"type": "span"}), br#"{"span_id":"b1","parent_span_id":"a1","is_segment":false}"#.to_vec()),
         (json!({"type": "log"}), b"{\"items\":[]}".to_vec()),
         (json!({"type": "something_new"}), b"{}".to_vec()),
     ];
