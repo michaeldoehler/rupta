@@ -5,6 +5,7 @@
 //! [`Store::run`]. Schema changes are numbered SQL migrations in
 //! `migrations/`, applied in order at start-up.
 
+pub mod ingest;
 mod migrations;
 
 use std::path::{Path, PathBuf};

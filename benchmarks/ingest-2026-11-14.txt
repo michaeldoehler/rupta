@@ -1,0 +1,33 @@
+# rupta ingest benchmark, 2026-11-14
+# command: cargo run --release -p rupta-ingest --example ingest_bench -- 100000 64  (and --stages, --writer)
+# machine: 4 vCPU, 15 GB RAM, shared with two other build jobs; load average before run: 3.59 2.64 2.60 1/152 10466
+# rustc: rustc 1.100.0 (0ef1bc386 2026-11-09)
+
+rupta ingest benchmark: 4 cores, 4 ingest workers
+durability=fast events=100000 concurrency=64 avg_envelope_bytes=5192 rejected=0 stored=100000 issues=50
+  acked:  39578 events/s (2.53 s)   stored: 10295 events/s (9.71 s)   batches=101
+  ack latency: p50=1.25 ms p90=2.32 ms p99=9.31 ms max=195.26 ms
+  writer busy (batch transactions): 8.96 s
+durability=safe events=100000 concurrency=64 avg_envelope_bytes=5192 rejected=0 stored=100000 issues=50
+  acked:  4125 events/s (24.24 s)   stored: 4125 events/s (24.24 s)   batches=1630
+  ack latency: p50=13.39 ms p90=16.21 ms p99=22.73 ms max=610.47 ms
+  writer busy (batch transactions): 16.43 s
+
+## per-stage cost on one core (--stages)
+parse JSON:  26.8 us/event
+normalize:   19.0 us/event
+scrub:       12.3 us/event
+group:       2.6 us/event
+serialize:   13.5 us/event
+zstd:        11.7 us/event (5816 -> 1342 bytes avg)
+
+## writer statements per batch (--writer)
+per batch of 1000: payloads 4.9 ms, events 8.8 ms, 50 issue updates 2.8 ms, commit 8.3 ms
+
+# load average after run: 3.55 2.77 2.64 1/155 10570
+
+## retention: columnar DELETE of one day (cargo test --release -p rupta-ingest --test retention -- --ignored --nocapture)
+inserted 500000 events in 4.283645039s
+compaction finished in 1.485935717s
+deleted one day (50000 events) in 1.746624529s
+deleted a day in the middle (50000 events) in 867.240753ms

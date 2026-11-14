@@ -1,0 +1,3 @@
+{"sent_at":"2026-11-14T14:06:32.428Z","sdk":{"name":"sentry.javascript.node","version":"11.12.0"}}
+{"type":"session"}
+{"sid":"418415c7a1504bf58d0b39f32852e721","init":true,"started":"2026-11-14T14:06:32.404Z","timestamp":"2026-11-14T14:06:32.428Z","status":"ok","errors":1,"did":"node-user","duration":0.024435997009277344,"attrs":{"release":"smoke-node@1.0.0","environment":"smoke","user_agent":"Node.js/22"}}

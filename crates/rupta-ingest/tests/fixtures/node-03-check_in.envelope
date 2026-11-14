@@ -1,0 +1,3 @@
+{"sent_at":"2026-11-14T14:06:32.414Z","sdk":{"name":"sentry.javascript.node","version":"11.12.0"},"trace":{"environment":"smoke","release":"smoke-node@1.0.0","public_key":"0123456789abcdef0123456789abcdef","trace_id":"68dee3f33b104e13918523b1fbfdb832"}}
+{"type":"check_in"}
+{"check_in_id":"d69ce35e3e47480db5bc15a4ac963353","monitor_slug":"smoke-node-cron","status":"in_progress","release":"smoke-node@1.0.0","environment":"smoke","monitor_config":{"schedule":{"type":"crontab","value":"*/5 * * * *"},"checkin_margin":2,"max_runtime":10,"timezone":"UTC"},"contexts":{"trace":{"trace_id":"68dee3f33b104e13918523b1fbfdb832","span_id":"bbc2d7bc781a95e1"}}}
