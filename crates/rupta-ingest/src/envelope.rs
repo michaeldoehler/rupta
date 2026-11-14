@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn spec_example_with_lengths_and_implicit_lengths() {
-        let raw = b"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n{\"type\":\"attachment\",\"length\":10,\"content_type\":\"text/plain\",\"filename\":\"hello.txt\"}\n\xef\xbb\xbfHello\r\n\n{\"type\":\"event\",\"length\":41,\"content_type\":\"application/json\",\"filename\":\"application.log\"}\n{\"message\":\"hello world\",\"level\":\"error\"}\n";
+        let raw = b"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@ingest.example.com/42\"}\n{\"type\":\"attachment\",\"length\":10,\"content_type\":\"text/plain\",\"filename\":\"hello.txt\"}\n\xef\xbb\xbfHello\r\n\n{\"type\":\"event\",\"length\":41,\"content_type\":\"application/json\",\"filename\":\"application.log\"}\n{\"message\":\"hello world\",\"level\":\"error\"}\n";
         let e = parse(Bytes::from_static(raw)).unwrap();
         assert_eq!(e.event_id(), Some("9ec79c33ec9942ab8353589fcb2e04dc"));
         assert_eq!(e.items.len(), 2);
