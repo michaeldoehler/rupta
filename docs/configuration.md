@@ -58,8 +58,8 @@ is restored automatically. See [deployment](deployment.md).
 | `RUPTA_OIDC_NAME` | `Single sign-on` | Label of the login button, e.g. `Zitadel`. |
 | `RUPTA_OIDC_SCOPES` | `openid email profile urn:zitadel:iam:org:project:roles` | Space-separated scopes. The last one asks Zitadel to include project roles. |
 | `RUPTA_OIDC_ROLE_CLAIM` | `urn:zitadel:iam:org:project:roles` | Claim holding the user's roles: an object whose keys are role names (Zitadel), a list of strings, or a string. |
-| `RUPTA_OIDC_ROLE_MAPPING` | empty | Comma-separated `provider-role:rupta-role` pairs, e.g. `rupta-admin:admin,rupta-viewer:viewer`. rupta roles: `owner`, `admin`, `member`, `viewer`. The highest mapped role wins and is applied at every login. |
-| `RUPTA_OIDC_DEFAULT_ROLE` | `member` | Role of users whose claims map to no role. |
+| `RUPTA_OIDC_ROLE_MAPPING` | empty | Comma-separated `provider-role:rupta-role` pairs, e.g. `rupta-admin:admin,rupta-viewer:viewer`. rupta roles: `owner`, `admin`, `member`, `viewer`. The highest mapped role wins and is applied at every login. Owners are never demoted by SSO, and a member whose claims map to no role keeps their current role. |
+| `RUPTA_OIDC_DEFAULT_ROLE` | `member` | Role given to new members whose claims map to no role. |
 | `RUPTA_OIDC_JIT` | `true` | Create accounts for new users at their first login. With `false`, only users that already exist (invited) can log in through SSO. |
 
 The redirect URI to register at the provider is
