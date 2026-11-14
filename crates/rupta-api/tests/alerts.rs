@@ -49,7 +49,8 @@ async fn wait_for<T>(f: impl Fn() -> Option<T>) -> T {
 #[tokio::test]
 async fn channels_crud_secrets_and_test_delivery() {
     let (url, got) = receiver().await;
-    let app = TestApp::new();
+    // The test receivers listen on loopback, refused by default.
+    let app = TestApp::with_config(|c| c.integrations_allow_private_hosts = true);
     let org = app.org("acme");
     let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
     let r = app
@@ -104,6 +105,7 @@ async fn rules_fire_on_signals_with_filters_and_rate_limits() {
     let (url, got) = receiver().await;
     let (smtp, mails) = smtp_sink().await;
     let app = TestApp::with_config(|c| {
+        c.integrations_allow_private_hosts = true;
         c.smtp_url = Some(smtp.clone());
         c.smtp_from = Some("rupta <rupta@example.com>".into());
     });
@@ -184,7 +186,8 @@ async fn rules_fire_on_signals_with_filters_and_rate_limits() {
 #[tokio::test]
 async fn frequency_conditions_count_events() {
     let (url, got) = receiver().await;
-    let app = TestApp::new();
+    // The test receivers listen on loopback, refused by default.
+    let app = TestApp::with_config(|c| c.integrations_allow_private_hosts = true);
     let org = app.org("acme");
     let project = app.project(org, "web");
     let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
@@ -235,7 +238,8 @@ async fn frequency_conditions_count_events() {
 
 #[tokio::test]
 async fn rule_validation_and_permissions() {
-    let app = TestApp::new();
+    // The test receivers listen on loopback, refused by default.
+    let app = TestApp::with_config(|c| c.integrations_allow_private_hosts = true);
     let org = app.org("acme");
     app.project(org, "web");
     let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
@@ -276,4 +280,30 @@ async fn rule_validation_and_permissions() {
         StatusCode::NO_CONTENT
     );
     let _ = ok;
+}
+
+#[tokio::test]
+async fn channels_to_internal_addresses_are_refused_by_default() {
+    let (url, got) = receiver().await;
+    let app = TestApp::new();
+    let org = app.org("acme");
+    let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
+    for (kind, config) in [
+        ("webhook", json!({"url": format!("{url}/hook")})),
+        ("slack", json!({"webhook_url": format!("{url}/slack")})),
+        ("teams", json!({"webhook_url": format!("{url}/teams")})),
+    ] {
+        let r =
+            app.post("/api/v1/orgs/acme/channels", &admin, json!({"kind": kind, "name": kind, "config": config})).await;
+        assert_eq!(r.status, StatusCode::CREATED, "{:?}", r.body);
+        let id = r.body["id"].as_str().unwrap().to_string();
+        let t = app.post(&format!("/api/v1/orgs/acme/channels/{id}/test"), &admin, json!({})).await;
+        assert!(
+            t.body.to_string().to_lowercase().contains("internal")
+                || t.body.to_string().contains("RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS"),
+            "{kind}: {}",
+            t.body
+        );
+    }
+    assert!(got.0.lock().unwrap().is_empty(), "nothing reached the internal receiver");
 }

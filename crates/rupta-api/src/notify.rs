@@ -164,14 +164,26 @@ fn teams_body(n: &Notification) -> Value {
     })
 }
 
-async fn post_json(state: &ApiState, url: &str, body: &Value, extra: &[(&str, String)]) -> Result<(), String> {
-    let bytes = serde_json::to_vec(body).expect("JSON serializes");
-    let mut req = state.http.post(url).header("content-type", "application/json").body(bytes);
+/// Posts JSON to a channel URL through the guarded outbound client: the
+/// host must not resolve to an internal address (unless
+/// `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS` is set), redirects are not
+/// followed, and requests time out. Notifications are not retried, so a
+/// receiver never gets the same message twice.
+async fn post_channel(
+    state: &ApiState,
+    url: &str,
+    body: Vec<u8>,
+    extra: &[(&'static str, String)],
+) -> Result<(), String> {
+    let u = url::Url::parse(url).map_err(|e| format!("invalid URL: {e}"))?;
+    let mut req = crate::integrations::http::Req::new(reqwest::Method::POST, u).idempotent(false);
+    req.body = Some(body);
+    req = req.header("content-type", "application/json");
     for (k, v) in extra {
-        req = req.header(*k, v);
+        req = req.header(k, v.clone());
     }
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
-    if resp.status().is_success() { Ok(()) } else { Err(format!("the receiver answered {}", resp.status())) }
+    let resp = state.outbound.send(req).await.map_err(|e| e.to_string())?;
+    if (200..300).contains(&resp.status) { Ok(()) } else { Err(format!("the receiver answered {}", resp.status)) }
 }
 
 /// Sends a notification to email addresses.
@@ -206,8 +218,14 @@ pub async fn send_channel(state: &ApiState, kind: &str, config: &Value, n: &Noti
                 .unwrap_or_default();
             send_email(state, &to, n).await
         }
-        "slack" => post_json(state, &s("webhook_url").ok_or("missing webhook_url")?, &slack_body(n), &[]).await,
-        "teams" => post_json(state, &s("webhook_url").ok_or("missing webhook_url")?, &teams_body(n), &[]).await,
+        "slack" => {
+            let body = serde_json::to_vec(&slack_body(n)).expect("JSON serializes");
+            post_channel(state, &s("webhook_url").ok_or("missing webhook_url")?, body, &[]).await
+        }
+        "teams" => {
+            let body = serde_json::to_vec(&teams_body(n)).expect("JSON serializes");
+            post_channel(state, &s("webhook_url").ok_or("missing webhook_url")?, body, &[]).await
+        }
         "webhook" => {
             let url = s("url").ok_or("missing url")?;
             let body = webhook_body(n);
@@ -217,12 +235,7 @@ pub async fn send_channel(state: &ApiState, kind: &str, config: &Value, n: &Noti
             if let Some(secret) = s("secret").filter(|x| !x.is_empty()) {
                 headers.push((SIGNATURE_HEADER, sign(&secret, ts, &bytes)));
             }
-            let mut req = state.http.post(&url).header("content-type", "application/json").body(bytes);
-            for (k, v) in &headers {
-                req = req.header(*k, v);
-            }
-            let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
-            if resp.status().is_success() { Ok(()) } else { Err(format!("the receiver answered {}", resp.status())) }
+            post_channel(state, &url, bytes, &headers).await
         }
         "pagerduty" => pagerduty_trigger(state, config, n).await,
         "opsgenie" => opsgenie_create(state, config, n).await,

@@ -72,7 +72,7 @@ their own provider in the settings in addition; see [single sign-on](sso.md).
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS` | `false` | Let issue tracker integrations (Jira Data Center, self-managed GitLab, …) and PagerDuty/Opsgenie channels with a custom `api_url` reach hosts that resolve to loopback, private, link-local or other internal addresses. Without it such hosts are refused, so that organization admins cannot make the server call internal services. Turn it on when your trackers run on the internal network and all organization admins are trusted. See [integrations](integrations.md). |
+| `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS` | `false` | Let issue tracker integrations (Jira Data Center, self-managed GitLab, …) and notification channels (Slack, Teams and webhook URLs, PagerDuty/Opsgenie with a custom `api_url`) reach hosts that resolve to loopback, private, link-local or other internal addresses. Without it such hosts are refused, so that organization admins cannot make the server call internal services. Turn it on when your trackers run on the internal network and all organization admins are trusted. See [integrations](integrations.md). |
 
 ## Email
 

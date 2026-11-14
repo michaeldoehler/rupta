@@ -56,8 +56,8 @@ require authentication and enforce roles.
   redirects. `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS=true` lifts the check
   for every organization; set it only when all organization admins are
   trusted. The same applies to SSO issuers (`RUPTA_SSO_ALLOW_PRIVATE_ISSUERS`).
-- Slack, Teams and generic webhook channel URLs are not checked this way;
-  only admins can set them.
+- Slack, Teams and generic webhook notification channels go through the
+  same guarded client, so their URLs are subject to the same check.
 - Incoming tracker webhooks are verified with a per-integration secret
   (HMAC-SHA256 signatures for Jira, Linear and GitHub, a token for GitLab)
   and answer 401 otherwise.
@@ -67,8 +67,9 @@ require authentication and enforce roles.
 - `RUPTA_SECRET_KEY` signs cookies and encrypts secrets stored in the
   database (SSO client secrets, webhook secrets, issue tracker tokens and
   webhook secrets, PagerDuty routing keys, Opsgenie API keys) with an
-  authenticated cipher, bound to the row they belong to. Keep it in a secret store; losing it logs everybody out and makes
-  stored secrets unreadable.
+  authenticated cipher, bound to the row they belong to. Keep it in a
+  secret store; losing it logs everybody out and makes stored secrets
+  unreadable.
 - Event data is stored unencrypted in the embedded database and the bucket.
   Use encrypted volumes and server-side encryption of the bucket where
   required, and restrict access to both.
