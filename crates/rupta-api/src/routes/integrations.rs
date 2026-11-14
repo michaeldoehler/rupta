@@ -228,6 +228,17 @@ async fn check_credentials(state: &ApiState, kind: Kind, config: &Value, token: 
         err.status = StatusCode::UNPROCESSABLE_ENTITY;
         err.code = "validation_failed";
         err.message = format!("checking the settings against the tracker failed: {e}");
+        // Name the form field the problem is most likely in, so clients
+        // can show the message next to it.
+        let field = match e {
+            crate::integrations::TrackerError::Network(_)
+            | crate::integrations::TrackerError::Blocked(_)
+            | crate::integrations::TrackerError::NotFound(_) => "base_url",
+            _ => "token",
+        };
+        if let Some(d) = err.details.as_object_mut() {
+            d.insert("field".into(), serde_json::json!(field));
+        }
         err
     })
 }

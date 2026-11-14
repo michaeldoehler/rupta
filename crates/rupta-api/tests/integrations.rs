@@ -243,6 +243,7 @@ async fn jira_cloud_tickets_and_two_way_sync() {
         .await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "{:?}", r.body);
     assert!(r.body["error"]["message"].as_str().unwrap().contains("not authenticated"), "{:?}", r.body);
+    assert_eq!(r.body["error"]["details"]["field"], "token", "clients show the message under the token field");
 
     let r = app
         .post(
@@ -914,6 +915,7 @@ async fn private_hosts_are_refused_unless_allowed() {
         "{:?}",
         r.body
     );
+    assert_eq!(r.body["error"]["details"]["field"], "base_url");
     assert!(calls.all().is_empty(), "nothing was sent");
     let r = app
         .post(
