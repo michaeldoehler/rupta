@@ -102,6 +102,13 @@ jobs:
           pnpm exec playwright install --with-deps chromium
           pnpm test:e2e
 
+  monitoring:
+    name: Prometheus rules and configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check-monitoring.sh
+
   licenses:
     name: Licenses and advisories
     runs-on: ubuntu-latest

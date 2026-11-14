@@ -1,0 +1,111 @@
+# Unit tests of the alerting rules: promtool test rules deploy/prometheus/rupta-alerts.test.yml
+rule_files:
+  - rupta-alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="rupta", instance="rupta"}'
+        values: "1 1 0 0 0 0"
+      - series: 'rupta_ready{job="rupta", instance="rupta"}'
+        values: "1 0 0 0 0 0"
+      - series: 'rupta_storage_fenced{job="rupta", instance="rupta"}'
+        values: "0 0 1 1 1 1"
+      - series: 'rupta_ingest_queue_depth{job="rupta", instance="rupta"}'
+        values: "10 90000 95000 95000 95000 95000 95000 95000"
+      - series: 'rupta_ingest_queue_capacity{job="rupta", instance="rupta"}'
+        values: "100000x8"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: RuptaDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: rupta, instance: rupta}
+            exp_annotations:
+              summary: "rupta is down"
+              description: "Prometheus cannot scrape rupta for 2 minutes. SDKs cannot deliver events."
+      - eval_time: 5m
+        alertname: RuptaNotReady
+        exp_alerts:
+          - exp_labels: {severity: critical, job: rupta, instance: rupta}
+            exp_annotations:
+              summary: "rupta is not ready"
+              description: "The database of rupta does not answer, or another instance took over the bucket (see rupta_storage_fenced)."
+      - eval_time: 3m
+        alertname: RuptaStorageFenced
+        exp_alerts:
+          - exp_labels: {severity: critical, job: rupta, instance: rupta}
+            exp_annotations:
+              summary: "rupta was fenced by another writer"
+              description: "Another instance with the same RUPTA_STORAGE_URL took over the database; rupta refuses writes. Stop one of them."
+      - eval_time: 3m
+        alertname: RuptaIngestQueueNearCapacity
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: RuptaIngestQueueNearCapacity
+        exp_alerts:
+          - exp_labels: {severity: warning, job: rupta, instance: rupta}
+            exp_annotations:
+              summary: "the ingest queue is nearly full"
+              description: "The ingest queue of rupta is over 80% full for 5 minutes; when it is full, SDKs receive 429 and retry later."
+
+  - interval: 1m
+    input_series:
+      - series: 'rupta_ingest_events_total{instance="rupta", category="error", outcome="accepted"}'
+        values: "0+60x40"
+      - series: 'rupta_ingest_events_total{instance="rupta", category="error", outcome="rate_limited"}'
+        values: "0+30x40"
+      - series: 'rupta_alert_notifications_total{instance="rupta", channel="slack", result="failure"}'
+        values: "0 0 1 1 1"
+      - series: 'rupta_alert_notifications_total{instance="rupta", channel="email", result="success"}'
+        values: "0 1 2 3 4"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: RuptaHighRejectionRate
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: rupta}
+            exp_annotations:
+              summary: "many events are rejected"
+              description: "More than 10% of the envelope items sent to rupta are rate limited, invalid or dropped because the queue is full."
+      - eval_time: 4m
+        alertname: RuptaNotificationFailures
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: rupta, channel: slack}
+            exp_annotations:
+              summary: "alert notifications fail"
+              description: "Notifications through slack failed in the last 30 minutes. Test the channel in the organization settings; the rupta log has the receiver's answer."
+
+  - interval: 1m
+    input_series:
+      # 100 requests per minute: 98 under 0.1 s, 2 at 5 s.
+      - series: 'rupta_http_request_duration_seconds_bucket{instance="rupta", method="GET", route="/api/v1/orgs/{org}/issues", status="2xx", le="0.1"}'
+        values: "0+98x30"
+      - series: 'rupta_http_request_duration_seconds_bucket{instance="rupta", method="GET", route="/api/v1/orgs/{org}/issues", status="2xx", le="2.5"}'
+        values: "0+98x30"
+      - series: 'rupta_http_request_duration_seconds_bucket{instance="rupta", method="GET", route="/api/v1/orgs/{org}/issues", status="2xx", le="10"}'
+        values: "0+100x30"
+      - series: 'rupta_http_request_duration_seconds_bucket{instance="rupta", method="GET", route="/api/v1/orgs/{org}/issues", status="2xx", le="+Inf"}'
+        values: "0+100x30"
+      # The live log tail is excluded.
+      - series: 'rupta_http_request_duration_seconds_bucket{instance="rupta", method="GET", route="/api/v1/orgs/{org}/logs/stream", status="2xx", le="+Inf"}'
+        values: "0+1000x30"
+      - series: 'rupta_http_requests_total{instance="rupta", method="GET", route="/api/v1/orgs/{org}/issues", status="2xx"}'
+        values: "0+90x30"
+      - series: 'rupta_http_requests_total{instance="rupta", method="GET", route="/api/v1/orgs/{org}/issues", status="5xx"}'
+        values: "0+10x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: RuptaHighP99Latency
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: rupta}
+            exp_annotations:
+              summary: "slow responses"
+              description: "The 99th percentile response time of rupta is 6.25s for 10 minutes."
+      - eval_time: 20m
+        alertname: RuptaHighServerErrorRate
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: rupta}
+            exp_annotations:
+              summary: "many server errors"
+              description: "More than 5% of the requests to rupta fail with a 5xx status."

@@ -1,0 +1,35 @@
+# Prometheus scrape configuration for rupta.
+#
+# rupta serves its metrics at /metrics on the same port as everything
+# else. With RUPTA_METRICS_TOKEN set, the endpoint needs
+# `Authorization: Bearer <token>`; Prometheus reads the token from the
+# file `rupta-metrics-token` next to this file (relative paths are
+# resolved against the directory of this file). Without a token, remove
+# the `authorization` block.
+#
+# See docs/monitoring.md for the metrics and the alert rules.
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - rupta-alerts.yml
+
+scrape_configs:
+  - job_name: rupta
+    metrics_path: /metrics
+    scheme: http
+    authorization:
+      type: Bearer
+      credentials_file: rupta-metrics-token
+    static_configs:
+      - targets: ["rupta:8080"]
+        labels:
+          instance: rupta
+
+# Uncomment to send alerts to an Alertmanager.
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ["alertmanager:9093"]
