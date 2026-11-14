@@ -10,15 +10,20 @@ dropped, and the limits.
 
 The SDK smoke test (`scripts/sdk-smoke.sh`, see [below](#smoke-test)) runs
 example programs with these packages; the envelopes they sent are kept as
-test fixtures in `crates/rupta-ingest/tests/fixtures/` and replayed by
-`cargo test -p rupta-ingest --test sdk_fixtures`.
+test fixtures in `crates/rupta-ingest/tests/fixtures/` (errors, sessions,
+check-ins) and `crates/rupta-ingest/tests/fixtures/telemetry/` (a later
+capture that adds traces, logs, metrics, profiles and a session replay),
+replayed by `cargo test -p rupta-ingest --test sdk_fixtures --test
+telemetry_fixtures` and, through the API, by `cargo test -p rupta-api
+--test telemetry`.
 
 | SDK | Package | Version tested | Sent and checked |
 | --- | --- | --- | --- |
-| JavaScript, Node | `@sentry/node` | 11.12.0 | exception, message, breadcrumbs, user, tags, release, environment, attachment, user feedback, cron check-in, transaction (streamed spans), sessions |
-| JavaScript, browser | `@sentry/browser` | 11.12.0 (headless Chrome) | caught and unhandled exceptions, message, breadcrumbs, user, tags, user feedback, page-load transaction (streamed spans), sessions; `Content-Type: text/plain` envelopes with CORS |
-| PHP | `sentry/sentry` | 4.37.0 | exception, message, breadcrumbs, user, tags, attachment, cron check-in, transaction |
-| Python | `sentry-sdk` | 2.75.0 | exception, message, breadcrumbs, user, tags, attachment, cron check-in, transaction, sessions |
+| JavaScript, Node | `@sentry/node`, `@sentry/profiling-node` | 11.12.0 | exception, message, breadcrumbs, user, tags, release, environment, attachment, user feedback, cron check-in, transaction (streamed spans), sessions, logs (`Sentry.logger`), metrics (`Sentry.metrics`), continuous profiles (`profileLifecycle: "trace"`) |
+| JavaScript, browser | `@sentry/browser` | 11.12.0 (headless Chromium 1243 via Playwright 1.63) | caught and unhandled exceptions, message, breadcrumbs, user, tags, user feedback, page-load and navigation transactions with web vitals (streamed spans), sessions, logs, metrics, session replay (`replayIntegration`, linked to the errors), browser profiling (`browserProfilingIntegration`, needs `Document-Policy: js-profiling`); `Content-Type: text/plain` envelopes with CORS |
+| PHP | `sentry/sentry` | 4.37.0 | exception, message, breadcrumbs, user, tags, attachment, cron check-in, transaction, logs (`\Sentry\logger()`), metrics (`\Sentry\traceMetrics()`); profiling not tested (needs the `excimer` extension, not installed on the test machine) |
+| Python | `sentry-sdk` | 2.75.0 | exception, message, breadcrumbs, user, tags, attachment, cron check-in, transaction, sessions, logs (`sentry_sdk.logger`), metrics (`sentry_sdk.metrics`), transaction profiles (`profiles_sample_rate`) and continuous profiles (`profile_session_sample_rate`, `profile_lifecycle="trace"`) |
+| hand-written | `statsd` and `metric_buckets` envelopes | — | the deprecated metric formats, which no current SDK sends |
 
 Other SDKs that speak the envelope protocol (Go, Java, .NET, Ruby, Rust,
 mobile) use the same endpoints and item types and are expected to work,
@@ -82,8 +87,8 @@ Error bodies are `{"detail": "..."}`, and the message is repeated in
 | Item type | What rupta does | Stored in |
 | --- | --- | --- |
 | `event` | Normalized, filtered, symbolicated (JavaScript), scrubbed, grouped into an issue. | `events` (one row for search and counts), `event_payloads` (the full normalized event, zstd-compressed JSON), `issues` |
-| `transaction` | Name, operation, status, duration, trace and span ids, release, environment, tags, measurements. No UI in 0.1. | `transactions` |
-| `span` | Streamed spans (current JavaScript SDKs send transactions this way, as a `{"items": [...]}` container). Segment (root) spans are stored as transactions; child spans are counted as `dropped_unsupported`. | `transactions` |
+| `transaction` | Name, operation, status, duration, trace and span ids, release, environment, tags, measurements (web vitals as columns), profile links; the root span and every span in `spans`. See [performance](performance.md). | `transactions`, `spans` |
+| `span` | Streamed spans (current JavaScript SDKs send transactions this way, as a `{"items": [...]}` container). Every span is stored; segment (root) spans also as transactions. | `spans`, `transactions` |
 | `attachment` | Bytes go to the object store under `attachments/{project_id}/{day}/{event_id}/{id}`; linked to the envelope's event. Dropped with the event if the event is filtered or invalid. | `attachments`, object store |
 | `session` | Release health, see [sessions](#sessions). | `session_counts` |
 | `sessions` | Pre-aggregated sessions (server SDKs in request mode). | `session_counts` |
@@ -91,17 +96,18 @@ Error bodies are `{"detail": "..."}`, and the message is repeated in
 | `user_report` | Legacy user feedback (`event_id`, `name`, `email`, `comments`). | `user_feedback` |
 | `feedback` | User feedback (`contexts.feedback`: message, name, contact e-mail, URL, associated event). | `user_feedback` |
 | `check_in` | Cron monitor check-in. The monitor is created on first use (named after its slug) and its schedule updated from `monitor_config`; `in_progress` followed by `ok`/`error` with the same check-in id updates one check-in (duration from the SDK, or measured). | `monitors`, `checkins` |
-| `replay_event`, `replay_recording`, `replay_video` | Acknowledged, not stored. | `outcomes` (`dropped_unsupported`, category `replay`) |
-| `profile`, `profile_chunk` | Acknowledged, not stored. | `outcomes` (`profile`) |
-| `statsd`, `metric_buckets`, `metric_meta`, `trace_metric` | Acknowledged, not stored. | `outcomes` (`metric_bucket`) |
-| `log`, `otel_log` | Acknowledged, not stored. | `outcomes` (`log_item`) |
-| `otel_span` | Acknowledged, not stored. | `outcomes` (`span`) |
+| `replay_event`, `replay_recording` | Session replay segments, see [session replay](session-replay.md). | `replays`, `replay_segments`, object store |
+| `replay_video` | Mobile replay video: acknowledged, not stored. | `outcomes` (`dropped_unsupported`, category `replay`) |
+| `profile`, `profile_chunk` | Sampled profiles, see [profiling](profiling.md). | `profiles`, object store |
+| `trace_metric`, `statsd`, `metric_buckets` | Metrics, see [metrics](metrics.md). | `metrics` |
+| `metric_meta` | Acknowledged, not stored. | `outcomes` (`dropped_unsupported`, category `metric_bucket`) |
+| `log`, `otel_log` | Structured logs, see [logs](logs.md). | `logs` |
+| `otel_span` | Acknowledged, not stored. | `outcomes` (`dropped_unsupported`, category `span`) |
 | anything else | Acknowledged, not stored. | `outcomes` (`unknown`, reason `unknown_item`) |
 
 Every item handler is selected in one place (`handle_item` in
 `crates/rupta-ingest/src/process.rs`), with the item bytes and the
-envelope headers (`event_id`, `trace`, `sdk`, ...) at hand, so support for
-replays, profiles, metrics and logs can be added there.
+envelope headers (`event_id`, `trace`, `sdk`, ...) at hand.
 
 ### Events
 
@@ -184,10 +190,21 @@ scripts/sdk-smoke.sh
 The script starts a server on a free port with a temporary data directory,
 seeds a project and key (`cargo run -p rupta-ingest --example ingest_admin`),
 installs the SDKs into a temporary directory (`SMOKE_SDK_DIR` reuses one),
-runs `scripts/sdk-smoke/{node.mjs,browser.js,php.php,python.py}` (the
-browser example in headless Chrome when `google-chrome` or `chromium` is
-found), stops the server and checks the stored data. It needs node and npm,
-php and composer, python3 and curl; missing toolchains are skipped unless
-`SMOKE_REQUIRE_ALL=1`. With `SMOKE_CAPTURE_DIR=<dir>` every request is also
+runs `scripts/sdk-smoke/{node.mjs,php.php,python.py,python-continuous.py}`
+and the browser example (`browser.js` bundled with esbuild into
+`browser.html`, driven by `run-browser.cjs` with Playwright in headless
+Chromium: it clicks a button, navigates with the history API, triggers
+errors and waits more than five seconds, because shorter replays are not
+sent), sends a hand-written `statsd` and `metric_buckets` envelope, stops
+the server and checks the stored data: errors, transactions, spans, logs
+and metrics from every SDK, profiles, the replay with its clicks and
+linked errors, and that nothing was rejected or dropped as unsupported.
+It needs node and npm, php and composer, python3 and curl, and for the
+browser the `playwright` Node module with its Chromium
+(`PLAYWRIGHT_BROWSERS_PATH`); missing toolchains are skipped unless
+`SMOKE_REQUIRE_ALL=1`. Chromium is started with `--no-proxy-server` and
+`--disable-features=LocalNetworkAccessChecks`, because the page and the
+server both run on `127.0.0.1` and recent Chromium otherwise asks before a
+page may reach a loopback address. With `SMOKE_CAPTURE_DIR=<dir>` every request is also
 recorded; `scripts/sdk-smoke/make-fixtures.py` turns the recording into the
 test fixtures, replacing keys, paths, ports and host names.
