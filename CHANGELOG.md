@@ -6,52 +6,6 @@ uses [semantic versioning](https://semver.org/). Before 1.0, minor versions
 may change the API, the configuration and the storage format; the
 changelog says when and how to migrate.
 
-## [Unreleased]
-
-### Changed
-
-- The image builds the web app with Node 26 and installs pnpm with npm
-  (Node 25 and later no longer include corepack). Updated base64, zstd,
-  brotli, the Rust 1.99 build image and the GitHub Actions used in CI.
-- The subkeys of `RUPTA_SECRET_KEY` are computed as the first HKDF-Expand
-  block directly; the keys are unchanged (a test pins them). The dummy hash
-  that equalizes login timing for unknown accounts is of a random password.
-- The web interface shows the marks of integrated services (Jira, Linear,
-  GitHub, GitLab, PagerDuty, Opsgenie, Zitadel) in the integration and
-  channel settings, the tracker pickers, linked tickets, the alert editor
-  and the activity feed. Trackers and channels are chosen from tiles.
-  Ticket activity entries now name the integration with server data.
-- `compose.yaml` passes every configuration variable from `.env`; previously
-  settings such as `RUPTA_TRUSTED_PROXIES` had no effect without editing the
-  file. `deploy/stack.yml` creates the bootstrap administrator from the
-  `rupta_admin_password` secret, so no setup screen is open after the first
-  deploy.
-
-### Documentation
-
-- Name the compatibility explicitly: rupta implements the ingestion
-  protocol of the Sentry SDKs and the source map upload commands of
-  `sentry-cli`. `docs/sdk-compatibility.md` has a compatibility matrix per
-  SDK and data type (tested, expected to work, accepted but not stored, not
-  supported) and a list of what is not supported; README, source map
-  upload and comparison say the same, with a trademark note.
-- `docs/getting-started.md`: a five-minute path from Docker Compose to the
-  first error, with `curl` and SDK examples for JavaScript, Node.js, PHP,
-  Laravel, Python and Django, moving an existing application, and source
-  map upload. `docs/README.md`: a documentation index with a reading order.
-- Deployment and configuration say which variables `compose.yaml` passes
-  to rupta and how to add others; the Swarm section explains the first
-  login. Operations: issues last seen before the retention cutoff are
-  deleted (the chapter said they stay), telemetry retention, and more
-  troubleshooting entries.
-- Feature chapters: alerts no longer claim that webhook URLs may point at
-  internal addresses (they are refused unless
-  `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS=true`); data scrubbing lists
-  logs as scrubbed and states that span data and replay recordings are
-  not; the user guide's shortcut table renders as one table and says that
-  the timezone choice is saved with the account; internal code paths were
-  removed from ingestion, alerts and authentication.
-
 ## [0.1.0] - 2026-11-14
 
 The first release.
@@ -157,3 +111,26 @@ The first release.
   emails respect `issue_alerts`; new workflow emails (issue assigned to
   you or your team, comment on an issue assigned to you) respect
   `workflow`.
+- **Service marks** of integrated services (Jira, Linear, GitHub, GitLab,
+  PagerDuty, Opsgenie, Zitadel) in the integration and channel settings,
+  the tracker pickers, linked tickets, the alert editor and the activity
+  feed; trackers and channels are chosen from tiles.
+- **Deployment templates:** `compose.yaml` passes every configuration
+  variable from `.env`; `deploy/stack.yml` creates the bootstrap
+  administrator from the `rupta_admin_password` Docker secret, so no setup
+  screen is open on a fresh public instance.
+- **Container image** for linux/amd64 and linux/arm64, each built on a
+  runner of its own architecture, with provenance attestations and an SBOM.
+
+### Documentation
+
+- SDK compatibility stated explicitly: rupta implements the ingestion
+  protocol of the Sentry SDKs and the source map upload commands of
+  `sentry-cli`. `docs/sdk-compatibility.md` has a matrix per SDK and data
+  type (tested, expected to work, accepted but not stored, not supported),
+  the tested SDK versions and a list of what is not supported.
+- `docs/getting-started.md` (from Docker Compose to the first error, SDK
+  examples, moving an existing application, source maps) and
+  `docs/README.md` (an index with a reading order), next to the chapters on
+  deployment, configuration, operations, security, monitoring, integrations
+  and each feature.

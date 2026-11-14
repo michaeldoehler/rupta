@@ -127,8 +127,16 @@ jobs:
           command: check advisories licenses sources bans
 
   docker:
-    name: Container image
-    runs-on: ubuntu-latest
+    name: Container image (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -138,8 +146,8 @@ jobs:
           push: false
           load: true
           tags: rupta:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=image-${{ matrix.arch }}
       - name: Start the image and wait until it is healthy
         run: |
           docker run -d --name rupta -p 8080:8080 -e RUPTA_SECRET_KEY=$(openssl rand -hex 32) rupta:ci
