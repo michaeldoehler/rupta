@@ -43,6 +43,7 @@ pub mod action {
     pub const ALERT_RULE_UPDATE: &str = "alert_rule.update";
     pub const ALERT_RULE_DELETE: &str = "alert_rule.delete";
     pub const ISSUE_DELETE: &str = "issue.delete";
+    pub const ARTIFACT_BUNDLE_DELETE: &str = "artifact_bundle.delete";
 }
 
 /// One audit log entry.

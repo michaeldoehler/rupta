@@ -18,6 +18,7 @@ use utoipa_axum::routes;
 use crate::access::org_sync;
 use crate::error::{ApiError, ApiResult};
 use crate::extract::{Auth, Json, Path};
+use crate::preferences::{Preferences, PreferencesPatch};
 use crate::routes::auth::SessionUser;
 use crate::routes::orgs::check_name;
 use crate::state::ApiState;
@@ -32,18 +33,34 @@ pub fn routes() -> OpenApiRouter<ApiState> {
         .routes(routes!(list_scopes))
 }
 
+/// The signed-in user with their preferences.
+#[derive(Serialize, ToSchema)]
+pub struct CurrentUser {
+    #[serde(flatten)]
+    pub user: SessionUser,
+    pub preferences: Preferences,
+}
+
+fn current_user(c: &rupta_store::squad::Connection, uid: i64) -> ApiResult<CurrentUser> {
+    let u = users::get(c, uid)?.ok_or_else(ApiError::unauthorized)?;
+    let prefs: serde_json::Value = c.query_one("SELECT preferences FROM users WHERE id = $1", &[&uid])?.get(0);
+    Ok(CurrentUser {
+        user: SessionUser {
+            id: Id(u.id),
+            email: u.email,
+            name: u.name,
+            avatar_url: u.avatar_url,
+            is_superuser: u.is_superuser,
+        },
+        preferences: Preferences::from_value(&prefs),
+    })
+}
+
 /// The signed-in user.
-#[utoipa::path(get, path = "/api/v1/user", tag = "user", responses((status = 200, body = SessionUser)))]
-async fn get_user(State(state): State<ApiState>, auth: Auth) -> ApiResult<axum::Json<SessionUser>> {
+#[utoipa::path(get, path = "/api/v1/user", tag = "user", responses((status = 200, body = CurrentUser)))]
+async fn get_user(State(state): State<ApiState>, auth: Auth) -> ApiResult<axum::Json<CurrentUser>> {
     let uid = auth.require_user()?;
-    let u = state.db(move |c| users::get(c, uid)?.ok_or_else(ApiError::unauthorized)).await?;
-    Ok(axum::Json(SessionUser {
-        id: Id(u.id),
-        email: u.email,
-        name: u.name,
-        avatar_url: u.avatar_url,
-        is_superuser: u.is_superuser,
-    }))
+    Ok(axum::Json(state.db(move |c| current_user(c, uid)).await?))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -53,17 +70,19 @@ pub struct UpdateUser {
     /// To change the password, give the current and the new one.
     pub current_password: Option<String>,
     pub new_password: Option<String>,
+    /// Only the given fields change; each is validated.
+    pub preferences: Option<PreferencesPatch>,
 }
 
-/// Changes name, avatar or password. A password change ends all other
-/// sessions of the user.
+/// Changes name, avatar, preferences or password. A password change ends
+/// all other sessions of the user.
 #[utoipa::path(patch, path = "/api/v1/user", tag = "user", request_body = UpdateUser,
-    responses((status = 200, body = SessionUser)))]
+    responses((status = 200, body = CurrentUser), (status = 422, body = crate::error::ErrorBody)))]
 async fn update_user(
     State(state): State<ApiState>,
     auth: Auth,
     Json(req): Json<UpdateUser>,
-) -> ApiResult<axum::Json<SessionUser>> {
+) -> ApiResult<axum::Json<CurrentUser>> {
     let uid = auth.require_user()?;
     if auth.principal.token.is_some() && req.new_password.is_some() {
         return Err(ApiError::forbidden().with_details(json!({"reason": "passwords can only be changed in a session"})));
@@ -73,6 +92,10 @@ async fn update_user(
         && !(a.is_empty() || a.starts_with("https://") || a.starts_with("http://"))
     {
         return Err(ApiError::invalid("avatar_url", "must be an http(s) URL"));
+    }
+    // Validate the preferences before anything is written.
+    if let Some(p) = &req.preferences {
+        Preferences::default().apply(p)?;
     }
     let new_hash = match (&req.current_password, &req.new_password) {
         (_, None) => None,
@@ -96,6 +119,7 @@ async fn update_user(
         }
     };
     let avatar = req.avatar_url.clone().map(|a| if a.is_empty() { None } else { Some(a) });
+    let prefs = req.preferences;
     let u = state
         .db(move |c| {
             let txn = c.transaction()?;
@@ -104,6 +128,12 @@ async fn update_user(
             }
             if let Some(a) = &avatar {
                 txn.execute("UPDATE users SET avatar_url = $1 WHERE id = $2", &[a, &uid])?;
+            }
+            if let Some(p) = &prefs {
+                let stored: serde_json::Value =
+                    txn.query_one("SELECT preferences FROM users WHERE id = $1", &[&uid])?.get(0);
+                let merged = Preferences::from_value(&stored).apply(p)?;
+                txn.execute("UPDATE users SET preferences = $1 WHERE id = $2", &[&merged.to_value(), &uid])?;
             }
             if let Some(h) = &new_hash {
                 txn.execute("UPDATE users SET password_hash = $1 WHERE id = $2", &[h, &uid])?;
@@ -117,18 +147,12 @@ async fn update_user(
                     },
                 )?;
             }
-            let u = users::get(&txn, uid)?.ok_or_else(ApiError::unauthorized)?;
+            let u = current_user(&txn, uid)?;
             txn.commit()?;
             Ok(u)
         })
         .await?;
-    Ok(axum::Json(SessionUser {
-        id: Id(u.id),
-        email: u.email,
-        name: u.name,
-        avatar_url: u.avatar_url,
-        is_superuser: u.is_superuser,
-    }))
+    Ok(axum::Json(u))
 }
 
 #[derive(Serialize, ToSchema)]

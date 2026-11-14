@@ -13,6 +13,9 @@ pub enum IssueSignal {
     /// An event for an issue that was ignored until a condition that is
     /// now met (time passed or count exceeded).
     Reappeared { project_id: i64, issue_id: i64 },
+    /// An issue whose event rate rose far above its usual rate (see
+    /// docs/ingestion.md, "Escalating issues").
+    Escalating { project_id: i64, issue_id: i64 },
     /// Events for an existing issue, aggregated per batch.
     Seen { project_id: i64, issue_id: i64, count: u64, environment: Option<String>, level: Option<String> },
 }
@@ -23,6 +26,7 @@ impl IssueSignal {
             IssueSignal::New { issue_id, .. }
             | IssueSignal::Regressed { issue_id, .. }
             | IssueSignal::Reappeared { issue_id, .. }
+            | IssueSignal::Escalating { issue_id, .. }
             | IssueSignal::Seen { issue_id, .. } => *issue_id,
         }
     }

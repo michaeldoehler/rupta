@@ -1,8 +1,9 @@
-//! Releases, deploys and release health (from `session_counts`).
-//!
-//! Session counts are aggregated per hour, release and environment, not
-//! per user, so crash-free *users* cannot be computed; the field is
-//! always `null`.
+//! Releases, deploys and release health: session counts from
+//! `session_counts`, distinct users from `session_users` (one row per
+//! user, hour, release and environment, keyed by a hash of the session's
+//! `did`). Users are counted exactly with `count(DISTINCT user_hash)`;
+//! project health over periods longer than 31 days uses
+//! `approx_count_distinct` (HyperLogLog, typically within 1–2 %).
 
 use std::collections::HashMap;
 
@@ -44,7 +45,12 @@ pub struct Health {
     pub abnormal_sessions: i64,
     /// Percent of sessions that did not crash; `null` without sessions.
     pub crash_free_sessions: Option<f64>,
-    /// Always `null`: session counts are not kept per user.
+    /// Distinct users (sessions with a `did`).
+    pub total_users: i64,
+    /// Distinct users with at least one crashed session.
+    pub crashed_users: i64,
+    /// Percent of users without a crashed session; `null` without
+    /// sessions that carry a `did`.
     pub crash_free_users: Option<f64>,
     /// Share (percent) of the projects' sessions in the last 24 hours
     /// that used this release.
@@ -90,8 +96,9 @@ pub struct ReleaseDetail {
     pub deploys: Vec<Deploy>,
     /// Health per project.
     pub project_health: Vec<ProjectHealthRef>,
-    /// Daily `[[unix_seconds, sessions, crashed]]` of the last 14 days.
-    pub sessions: Vec<(i64, i64, i64)>,
+    /// Daily `[[unix_seconds, sessions, crashed, users, crashed_users]]`
+    /// of the last 14 days (users distinct per day).
+    pub sessions: Vec<(i64, i64, i64, i64, i64)>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -107,16 +114,48 @@ pub(crate) fn short_version(v: &str) -> String {
     if v.len() >= 32 && v.bytes().all(|b| b.is_ascii_hexdigit()) { v[..12].to_string() } else { v.to_string() }
 }
 
-fn health(total: i64, crashed: i64, errored: i64, abnormal: i64) -> Health {
+fn percent_free(total: i64, bad: i64) -> Option<f64> {
+    (total > 0).then(|| ((total - bad).max(0) as f64 / total as f64 * 10000.0).round() / 100.0)
+}
+
+fn health(total: i64, crashed: i64, errored: i64, abnormal: i64, users: (i64, i64)) -> Health {
     Health {
         total_sessions: total,
         crashed_sessions: crashed,
         errored_sessions: errored,
         abnormal_sessions: abnormal,
-        crash_free_sessions: (total > 0).then(|| ((total - crashed) as f64 / total as f64 * 10000.0).round() / 100.0),
-        crash_free_users: None,
+        crash_free_sessions: percent_free(total, crashed),
+        total_users: users.0,
+        crashed_users: users.1,
+        crash_free_users: percent_free(users.0, users.1),
         adoption: None,
     }
+}
+
+/// The distinct-count aggregate for a time range: exact up to 31 days.
+fn distinct_users(period: Option<Duration>) -> &'static str {
+    match period {
+        Some(p) if p > Duration::days(31) => "approx_count_distinct(user_hash)",
+        _ => "count(DISTINCT user_hash)",
+    }
+}
+
+/// `(users, crashed users)` of `session_users` rows matching `cond`
+/// (an SQL condition over the parameters `params`).
+fn user_counts(
+    c: &Connection,
+    cond: &str,
+    params: &[&dyn rupta_store::squad::ToSql],
+    period: Option<Duration>,
+) -> ApiResult<(i64, i64)> {
+    let agg = distinct_users(period);
+    let users: i64 = c.query_one(&format!("SELECT {agg} FROM session_users WHERE {cond}"), params)?.get(0);
+    if users == 0 {
+        return Ok((0, 0));
+    }
+    let crashed: i64 =
+        c.query_one(&format!("SELECT {agg} FROM session_users WHERE {cond} AND crashed"), params)?.get(0);
+    Ok((users, crashed))
 }
 
 fn deploy_from(r: &Row, off: usize) -> Deploy {
@@ -167,7 +206,9 @@ fn decorate(c: &Connection, rows: &[Row], projects: &[i64]) -> ApiResult<Vec<Rel
             ),
             &[&version, &since],
         )?;
-        let mut h = health(hrow.get(0), hrow.get(1), hrow.get(2), hrow.get(3));
+        let users =
+            user_counts(c, &format!("release = $1 AND project_id IN ({})", id_list(projects)), &[&version], None)?;
+        let mut h = health(hrow.get(0), hrow.get(1), hrow.get(2), hrow.get(3), users);
         let recent: i64 = hrow.get(4);
         h.adoption = (recent_total > 0).then(|| (recent as f64 / recent_total as f64 * 10000.0).round() / 100.0);
         let last_deploy = c
@@ -299,7 +340,8 @@ async fn get_release(
                      FROM session_counts WHERE release = $1 AND project_id = $2",
                     &[&version, &p.id.0],
                 )?;
-                project_health.push(ProjectHealthRef { project_id: p.id, slug: p.slug.clone(), health: health(h.get(0), h.get(1), h.get(2), h.get(3)) });
+                let users = user_counts(c, "release = $1 AND project_id = $2", &[&version, &p.id.0], None)?;
+                project_health.push(ProjectHealthRef { project_id: p.id, slug: p.slug.clone(), health: health(h.get(0), h.get(1), h.get(2), h.get(3), users) });
             }
             let now = Utc::now();
             let since = now - Duration::days(14);
@@ -313,9 +355,14 @@ async fn get_release(
             )?;
             let totals: Vec<(DateTime<Utc>, i64)> = pts.iter().map(|r| (r.get(0), r.get(1))).collect();
             let crashed: Vec<(DateTime<Utc>, i64)> = pts.iter().map(|r| (r.get(0), r.get(2))).collect();
-            let a = crate::routes::projects::fill_series(since + Duration::days(1), now, Duration::days(1), &totals);
-            let b = crate::routes::projects::fill_series(since + Duration::days(1), now, Duration::days(1), &crashed);
-            let sessions = a.iter().zip(b.iter()).map(|((t, n), (_, x))| (*t, *n, *x)).collect();
+            let users = user_series(
+                c,
+                "day",
+                &format!("release = $1 AND project_id IN ({}) AND hour >= $2", id_list(&projects)),
+                &[&version, &since],
+                None,
+            )?;
+            let sessions = combine(since + Duration::days(1), now, Duration::days(1), &totals, &crashed, &users);
             Ok(ReleaseDetail { release, deploys, project_health, sessions })
         })
         .await?;
@@ -341,8 +388,9 @@ pub struct ProjectHealth {
     pub period: String,
     pub resolution: i64,
     pub health: Health,
-    /// `[[unix_seconds, sessions, crashed]]`.
-    pub series: Vec<(i64, i64, i64)>,
+    /// `[[unix_seconds, sessions, crashed, users, crashed_users]]`; users
+    /// are distinct per bucket.
+    pub series: Vec<(i64, i64, i64, i64, i64)>,
     /// Releases with sessions in the period, most sessions first; `adoption`
     /// is the share of the period's sessions.
     pub releases: Vec<ReleaseHealth>,
@@ -362,7 +410,7 @@ async fn project_health(
     let env = q.environment.clone().filter(|e| !e.is_empty());
     let now = Utc::now();
     let since = now - period;
-    let (rows, per_release) = state
+    let (rows, per_release, users, user_points, release_users) = state
         .db(move |c| {
             let p = project_sync(c, &auth, &org, &project, Permission::ReadProject)?;
             let rows = c.query(
@@ -378,23 +426,42 @@ async fn project_health(
                  GROUP BY 1 ORDER BY 2 DESC LIMIT 50",
                 &[&p.id, &since, &env],
             )?;
-            Ok((rows, per_release))
+            // The column engine's fast path wants plain comparisons, so the
+            // environment condition is added only when there is one.
+            let (cond, env_cond) = match &env {
+                Some(_) => ("project_id = $1 AND hour >= $2 AND environment = $3", true),
+                None => ("project_id = $1 AND hour >= $2", false),
+            };
+            let e = env.clone().unwrap_or_default();
+            let params: Vec<&dyn rupta_store::squad::ToSql> =
+                if env_cond { vec![&p.id, &since, &e] } else { vec![&p.id, &since] };
+            let users = user_counts(c, cond, &params, Some(period))?;
+            let user_points = user_series(c, unit, cond, &params, Some(period))?;
+            let agg = distinct_users(Some(period));
+            let mut release_users: HashMap<String, (i64, i64)> = HashMap::new();
+            for r in c.query(&format!("SELECT release, {agg} FROM session_users WHERE {cond} GROUP BY 1"), &params)? {
+                release_users.entry(r.get(0)).or_default().0 = r.get(1);
+            }
+            for r in c.query(&format!("SELECT release, {agg} FROM session_users WHERE {cond} AND crashed GROUP BY 1"), &params)? {
+                release_users.entry(r.get(0)).or_default().1 = r.get(1);
+            }
+            Ok((rows, per_release, users, user_points, release_users))
         })
         .await?;
     let sum = |i: usize| rows.iter().map(|r| r.get::<i64>(i)).sum::<i64>();
     let total = sum(1);
-    let h = health(total, sum(2), sum(3), sum(4));
+    let h = health(total, sum(2), sum(3), sum(4), users);
     let tot: Vec<(DateTime<Utc>, i64)> = rows.iter().map(|r| (r.get(0), r.get(1))).collect();
     let cr: Vec<(DateTime<Utc>, i64)> = rows.iter().map(|r| (r.get(0), r.get(2))).collect();
-    let a = crate::routes::projects::fill_series(since + step, now, step, &tot);
-    let b: HashMap<i64, i64> = crate::routes::projects::fill_series(since + step, now, step, &cr).into_iter().collect();
-    let series = a.into_iter().map(|(t, n)| (t, n, b.get(&t).copied().unwrap_or(0))).collect();
+    let series = combine(since + step, now, step, &tot, &cr, &user_points);
     let releases = per_release
         .iter()
         .map(|r| {
-            let mut rh = health(r.get(1), r.get(2), r.get(3), r.get(4));
+            let version: String = r.get(0);
+            let u = release_users.get(&version).copied().unwrap_or_default();
+            let mut rh = health(r.get(1), r.get(2), r.get(3), r.get(4), u);
             rh.adoption = (total > 0).then(|| (r.get::<i64>(1) as f64 / total as f64 * 10000.0).round() / 100.0);
-            ReleaseHealth { version: r.get(0), health: rh }
+            ReleaseHealth { version, health: rh }
         })
         .collect();
     Ok(axum::Json(ProjectHealth {
@@ -404,4 +471,54 @@ async fn project_health(
         series,
         releases,
     }))
+}
+
+/// Distinct users and crashed users per bucket: `(bucket, users, crashed)`.
+type UserPoint = (DateTime<Utc>, i64, i64);
+
+fn user_series(
+    c: &Connection,
+    unit: &str,
+    cond: &str,
+    params: &[&dyn rupta_store::squad::ToSql],
+    period: Option<Duration>,
+) -> ApiResult<Vec<UserPoint>> {
+    let agg = distinct_users(period);
+    let mut points: HashMap<DateTime<Utc>, (i64, i64)> = HashMap::new();
+    for r in c.query(
+        &format!("SELECT date_trunc('{unit}', hour), {agg} FROM session_users WHERE {cond} GROUP BY 1"),
+        params,
+    )? {
+        points.entry(r.get(0)).or_default().0 = r.get(1);
+    }
+    for r in c.query(
+        &format!("SELECT date_trunc('{unit}', hour), {agg} FROM session_users WHERE {cond} AND crashed GROUP BY 1"),
+        params,
+    )? {
+        points.entry(r.get(0)).or_default().1 = r.get(1);
+    }
+    Ok(points.into_iter().map(|(t, (u, x))| (t, u, x)).collect())
+}
+
+/// `[[unix_seconds, sessions, crashed, users, crashed_users]]` over filled buckets.
+fn combine(
+    first: DateTime<Utc>,
+    now: DateTime<Utc>,
+    step: Duration,
+    totals: &[(DateTime<Utc>, i64)],
+    crashed: &[(DateTime<Utc>, i64)],
+    users: &[UserPoint],
+) -> Vec<(i64, i64, i64, i64, i64)> {
+    use crate::routes::projects::fill_series;
+    let u: Vec<(DateTime<Utc>, i64)> = users.iter().map(|p| (p.0, p.1)).collect();
+    let cu: Vec<(DateTime<Utc>, i64)> = users.iter().map(|p| (p.0, p.2)).collect();
+    let b: HashMap<i64, i64> = fill_series(first, now, step, crashed).into_iter().collect();
+    let c: HashMap<i64, i64> = fill_series(first, now, step, &u).into_iter().collect();
+    let d: HashMap<i64, i64> = fill_series(first, now, step, &cu).into_iter().collect();
+    fill_series(first, now, step, totals)
+        .into_iter()
+        .map(|(t, n)| {
+            (t, n, b.get(&t).copied().unwrap_or(0), c.get(&t).copied().unwrap_or(0), d.get(&t).copied().unwrap_or(0))
+        })
+        .collect()
 }

@@ -382,6 +382,11 @@ async fn releases_and_health() {
     let hour = Utc::now() - Duration::hours(1);
     conn.execute("INSERT INTO session_counts (project_id, release, environment, hour, total, crashed, errored) VALUES ($1, 'web@1.1.0', 'production', date_trunc('hour', $2::timestamptz), 200, 4, 10)", &[&pid, &hour]).unwrap();
     conn.execute("INSERT INTO session_counts (project_id, release, environment, hour, total, crashed) VALUES ($1, 'web@1.0.0', 'production', date_trunc('hour', $2::timestamptz), 50, 0)", &[&pid, &hour]).unwrap();
+    // Four users of 1.1.0, one of them crashed (it has two rows: before and after the crash).
+    for (user, crashed) in [(1, false), (2, false), (3, false), (4, false), (4, true)] {
+        conn.execute("INSERT INTO session_users (project_id, release, environment, hour, user_hash, crashed) VALUES ($1, 'web@1.1.0', 'production', date_trunc('hour', $2::timestamptz), $3, $4)", &[&pid, &hour, &(user as i64), &crashed]).unwrap();
+    }
+    conn.execute("INSERT INTO session_users (project_id, release, environment, hour, user_hash, crashed) VALUES ($1, 'web@1.0.0', 'staging', date_trunc('hour', $2::timestamptz), 9, false)", &[&pid, &hour]).unwrap();
 
     let list = app.get("/api/v1/orgs/acme/releases", &who).await;
     assert_eq!(list.status, StatusCode::OK, "{:?}", list.body);
@@ -390,7 +395,11 @@ async fn releases_and_health() {
     assert_eq!(first["short_version"], "1.1.0");
     assert_eq!(first["health"]["crash_free_sessions"], 98.0);
     assert_eq!(first["health"]["adoption"], 80.0);
-    assert!(first["health"]["crash_free_users"].is_null());
+    assert_eq!(first["health"]["crash_free_users"], 75.0);
+    assert_eq!(
+        (first["health"]["total_users"].as_i64(), first["health"]["crashed_users"].as_i64()),
+        (Some(4), Some(1))
+    );
     assert_eq!(first["last_deploy"]["environment"], "production");
     assert_eq!(first["new_issues"], 2);
     let page = app.get("/api/v1/orgs/acme/releases?limit=1", &who).await;
@@ -412,6 +421,21 @@ async fn releases_and_health() {
     assert_eq!(h.body["releases"][0]["version"], "web@1.1.0");
     assert_eq!(h.body["releases"][0]["health"]["adoption"], 80.0);
     assert_eq!(h.body["series"].as_array().unwrap().len(), 24);
+    // Five distinct users over both releases, one crashed.
+    assert_eq!(h.body["health"]["total_users"], 5);
+    assert_eq!(h.body["health"]["crash_free_users"], 80.0);
+    assert_eq!(h.body["releases"][0]["health"]["crash_free_users"], 75.0);
+    let series = h.body["series"].as_array().unwrap();
+    assert_eq!(series.iter().map(|p| p[3].as_i64().unwrap()).sum::<i64>(), 5);
+    assert_eq!(series.iter().map(|p| p[4].as_i64().unwrap()).sum::<i64>(), 1);
+    let prod = app.get("/api/v1/projects/acme/web/health?period=24h&environment=production", &who).await;
+    assert_eq!(prod.body["health"]["total_users"], 4);
+    // Longer periods count approximately; small sets are still exact.
+    let long = app.get("/api/v1/projects/acme/web/health?period=90d", &who).await;
+    assert_eq!(long.status, StatusCode::OK, "{:?}", long.body);
+    assert_eq!(long.body["health"]["total_users"], 5);
+    assert_eq!(d.body["project_health"][0]["health"]["crash_free_users"], 75.0);
+    assert_eq!(d.body["sessions"].as_array().unwrap().iter().map(|p| p[3].as_i64().unwrap()).sum::<i64>(), 4);
 }
 
 #[tokio::test]

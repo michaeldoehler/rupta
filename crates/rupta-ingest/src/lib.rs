@@ -16,6 +16,7 @@ pub mod cron;
 pub mod custom_metrics;
 pub mod decode;
 pub mod envelope;
+pub mod escalation;
 pub mod filters;
 mod http;
 pub mod logs;
@@ -239,6 +240,37 @@ impl Ingest {
     /// Each call returns a new receiver; slow receivers miss signals.
     pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<IssueSignal> {
         self.inner.signals.subscribe()
+    }
+
+    /// Runs escalation detection once and publishes its signals (blocking;
+    /// see [`escalation`]).
+    pub fn check_escalation(&self, now: DateTime<Utc>) -> rupta_store::Result<escalation::EscalationReport> {
+        let report = escalation::run_once(&self.store, now)?;
+        for s in &report.signals {
+            let _ = self.inner.signals.send(s.clone());
+        }
+        Ok(report)
+    }
+
+    /// Runs escalation detection every five minutes.
+    pub fn spawn_escalation(&self) -> tokio::task::JoinHandle<()> {
+        let ingest = self.clone();
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(Duration::from_secs(300));
+            tick.tick().await;
+            loop {
+                tick.tick().await;
+                let i = ingest.clone();
+                match tokio::task::spawn_blocking(move || i.check_escalation(Utc::now())).await {
+                    Ok(Ok(r)) if !r.escalated.is_empty() || !r.calmed.is_empty() => {
+                        tracing::info!(escalated = r.escalated.len(), calmed = r.calmed.len(), "escalation check")
+                    }
+                    Ok(Ok(_)) => {}
+                    Ok(Err(e)) => tracing::warn!(error = %e, "escalation check failed"),
+                    Err(e) => tracing::error!(error = %e, "escalation task panicked"),
+                }
+            }
+        })
     }
 
     /// Stops accepting events and writes everything queued.

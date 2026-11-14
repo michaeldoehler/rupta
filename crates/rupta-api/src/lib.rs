@@ -11,10 +11,12 @@ pub mod extract;
 pub mod mail;
 pub mod maintenance;
 pub mod notify;
+pub mod preferences;
 pub mod routes;
 pub mod sql;
 pub mod state;
 pub mod telemetry;
+pub mod workflow;
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;

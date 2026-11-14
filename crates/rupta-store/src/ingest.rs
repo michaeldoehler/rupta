@@ -252,10 +252,19 @@ pub struct IssueState {
     /// Absolute threshold: the ignore ends when `times_seen` reaches it.
     pub ignore_count: Option<i64>,
     pub times_seen: i64,
+    pub users_seen: i64,
+    /// `release`, `next_release` or `None` (see the 4000 migration).
+    pub resolved_in_mode: Option<String>,
+    /// Without a window: the `users_seen` value at which the ignore ends.
+    /// With a window: distinct users within the window.
+    pub ignore_user_count: Option<i64>,
+    /// Minutes.
+    pub ignore_user_window: Option<i32>,
 }
 
 const ISSUE_STATE_COLUMNS: &str =
-    "id, project_id, status, substatus, resolved_at, resolved_in_release, ignore_until, ignore_count, times_seen";
+    "id, project_id, status, substatus, resolved_at, resolved_in_release, ignore_until, ignore_count, times_seen,
+     users_seen, resolved_in_mode, ignore_user_count, ignore_user_window";
 
 fn issue_state(r: &squad::Row) -> IssueState {
     IssueState {
@@ -268,6 +277,10 @@ fn issue_state(r: &squad::Row) -> IssueState {
         ignore_until: r.get(6),
         ignore_count: r.get(7),
         times_seen: r.get(8),
+        users_seen: r.get(9),
+        resolved_in_mode: r.get(10),
+        ignore_user_count: r.get(11),
+        ignore_user_window: r.get(12),
     }
 }
 
@@ -372,7 +385,8 @@ pub fn add_issue_counts(conn: &Connection, c: &IssueCounts) -> Result<()> {
 pub fn reopen_issue(conn: &Connection, id: i64, substatus: &str) -> Result<()> {
     conn.execute(
         "UPDATE issues SET status = 'unresolved', substatus = $2, resolved_at = NULL, resolved_in_release = NULL,
-             ignore_until = NULL, ignore_count = NULL
+             resolved_in_mode = NULL, ignore_until = NULL, ignore_count = NULL, ignore_user_count = NULL,
+             ignore_user_window = NULL, escalated_at = NULL, escalation_baseline = NULL
          WHERE id = $1",
         &[&id, &substatus],
     )?;
@@ -413,6 +427,16 @@ pub fn upsert_release(
     Ok(())
 }
 
+/// Distinct users of an issue's events since `since`.
+pub fn issue_users_since(conn: &Connection, project_id: i64, issue_id: i64, since: DateTime<Utc>) -> Result<i64> {
+    Ok(conn
+        .query_one(
+            "SELECT count(DISTINCT user_hash) FROM events WHERE project_id = $1 AND issue_id = $2 AND timestamp >= $3",
+            &[&project_id, &issue_id, &since],
+        )?
+        .get(0))
+}
+
 /// When a release was first seen (created), if it exists.
 pub fn release_created_at(conn: &Connection, org_id: i64, version: &str) -> Result<Option<DateTime<Utc>>> {
     Ok(conn
@@ -446,6 +470,36 @@ pub fn add_session_counts(conn: &Connection, rows: &[SessionCount]) -> Result<()
         )?;
     }
     Ok(())
+}
+
+/// A user of a session in an hour (`session_users`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SessionUserRow {
+    pub project_id: i64,
+    pub release: String,
+    pub environment: String,
+    pub hour: DateTime<Utc>,
+    pub user_hash: i64,
+    /// The user's session crashed.
+    pub crashed: bool,
+}
+
+impl SessionUserRow {
+    pub fn values(&self) -> Vec<Value> {
+        vec![
+            Value::Int8(self.project_id),
+            Value::Text(self.release.clone()),
+            Value::Text(self.environment.clone()),
+            ts(self.hour),
+            Value::Int8(self.user_hash),
+            Value::Bool(self.crashed),
+        ]
+    }
+}
+
+pub fn append_session_users(conn: &Connection, rows: &[SessionUserRow]) -> Result<u64> {
+    let values: Vec<Vec<Value>> = rows.iter().map(SessionUserRow::values).collect();
+    append_values(conn, "session_users", &values)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -760,6 +814,7 @@ pub struct Deleted {
     pub attachments: u64,
     pub transactions: u64,
     pub session_counts: u64,
+    pub session_users: u64,
     pub outcomes: u64,
     pub checkins: u64,
     pub issues: u64,
@@ -797,13 +852,20 @@ pub fn delete_attachment_rows(conn: &Connection, ids: &[i64]) -> Result<u64> {
 }
 
 /// Deletes a project's row-store data older than `cutoff`: payloads,
-/// session counts, outcomes, check-ins and issues not seen since.
+/// session counts and users, outcomes, check-ins and issues not seen since.
 pub fn delete_rows_before(conn: &Connection, project_id: i64, cutoff: DateTime<Utc>, d: &mut Deleted) -> Result<()> {
     let day = cutoff.date_naive();
     d.payloads +=
         conn.execute("DELETE FROM event_payloads WHERE project_id = $1 AND day < $2", &[&project_id, &day])?;
     d.session_counts +=
         conn.execute("DELETE FROM session_counts WHERE project_id = $1 AND hour < $2", &[&project_id, &cutoff])?;
+    // Columnar: only when there is something to delete (a DELETE rewrites segments).
+    let old_users: Option<DateTime<Utc>> =
+        conn.query_one("SELECT min(hour) FROM session_users WHERE project_id = $1", &[&project_id])?.get(0);
+    if old_users.is_some_and(|h| h < cutoff) {
+        d.session_users +=
+            conn.execute("DELETE FROM session_users WHERE project_id = $1 AND hour < $2", &[&project_id, &cutoff])?;
+    }
     d.outcomes += conn.execute("DELETE FROM outcomes WHERE project_id = $1 AND hour < $2", &[&project_id, &cutoff])?;
     d.checkins += conn.execute(
         "DELETE FROM checkins WHERE created_at < $2 AND monitor_id IN (SELECT id FROM monitors WHERE project_id = $1)",

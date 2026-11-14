@@ -36,6 +36,9 @@ pub struct ApiConfig {
     pub trusted_proxies: Vec<String>,
     /// Largest JSON request body.
     pub max_body_bytes: usize,
+    /// The SSO connection test may fetch issuers on loopback, link-local
+    /// and private addresses (`RUPTA_SSO_ALLOW_PRIVATE_ISSUERS`).
+    pub sso_allow_private_issuers: bool,
 }
 
 impl ApiConfig {
@@ -52,6 +55,7 @@ impl ApiConfig {
             cors_allowed_origins: Vec::new(),
             trusted_proxies: Vec::new(),
             max_body_bytes: 1 << 20,
+            sso_allow_private_issuers: false,
         }
     }
 }

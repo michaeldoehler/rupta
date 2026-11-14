@@ -2,6 +2,7 @@
 
 pub mod admin;
 pub mod alerts;
+pub mod artifacts;
 pub mod auth;
 pub mod events;
 pub mod issues;
@@ -14,6 +15,7 @@ pub mod profiles;
 pub mod projects;
 pub mod releases;
 pub mod replays;
+pub mod sso_test;
 pub mod tokens;
 
 use utoipa_axum::router::OpenApiRouter;
@@ -27,7 +29,9 @@ pub fn all() -> OpenApiRouter<ApiState> {
         .merge(orgs::routes())
         .merge(tokens::routes())
         .merge(admin::routes())
+        .merge(sso_test::routes())
         .merge(projects::routes())
+        .merge(artifacts::routes())
         .merge(issues::routes())
         .merge(events::routes())
         .merge(releases::routes())
