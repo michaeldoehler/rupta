@@ -60,6 +60,7 @@ impl TestApp {
     }
 
     pub fn with_config(f: impl FnOnce(&mut ApiConfig)) -> TestApp {
+        let _ = tracing_subscriber::fmt().with_env_filter("rupta=debug,warn").with_test_writer().try_init();
         let mut config = ApiConfig::new("http://rupta.test", SECRET);
         f(&mut config);
         let state = ApiState::new(Store::open_in_memory().unwrap(), config);

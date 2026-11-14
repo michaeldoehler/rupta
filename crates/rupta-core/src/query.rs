@@ -377,6 +377,48 @@ pub fn compile(query: &Query, ctx: &CompileContext) -> Result<Compiled, QueryErr
     Ok(Compiled { sql, params: b.params })
 }
 
+/// Compiles a query into a condition over single events (`events e`), for
+/// the event list of an issue and for event queries. Supports free text
+/// (message and error value), `level`, event attributes, tags, `has:` and
+/// `timestamp`; issue-level keys (`is:`, `assigned:`, ...) are refused.
+pub fn compile_events(query: &Query, ctx: &CompileContext) -> Result<Compiled, QueryError> {
+    let mut b = Builder { ctx, params: Vec::new() };
+    let mut parts = Vec::new();
+    for term in &query.terms {
+        let sql = match &term.kind {
+            TermKind::Text(text) => {
+                let p = b.bind(Param::Text(format!("%{}%", like_escape(text))));
+                format!(
+                    "(coalesce(e.message, '') ILIKE {p} OR coalesce(e.exception_value, '') ILIKE {p} OR coalesce(e.exception_type, '') ILIKE {p})"
+                )
+            }
+            TermKind::Filter { key, op, values } => match key.as_str() {
+                "level" => {
+                    eq_only(key, *op)?;
+                    any_of(values.iter().map(|v| text_match(&mut b, "e.level", v, false)).collect())
+                }
+                "timestamp" => time_filter(&mut b, "e.timestamp", *op, single(key, values)?)?,
+                "is" | "assigned" | "assigned_to" | "priority" | "issue.type" | "first_seen" | "last_seen" | "age"
+                | "times_seen" | "users_seen" | "count" | "first_release" => {
+                    return err(format!("`{key}` applies to issues, not to single events"));
+                }
+                _ => {
+                    // Reuse the issue compiler's event subquery and keep its condition.
+                    let sub = filter(&mut b, key, *op, values)?;
+                    let prefix = format!("i.id IN (SELECT e.issue_id FROM events e WHERE {} AND (", b.projects());
+                    match sub.strip_prefix(&prefix).and_then(|s| s.strip_suffix("))")) {
+                        Some(cond) => format!("({cond})"),
+                        None => return err(format!("`{key}` is not supported for events")),
+                    }
+                }
+            },
+        };
+        parts.push(if term.negated { format!("NOT coalesce({sql}, false)") } else { sql });
+    }
+    let sql = if parts.is_empty() { "true".to_string() } else { parts.join(" AND ") };
+    Ok(Compiled { sql, params: b.params })
+}
+
 fn any_of(parts: Vec<String>) -> String {
     if parts.len() == 1 { parts.into_iter().next().unwrap() } else { format!("({})", parts.join(" OR ")) }
 }
@@ -765,6 +807,31 @@ mod tests {
     fn values_never_reach_the_sql_text() {
         let got = c("level:\"x'; DROP TABLE issues; --\" \"'or 1=1\" tags[a'b]:c");
         assert!(!got.sql.contains("DROP") && !got.sql.contains("1=1") && !got.sql.contains("a'b"), "{}", got.sql);
+    }
+
+    #[test]
+    fn event_compiler() {
+        let cases: Vec<(&str, &str, Vec<Param>)> = vec![
+            ("", "true", vec![]),
+            ("level:error", "e.level = $1", vec![t("error")]),
+            ("environment:prod", "(e.environment = $1)", vec![t("prod")]),
+            (
+                "!region:eu",
+                "NOT coalesce(((e.tags ->> $1 = $2 OR e.tags @> jsonb_build_array(jsonb_build_array($1, $2)))), false)",
+                vec![t("region"), t("eu")],
+            ),
+            (
+                "boom",
+                "(coalesce(e.message, '') ILIKE $1 OR coalesce(e.exception_value, '') ILIKE $1 OR coalesce(e.exception_type, '') ILIKE $1)",
+                vec![t("%boom%")],
+            ),
+        ];
+        for (q, sql, params) in cases {
+            let got = compile_events(&parse(q).unwrap(), &ctx()).unwrap();
+            assert_eq!(got.sql, sql, "{q}");
+            assert_eq!(got.params, params, "{q}");
+        }
+        assert!(compile_events(&parse("is:resolved").unwrap(), &ctx()).is_err());
     }
 
     #[test]
