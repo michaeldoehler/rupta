@@ -33,7 +33,10 @@ export function SettingsLayout({ org, children }: { org: string; children: React
     'block shrink-0 rounded-md px-2 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
   return (
     <div className="flex flex-col md:flex-row">
-      <aside className="shrink-0 border-b md:sticky md:top-0 md:h-svh md:w-56 md:overflow-y-auto md:border-r md:border-b-0" aria-label="Settings navigation">
+      <aside
+        className="shrink-0 border-b md:sticky md:top-0 md:h-[calc(100svh-3rem)] md:w-56 md:overflow-y-auto md:border-r md:border-b-0"
+        aria-label="Settings navigation"
+      >
         <nav className="flex gap-1 overflow-x-auto p-2 md:flex-col md:gap-4 md:p-3">
           {SECTIONS.map((s) => (
             <div key={s.title} className="flex gap-1 md:block md:space-y-0.5">

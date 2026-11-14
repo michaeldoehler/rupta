@@ -4,7 +4,7 @@ A tour of the rupta web app: where things are, how to triage issues
 quickly, how to read traces, logs, metrics, profiles and session replays,
 the search syntax and the keyboard shortcuts.
 
-![Issue stream](images/issues-light.png)
+![Issue stream](images/issues.png)
 
 ## Signing in
 
@@ -24,13 +24,14 @@ the search syntax and the keyboard shortcuts.
 
 ## Layout
 
-The sidebar holds the organization switcher, a search field for the
-command palette and the main sections: **Issues**, **Releases**, **Crons**,
-**User feedback** and **Alerts**; under **Explore** the telemetry pages
-**Performance**, **Traces**, **Logs**, **Metrics** (with dashboards),
-**Profiles** and **Replays**; and **Settings**. At the bottom are your
-account menu (theme, shortcuts, sign out) and a button to collapse the
-sidebar (`[`). On small screens the sidebar opens from the menu button.
+rupta has one dark theme. The bar at the top holds the logo and the
+organization switcher, the main sections (**Issues**; **Explore** with
+**Performance**, **Traces**, **Logs**, **Metrics**, **Dashboards**,
+**Profiles** and **Replays**; **Releases**, **Crons**, **Feedback** and
+**Alerts**), and on the right the search field for the command palette
+(`⌘K`), **Settings** and your account menu (shortcuts, sign out). The
+current section is underlined. On narrow screens the sections open from
+the menu button.
 
 List pages share three selectors at the top: **projects**, **environments**
 and **period**. They are part of the URL, so a link you copy opens the same
@@ -68,18 +69,34 @@ period, the event and user counts, and the assignee.
 The list is virtualised: only the visible rows exist in the page, so it
 stays fast with tens of thousands of issues. More rows load as you scroll.
 
-"Resolve in the next release" is offered, but the server has no marker
-for the next release yet: the issue is resolved now.
+**Preview.** On screens at least 1440 pixels wide, **Preview** shows the
+focused issue next to the list: its summary, resolve and ignore buttons,
+the event chart and the recommended event with stack trace. `j`/`k` move
+through the list and update the preview, a click previews, `Enter` (or
+⌘-click) opens the full page. The choice is remembered in the browser.
+
+Resolving in the next release marks the issue resolved until a newer
+release appears; ignoring "until it affects" N more users counts users
+since you ignored it.
 
 ## Issue details
 
-![Issue details](images/issue-detail-light.png)
+![Issue details](images/issue-detail.png)
 
-The header shows level, status, title and culprit, buttons to resolve,
-ignore, assign and set the priority, a bookmark, a link to copy and a menu
-(copy as text or Markdown, delete). The box on the right has the event and
-user counts, a chart of the last 24 hours or 30 days and the first and last
-seen times with their releases.
+The header shows level, status, counts, title and culprit, a bookmark, a
+link to copy and a menu (copy as text or Markdown, delete). The page has two
+columns: the tabs below on the left, and a context panel on the right that
+stays in view while you scroll (below the header on narrow screens):
+
+- **Status:** resolve (now, in the next release, in the current release),
+  ignore, assign and priority.
+- **Volume:** events and affected users with a chart of the last 24 hours
+  or 30 days.
+- **Seen:** first and last seen with their releases.
+- **Trace & replay** of the event shown in Details.
+- **Top tags** with their most common value and a distribution bar.
+- **This event:** browser, OS, runtime, device, environment and user.
+- **Participants:** the assignee and everyone who acted on the issue.
 
 Below are tabs:
 
@@ -122,7 +139,7 @@ Below are tabs:
 
 ## Releases, crons, feedback and alerts
 
-![Release health](images/release-detail-light.png)
+![Release health](images/release-detail.png)
 
 - **Releases** lists versions with new issues, crash-free sessions,
   adoption, session counts and the last deploy. A release's page charts
@@ -159,7 +176,7 @@ issues and the ten slowest samples with links to their trace, profile and
 replay. **Aggregated flamegraph** merges the latest profiles of the
 transaction.
 
-![Trace view](images/trace-light.png)
+![Trace view](images/trace.png)
 
 The **trace view** shows every span of a trace across services as a
 waterfall: the span tree on the left (drag the column edge to resize),
@@ -181,7 +198,7 @@ trace id to open it; the command palette accepts trace ids too.
 
 ## Logs
 
-![Logs](images/logs-light.png)
+![Logs](images/logs.png)
 
 The **Logs** page shows a histogram of lines per level over the period
 (click a bar to look at that interval), a query bar, attribute facets and
@@ -226,7 +243,7 @@ project selectors at the top apply to every widget.
 
 ## Profiles
 
-![Flamegraph](images/flamegraph-light.png)
+![Flamegraph](images/flamegraph.png)
 
 **Profiles** lists sampled profiles (and continuous profiling chunks)
 with transaction, duration, release and environment; **By transaction**
@@ -247,7 +264,7 @@ show shares of samples only.
 
 ## Session replays
 
-![Session replay](images/replay-light.png)
+![Session replay](images/replay.png)
 
 **Replays** lists recorded browser sessions with user, pages, browser,
 duration, errors and clicks; search with `url:`, `user.email:`,
@@ -294,7 +311,7 @@ the server lists the replay's issues without times.
   an on/off switch, the retention in days and, for transactions, spans
   and logs, the share the server keeps at ingestion.
 
-![Client keys and SDK setup](images/project-keys-light.png)
+![Client keys and SDK setup](images/project-keys.png)
 
 ## Command palette
 
@@ -305,9 +322,9 @@ the server lists the replay's issues without times.
 - open a trace by pasting its id, or list its logs,
 - show only one project or open its settings,
 - switch organization,
-- switch the theme, or open the shortcut overview.
+- open the shortcut overview.
 
-![Command palette](images/command-palette-light.png)
+![Command palette](images/command-palette.png)
 
 ## Keyboard shortcuts
 
@@ -318,7 +335,6 @@ the app.
 | --- | --- | --- |
 | Everywhere | `⌘ K` | Command palette |
 | | `?` | Shortcut overview |
-| | `[` | Collapse or expand the sidebar |
 | | `g` then `i` / `r` / `c` / `f` / `a` / `s` | Go to issues, releases, crons, feedback, alerts, settings |
 | | `g` then `p` / `t` / `l` / `m` / `d` / `o` / `v` | Go to performance, traces, logs, metrics, dashboards, profiles, replays |
 | Issue stream | `/` | Focus the search |

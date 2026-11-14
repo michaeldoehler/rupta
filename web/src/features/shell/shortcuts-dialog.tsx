@@ -8,7 +8,6 @@ export const SHORTCUTS: { group: string; items: [string, string][] }[] = [
       ['⌘ K', 'Command palette'],
       ['/', 'Focus search'],
       ['?', 'Show this help'],
-      ['[', 'Collapse or expand the sidebar'],
       ['g i', 'Go to issues'],
       ['g r', 'Go to releases'],
       ['g c', 'Go to crons'],

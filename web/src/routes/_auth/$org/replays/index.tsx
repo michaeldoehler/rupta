@@ -13,6 +13,12 @@ export const Route = createFileRoute('/_auth/$org/replays/')({
   component: function Replays() {
     const s = Route.useSearch()
     const navigate = useNavigate()
-    return <ReplaysPage query={s.query ?? ''} sort={s.sort ?? '-started'} onChange={(p) => void navigate({ to: '.', search: (prev: Record<string, unknown>) => ({ ...prev, ...p }) as typeof s, replace: true })} />
+    return (
+      <ReplaysPage
+        query={s.query ?? ''}
+        sort={s.sort ?? '-started'}
+        onChange={(p) => void navigate({ to: '.', search: (prev: Record<string, unknown>) => ({ ...prev, ...p }) as typeof s, replace: true })}
+      />
+    )
   },
 })

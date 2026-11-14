@@ -18,12 +18,29 @@ export const TELEMETRY_DEFAULTS: TelemetrySettings = {
 
 type Kind = keyof TelemetrySettings['data_types']
 
-const KINDS: { kind: Kind; title: string; description: string; retention: keyof TelemetrySettings['retention']; sampling?: (keyof TelemetrySettings['sampling'])[] }[] = [
-  { kind: 'traces', title: 'Traces', description: 'Transactions and spans, the data of performance and the trace view.', retention: 'spans', sampling: ['transactions', 'spans'] },
+const KINDS: {
+  kind: Kind
+  title: string
+  description: string
+  retention: keyof TelemetrySettings['retention']
+  sampling?: (keyof TelemetrySettings['sampling'])[]
+}[] = [
+  {
+    kind: 'traces',
+    title: 'Traces',
+    description: 'Transactions and spans, the data of performance and the trace view.',
+    retention: 'spans',
+    sampling: ['transactions', 'spans'],
+  },
   { kind: 'logs', title: 'Logs', description: 'Log records from the SDKs’ logger APIs and OpenTelemetry logs.', retention: 'logs', sampling: ['logs'] },
   { kind: 'metrics', title: 'Metrics', description: 'Counters, gauges, distributions and sets.', retention: 'metrics' },
   { kind: 'profiles', title: 'Profiles', description: 'Sampled transaction profiles and continuous profiling chunks.', retention: 'profiles' },
-  { kind: 'replays', title: 'Session replays', description: 'Recordings of browser sessions (mobile video replays are accepted and dropped).', retention: 'replays' },
+  {
+    kind: 'replays',
+    title: 'Session replays',
+    description: 'Recordings of browser sessions (mobile video replays are accepted and dropped).',
+    retention: 'replays',
+  },
 ]
 
 const SAMPLING_LABEL: Record<keyof TelemetrySettings['sampling'], string> = {
@@ -108,7 +125,11 @@ export function ProjectTelemetryPage({ org, project }: { org: string; project: s
           <Button size="sm" variant="outline" disabled={!dirty || save.isPending} onClick={() => setDraft(stored)}>
             Discard
           </Button>
-          <Button size="sm" disabled={!can || !dirty || save.isPending} onClick={() => save.mutate({ retention: draft.retention, sampling: draft.sampling, data_types: draft.data_types })}>
+          <Button
+            size="sm"
+            disabled={!can || !dirty || save.isPending}
+            onClick={() => save.mutate({ retention: draft.retention, sampling: draft.sampling, data_types: draft.data_types })}
+          >
             Save changes
           </Button>
         </div>
@@ -124,20 +145,31 @@ export function ProjectTelemetryPage({ org, project }: { org: string; project: s
                   <div className="text-[13px] font-medium">Accept {k.title.toLowerCase()}</div>
                   <div className="text-xs text-muted-foreground">When off, SDKs still get 200 and the data is counted as filtered, not stored.</div>
                 </div>
-                <Switch checked={on} disabled={!can} onCheckedChange={(v) => setDraft((d) => ({ ...d, data_types: { ...d.data_types, [k.kind]: v } }))} aria-label={`Accept ${k.title.toLowerCase()}`} />
+                <Switch
+                  checked={on}
+                  disabled={!can}
+                  onCheckedChange={(v) => setDraft((d) => ({ ...d, data_types: { ...d.data_types, [k.kind]: v } }))}
+                  aria-label={`Accept ${k.title.toLowerCase()}`}
+                />
               </div>
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="text-[13px] font-medium">Keep for</div>
-                <Select value={String(draft.retention[k.retention])} disabled={!can} onValueChange={(v) => setDraft((d) => ({ ...d, retention: { ...d.retention, [k.retention]: Number(v) } }))}>
+                <Select
+                  value={String(draft.retention[k.retention])}
+                  disabled={!can}
+                  onValueChange={(v) => setDraft((d) => ({ ...d, retention: { ...d.retention, [k.retention]: Number(v) } }))}
+                >
                   <SelectTrigger className="w-40" aria-label={`${k.title} retention`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[...new Set([...DAYS, draft.retention[k.retention]])].sort((a, b) => a - b).map((d) => (
-                      <SelectItem key={d} value={String(d)}>
-                        {d} days{d === TELEMETRY_DEFAULTS.retention[k.retention] ? ' (default)' : ''}
-                      </SelectItem>
-                    ))}
+                    {[...new Set([...DAYS, draft.retention[k.retention]])]
+                      .sort((a, b) => a - b)
+                      .map((d) => (
+                        <SelectItem key={d} value={String(d)}>
+                          {d} days{d === TELEMETRY_DEFAULTS.retention[k.retention] ? ' (default)' : ''}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -146,10 +178,17 @@ export function ProjectTelemetryPage({ org, project }: { org: string; project: s
                   <div>
                     <div className="text-[13px] font-medium">Sample {SAMPLING_LABEL[sk].toLowerCase()}</div>
                     <div className="text-xs text-muted-foreground">
-                      {sk === 'logs' ? 'Logs with a trace id follow their trace; others are kept at random.' : 'By trace id, so a trace is kept or dropped as a whole. Applies after the SDK’s own sample rate.'}
+                      {sk === 'logs'
+                        ? 'Logs with a trace id follow their trace; others are kept at random.'
+                        : 'By trace id, so a trace is kept or dropped as a whole. Applies after the SDK’s own sample rate.'}
                     </div>
                   </div>
-                  <SamplingInput label={SAMPLING_LABEL[sk]} value={draft.sampling[sk]} disabled={!can || !on} onChange={(v) => setDraft((d) => ({ ...d, sampling: { ...d.sampling, [sk]: v } }))} />
+                  <SamplingInput
+                    label={SAMPLING_LABEL[sk]}
+                    value={draft.sampling[sk]}
+                    disabled={!can || !on}
+                    onChange={(v) => setDraft((d) => ({ ...d, sampling: { ...d.sampling, [sk]: v } }))}
+                  />
                 </div>
               ))}
             </div>

@@ -16,7 +16,19 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useHotkeys } from '@/hooks/use-hotkeys'
 import { cn } from '@/lib/utils'
 import { ms } from '@/features/telemetry/format'
-import { callersOf, frameColor, functionTable, layoutFlamegraph, matchedWeight, rowsByDepth, hitTestRow, searchFrames, stackOf, type ColorMode, type FlameOrder } from './flamegraph-layout'
+import {
+  callersOf,
+  frameColor,
+  functionTable,
+  layoutFlamegraph,
+  matchedWeight,
+  rowsByDepth,
+  hitTestRow,
+  searchFrames,
+  stackOf,
+  type ColorMode,
+  type FlameOrder,
+} from './flamegraph-layout'
 
 const ROW_H = 18
 
@@ -221,7 +233,15 @@ export default function FlamegraphView({ flamegraph, durationMs }: { flamegraph:
       <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Flamegraph">
         <div className="relative w-72 max-w-full">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search functions, files, packages" className="h-7 pl-7 text-[13px]" aria-label="Search frames" onKeyDown={(e) => e.key === 'Escape' && (e.target as HTMLInputElement).blur()} />
+          <Input
+            ref={searchRef}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search functions, files, packages"
+            className="h-7 pl-7 text-[13px]"
+            aria-label="Search frames"
+            onKeyDown={(e) => e.key === 'Escape' && (e.target as HTMLInputElement).blur()}
+          />
         </div>
         {search && (
           <span className="text-xs text-muted-foreground tabular" role="status">
@@ -245,10 +265,18 @@ export default function FlamegraphView({ flamegraph, durationMs }: { flamegraph:
       {color === 'application' && (
         <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-4 rounded-sm" style={{ background: frameColor({ name: 'a', file: null, line: null, package: null, is_application: true }, 'application', dark) }} /> Application code
+            <span
+              className="h-2.5 w-4 rounded-sm"
+              style={{ background: frameColor({ name: 'a', file: null, line: null, package: null, is_application: true }, 'application', dark) }}
+            />{' '}
+            Application code
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-4 rounded-sm" style={{ background: frameColor({ name: 'a', file: null, line: null, package: 'lib', is_application: false }, 'application', dark) }} /> Libraries and runtime
+            <span
+              className="h-2.5 w-4 rounded-sm"
+              style={{ background: frameColor({ name: 'a', file: null, line: null, package: 'lib', is_application: false }, 'application', dark) }}
+            />{' '}
+            Libraries and runtime
           </span>
           <span className="ml-auto hidden md:inline">Click a frame to zoom in · drag to pan · ⌘/Ctrl + scroll to zoom · Esc to reset</span>
         </div>
@@ -266,7 +294,10 @@ export default function FlamegraphView({ flamegraph, durationMs }: { flamegraph:
           aria-label={`Flamegraph of ${flamegraph.samples} samples. Use the call tree below for a keyboard-accessible view.`}
         />
         {hovered && hoveredFrame && hover && (
-          <div className="pointer-events-none absolute z-10 max-w-md rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md" style={{ left: Math.min(hover.x + 12, width - 300), top: hover.y + 14 }}>
+          <div
+            className="pointer-events-none absolute z-10 max-w-md rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md"
+            style={{ left: Math.min(hover.x + 12, width - 300), top: hover.y + 14 }}
+          >
             <div className="font-mono font-medium break-all">{hoveredFrame.name}</div>
             {hoveredFrame.file && (
               <div className="font-mono break-all text-muted-foreground">
@@ -277,7 +308,7 @@ export default function FlamegraphView({ flamegraph, durationMs }: { flamegraph:
             <div className="mt-1 flex gap-3 tabular">
               <span>total {weightLabel(hovered.w, total, msPerSample)}</span>
             </div>
-            <div className="tabular text-muted-foreground">self {weightLabel(hovered.node.self_weight, total, msPerSample)}</div>
+            <div className="text-muted-foreground tabular">self {weightLabel(hovered.node.self_weight, total, msPerSample)}</div>
           </div>
         )}
       </div>
@@ -288,25 +319,63 @@ export default function FlamegraphView({ flamegraph, durationMs }: { flamegraph:
             <TabsTrigger value="functions">Functions</TabsTrigger>
           </TabsList>
           <TabsContent value="tree">
-            <CallTree flamegraph={flamegraph} total={total} msPerSample={msPerSample} order={order} selectedFrame={selectedFrame} matches={matches} onSelectFrame={(f) => {
-              const i = layout.rects.findIndex((r) => r.frame === f)
-              if (i >= 0) focusRect(i)
-            }} />
+            <CallTree
+              flamegraph={flamegraph}
+              total={total}
+              msPerSample={msPerSample}
+              order={order}
+              selectedFrame={selectedFrame}
+              matches={matches}
+              onSelectFrame={(f) => {
+                const i = layout.rects.findIndex((r) => r.frame === f)
+                if (i >= 0) focusRect(i)
+              }}
+            />
           </TabsContent>
           <TabsContent value="functions">
-            <FunctionTable flamegraph={flamegraph} total={total} msPerSample={msPerSample} selectedFrame={selectedFrame} onSelectFrame={(f) => {
-              const i = layout.rects.reduce((best, r, idx) => (r.frame === f && (best < 0 || r.w > layout.rects[best].w) ? idx : best), -1)
-              if (i >= 0) focusRect(i)
-            }} />
+            <FunctionTable
+              flamegraph={flamegraph}
+              total={total}
+              msPerSample={msPerSample}
+              selectedFrame={selectedFrame}
+              onSelectFrame={(f) => {
+                const i = layout.rects.reduce((best, r, idx) => (r.frame === f && (best < 0 || r.w > layout.rects[best].w) ? idx : best), -1)
+                if (i >= 0) focusRect(i)
+              }}
+            />
           </TabsContent>
         </Tabs>
-        <FrameDetails flamegraph={flamegraph} layout={layout} index={selected} total={total} msPerSample={msPerSample} onSearch={(t) => setSearch(t)} onSelect={focusRect} />
+        <FrameDetails
+          flamegraph={flamegraph}
+          layout={layout}
+          index={selected}
+          total={total}
+          msPerSample={msPerSample}
+          onSearch={(t) => setSearch(t)}
+          onSelect={focusRect}
+        />
       </div>
     </div>
   )
 }
 
-function FrameDetails({ flamegraph, layout, index, total, msPerSample, onSearch, onSelect }: { flamegraph: Flamegraph; layout: ReturnType<typeof layoutFlamegraph>; index: number; total: number; msPerSample: number | null; onSearch: (t: string) => void; onSelect: (i: number) => void }) {
+function FrameDetails({
+  flamegraph,
+  layout,
+  index,
+  total,
+  msPerSample,
+  onSearch,
+  onSelect,
+}: {
+  flamegraph: Flamegraph
+  layout: ReturnType<typeof layoutFlamegraph>
+  index: number
+  total: number
+  msPerSample: number | null
+  onSearch: (t: string) => void
+  onSelect: (i: number) => void
+}) {
   if (index < 0 || !layout.rects[index])
     return (
       <aside className="rounded-lg border bg-card p-4 text-[13px] text-muted-foreground" aria-label="Frame details">
@@ -322,7 +391,11 @@ function FrameDetails({ flamegraph, layout, index, total, msPerSample, onSearch,
       <div>
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant={f?.is_application ? 'brand' : 'secondary'}>{f?.is_application ? 'application' : 'library'}</Badge>
-          {f?.package && <Badge variant="outline" className="font-mono">{f.package}</Badge>}
+          {f?.package && (
+            <Badge variant="outline" className="font-mono">
+              {f.package}
+            </Badge>
+          )}
         </div>
         <h3 className="mt-1.5 font-mono text-[13px] font-semibold break-all">{f?.name}</h3>
         {f?.file && (
@@ -361,15 +434,23 @@ function FrameDetails({ flamegraph, layout, index, total, msPerSample, onSearch,
         <h4 className="mb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Stack</h4>
         <ol className="max-h-48 space-y-0.5 overflow-y-auto font-mono text-[12px]">
           {stack.map((fi, d) => (
-            <li key={d} className={cn('truncate', fi === r.frame && 'font-semibold', flamegraph.frames[fi]?.is_application ? 'text-foreground' : 'text-muted-foreground')} style={{ paddingLeft: Math.min(d, 12) * 6 }}>
+            <li
+              key={d}
+              className={cn('truncate', fi === r.frame && 'font-semibold', flamegraph.frames[fi]?.is_application ? 'text-foreground' : 'text-muted-foreground')}
+              style={{ paddingLeft: Math.min(d, 12) * 6 }}
+            >
               {d === stack.length - 1 ? (
                 flamegraph.frames[fi]?.name
               ) : (
-                <button type="button" className="hover:underline" onClick={() => {
-                  let i = index
-                  for (let k = stack.length - 1; k > d; k--) i = layout.rects[i].parent
-                  onSelect(i)
-                }}>
+                <button
+                  type="button"
+                  className="hover:underline"
+                  onClick={() => {
+                    let i = index
+                    for (let k = stack.length - 1; k > d; k--) i = layout.rects[i].parent
+                    onSelect(i)
+                  }}
+                >
                   {flamegraph.frames[fi]?.name}
                 </button>
               )}
@@ -392,7 +473,23 @@ interface TreeRow {
   open: boolean
 }
 
-function CallTree({ flamegraph, total, msPerSample, order, selectedFrame, matches, onSelectFrame }: { flamegraph: Flamegraph; total: number; msPerSample: number | null; order: FlameOrder; selectedFrame: number; matches: Set<number>; onSelectFrame: (f: number) => void }) {
+function CallTree({
+  flamegraph,
+  total,
+  msPerSample,
+  order,
+  selectedFrame,
+  matches,
+  onSelectFrame,
+}: {
+  flamegraph: Flamegraph
+  total: number
+  msPerSample: number | null
+  order: FlameOrder
+  selectedFrame: number
+  matches: Set<number>
+  onSelectFrame: (f: number) => void
+}) {
   // Expanded paths; initially every node above 4% of the samples.
   const [open, setOpen] = useState<Set<string>>(() => {
     const s = new Set<string>()
@@ -406,8 +503,13 @@ function CallTree({ flamegraph, total, msPerSample, order, selectedFrame, matche
   })
   const rows = useMemo(() => {
     const out: TreeRow[] = []
-    const sortKids = (n: CallTreeNode) => (order === 'heavy' ? n.children.map((c, i) => [c, i] as const).sort((a, b) => b[0].total_weight - a[0].total_weight) : n.children.map((c, i) => [c, i] as const))
-    const stack: { node: CallTreeNode; depth: number; key: string }[] = sortKids(flamegraph.root).reverse().map(([c, i]) => ({ node: c, depth: 0, key: String(i) }))
+    const sortKids = (n: CallTreeNode) =>
+      order === 'heavy'
+        ? n.children.map((c, i) => [c, i] as const).sort((a, b) => b[0].total_weight - a[0].total_weight)
+        : n.children.map((c, i) => [c, i] as const)
+    const stack: { node: CallTreeNode; depth: number; key: string }[] = sortKids(flamegraph.root)
+      .reverse()
+      .map(([c, i]) => ({ node: c, depth: 0, key: String(i) }))
     while (stack.length) {
       const { node, depth, key } = stack.pop()!
       const isOpen = open.has(key)
@@ -417,13 +519,20 @@ function CallTree({ flamegraph, total, msPerSample, order, selectedFrame, matche
     return out
   }, [flamegraph, open, order])
   const scrollRef = useRef<HTMLDivElement>(null)
-  const v = useVirtualizer({ count: rows.length, getScrollElement: () => scrollRef.current, estimateSize: () => 26, initialRect: { width: 900, height: 400 }, overscan: 10 })
-  const toggle = (key: string) => setOpen((s) => {
-    const n = new Set(s)
-    if (n.has(key)) n.delete(key)
-    else n.add(key)
-    return n
+  const v = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 26,
+    initialRect: { width: 900, height: 400 },
+    overscan: 10,
   })
+  const toggle = (key: string) =>
+    setOpen((s) => {
+      const n = new Set(s)
+      if (n.has(key)) n.delete(key)
+      else n.add(key)
+      return n
+    })
   const pct = (w: number) => `${((w / total) * 100).toFixed(1)}%`
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
@@ -446,7 +555,11 @@ function CallTree({ flamegraph, total, msPerSample, order, selectedFrame, matche
                 aria-expanded={r.hasChildren ? r.open : undefined}
                 aria-selected={r.node.frame_index === selectedFrame}
                 tabIndex={0}
-                className={cn('absolute inset-x-0 grid h-[26px] cursor-default grid-cols-[88px_88px_minmax(0,1fr)] items-center px-2 text-[12.5px] hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none', r.node.frame_index === selectedFrame && 'bg-row-selected', hit && 'bg-brand-soft/60')}
+                className={cn(
+                  'absolute inset-x-0 grid h-[26px] cursor-default grid-cols-[88px_88px_minmax(0,1fr)] items-center px-2 text-[12.5px] hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none',
+                  r.node.frame_index === selectedFrame && 'bg-row-selected',
+                  hit && 'bg-brand-soft/60',
+                )}
                 style={{ transform: `translateY(${it.start}px)` }}
                 onClick={() => r.node.frame_index !== null && onSelectFrame(r.node.frame_index)}
                 onKeyDown={(e) => {
@@ -466,7 +579,10 @@ function CallTree({ flamegraph, total, msPerSample, order, selectedFrame, matche
                   }
                 }}
               >
-                <span className="text-right text-muted-foreground tabular" title={msPerSample ? ms(r.node.self_weight * msPerSample) : `${r.node.self_weight} samples`}>
+                <span
+                  className="text-right text-muted-foreground tabular"
+                  title={msPerSample ? ms(r.node.self_weight * msPerSample) : `${r.node.self_weight} samples`}
+                >
                   {pct(r.node.self_weight)}
                 </span>
                 <span className="text-right font-medium tabular" title={msPerSample ? ms(r.node.total_weight * msPerSample) : `${r.node.total_weight} samples`}>
@@ -474,16 +590,25 @@ function CallTree({ flamegraph, total, msPerSample, order, selectedFrame, matche
                 </span>
                 <span className="flex min-w-0 items-center gap-1 pl-3 font-mono" style={{ paddingLeft: 12 + Math.min(r.depth, 40) * 12 }}>
                   {r.hasChildren ? (
-                    <button type="button" tabIndex={-1} aria-label={r.open ? 'Collapse' : 'Expand'} className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent" onClick={(e) => {
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      aria-label={r.open ? 'Collapse' : 'Expand'}
+                      className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent"
+                      onClick={(e) => {
                         e.stopPropagation()
                         toggle(r.key)
-                      }}>
+                      }}
+                    >
                       <ChevronRight className={cn('size-3 transition-transform', r.open && 'rotate-90')} />
                     </button>
                   ) : (
                     <span className="size-4 shrink-0" />
                   )}
-                  <span className={cn('truncate', !f?.is_application && 'text-muted-foreground')} title={f ? `${f.name} — ${f.file ?? ''}${f.line ? `:${f.line}` : ''}` : undefined}>
+                  <span
+                    className={cn('truncate', !f?.is_application && 'text-muted-foreground')}
+                    title={f ? `${f.name} — ${f.file ?? ''}${f.line ? `:${f.line}` : ''}` : undefined}
+                  >
                     {f?.name ?? '(root)'}
                   </span>
                   {f?.package && <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">{f.package}</span>}
@@ -497,7 +622,19 @@ function CallTree({ flamegraph, total, msPerSample, order, selectedFrame, matche
   )
 }
 
-function FunctionTable({ flamegraph, total, msPerSample, selectedFrame, onSelectFrame }: { flamegraph: Flamegraph; total: number; msPerSample: number | null; selectedFrame: number; onSelectFrame: (f: number) => void }) {
+function FunctionTable({
+  flamegraph,
+  total,
+  msPerSample,
+  selectedFrame,
+  onSelectFrame,
+}: {
+  flamegraph: Flamegraph
+  total: number
+  msPerSample: number | null
+  selectedFrame: number
+  onSelectFrame: (f: number) => void
+}) {
   const [sort, setSort] = useState<'self' | 'total'>('self')
   const rows = useMemo(() => {
     const t = functionTable(flamegraph)
@@ -528,12 +665,19 @@ function FunctionTable({ flamegraph, total, msPerSample, selectedFrame, onSelect
           {rows.slice(0, 300).map((r) => {
             const f = flamegraph.frames[r.frame]
             return (
-              <tr key={r.frame} className={cn('cursor-default hover:bg-row-hover', r.frame === selectedFrame && 'bg-row-selected')} onClick={() => onSelectFrame(r.frame)}>
+              <tr
+                key={r.frame}
+                className={cn('cursor-default hover:bg-row-hover', r.frame === selectedFrame && 'bg-row-selected')}
+                onClick={() => onSelectFrame(r.frame)}
+              >
                 <td className="px-2 py-1 text-right font-medium tabular" title={msPerSample ? ms(r.self * msPerSample) : `${r.self} samples`}>
                   {pct(r.self)}
                 </td>
                 <td className="px-2 py-1 text-right text-muted-foreground tabular">{pct(r.total)}</td>
-                <td className={cn('max-w-0 truncate px-2 py-1 font-mono', !f?.is_application && 'text-muted-foreground')} title={`${f?.file ?? ''}${f?.line ? `:${f.line}` : ''}`}>
+                <td
+                  className={cn('max-w-0 truncate px-2 py-1 font-mono', !f?.is_application && 'text-muted-foreground')}
+                  title={`${f?.file ?? ''}${f?.line ? `:${f.line}` : ''}`}
+                >
                   {f?.name}
                 </td>
                 <td className="hidden px-2 py-1 font-mono text-muted-foreground md:table-cell">{f?.package ?? (f?.is_application ? 'app' : '')}</td>

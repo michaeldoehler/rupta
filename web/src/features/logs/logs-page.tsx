@@ -49,7 +49,11 @@ function TraceIssues({ org, traceId }: { org: string; traceId: string }) {
       {q.data.errors.slice(0, 4).map((e) =>
         e.issue_id ? (
           <li key={e.event_id}>
-            <Link to="/$org/issues/$issueId" params={{ org, issueId: e.issue_id }} className="inline-flex max-w-96 items-center gap-1.5 rounded-md border bg-card px-2 py-0.5 text-xs hover:bg-row-hover">
+            <Link
+              to="/$org/issues/$issueId"
+              params={{ org, issueId: e.issue_id }}
+              className="inline-flex max-w-96 items-center gap-1.5 rounded-md border bg-card px-2 py-0.5 text-xs hover:bg-row-hover"
+            >
               <LevelDot level={e.level} />
               {e.short_id && <span className="font-mono text-muted-foreground">{e.short_id}</span>}
               <span className="truncate">{e.title}</span>
@@ -87,7 +91,10 @@ const LogLine = memo(function LogLine({
         role="row"
         aria-rowindex={index + 1}
         aria-expanded={expanded}
-        className={cn('grid h-[30px] cursor-default grid-cols-[18px_96px_52px_minmax(0,1fr)_auto] items-center gap-2 px-3 font-mono text-[12.5px] sm:grid-cols-[18px_170px_56px_110px_minmax(0,1fr)_auto] sm:px-4', !focused && 'hover:bg-row-hover')}
+        className={cn(
+          'grid h-[30px] cursor-default grid-cols-[18px_96px_52px_minmax(0,1fr)_auto] items-center gap-2 px-3 font-mono text-[12.5px] sm:grid-cols-[18px_170px_56px_110px_minmax(0,1fr)_auto] sm:px-4',
+          !focused && 'hover:bg-row-hover',
+        )}
         onClick={() => onToggle(row.id)}
       >
         <ChevronRight className={cn('size-3.5 text-muted-foreground transition-transform', expanded && 'rotate-90')} aria-hidden />
@@ -128,15 +135,28 @@ const LogLine = memo(function LogLine({
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-muted-foreground">{absolute(row.timestamp, { ms: true })}</span>
             {row.environment && <Badge variant="outline">{row.environment}</Badge>}
-            {row.release && <Badge variant="outline" className="font-mono">{row.release}</Badge>}
+            {row.release && (
+              <Badge variant="outline" className="font-mono">
+                {row.release}
+              </Badge>
+            )}
             {row.sdk && <span className="font-mono text-muted-foreground">{row.sdk}</span>}
             {row.trace_id && (
-              <Link to="/$org/traces/$traceId" params={{ org, traceId: row.trace_id }} search={row.span_id ? { span: row.span_id } : {}} className="inline-flex items-center gap-1 font-medium text-brand-text hover:underline">
+              <Link
+                to="/$org/traces/$traceId"
+                params={{ org, traceId: row.trace_id }}
+                search={row.span_id ? { span: row.span_id } : {}}
+                className="inline-flex items-center gap-1 font-medium text-brand-text hover:underline"
+              >
                 <RouteIcon className="size-3.5" /> View trace {row.trace_id.slice(0, 8)} <ArrowUpRight className="size-3" />
               </Link>
             )}
             {row.trace_id && (
-              <button type="button" className="text-muted-foreground hover:text-foreground hover:underline" onClick={() => onFilter('trace', row.trace_id!, 'include')}>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground hover:underline"
+                onClick={() => onFilter('trace', row.trace_id!, 'include')}
+              >
                 All logs of this trace
               </button>
             )}
@@ -189,7 +209,17 @@ const LogLine = memo(function LogLine({
   )
 })
 
-function Facets({ facets, query, onFilter, sample }: { facets: Facet[]; query: string; onFilter: (key: string, value: string, mode: 'include' | 'exclude') => void; sample: number }) {
+function Facets({
+  facets,
+  query,
+  onFilter,
+  sample,
+}: {
+  facets: Facet[]
+  query: string
+  onFilter: (key: string, value: string, mode: 'include' | 'exclude') => void
+  sample: number
+}) {
   const parsed = useMemo(() => parseLogQuery(query), [query])
   const active = (key: string, value: string) =>
     key === 'level' ? parsed.levels.includes(value as LogRow['level']) : parsed.filters.some((f) => f.key === key && !f.negated && f.values.includes(value))
@@ -209,7 +239,10 @@ function Facets({ facets, query, onFilter, sample }: { facets: Facet[]; query: s
                   <button
                     type="button"
                     onClick={(e) => onFilter(f.key, v.value, e.altKey ? 'exclude' : 'include')}
-                    className={cn('group relative flex w-full items-center gap-2 overflow-hidden rounded-sm px-1.5 py-0.5 text-left text-[12.5px] hover:bg-accent', active(f.key, v.value) && 'bg-brand-soft text-brand-text')}
+                    className={cn(
+                      'group relative flex w-full items-center gap-2 overflow-hidden rounded-sm px-1.5 py-0.5 text-left text-[12.5px] hover:bg-accent',
+                      active(f.key, v.value) && 'bg-brand-soft text-brand-text',
+                    )}
                     title={`${f.key}:${v.value} (Alt+click to exclude)`}
                   >
                     <span className="absolute inset-y-0 left-0 bg-muted" style={{ width: `${(v.count / max) * 100}%` }} aria-hidden />
@@ -228,7 +261,13 @@ function Facets({ facets, query, onFilter, sample }: { facets: Facet[]; query: s
   )
 }
 
-const STATUS_LABEL: Record<TailStatus, string> = { off: '', connecting: 'Connecting…', live: 'Live', reconnecting: 'Reconnecting…', error: 'Live tail unavailable' }
+const STATUS_LABEL: Record<TailStatus, string> = {
+  off: '',
+  connecting: 'Connecting…',
+  live: 'Live',
+  reconnecting: 'Reconnecting…',
+  error: 'Live tail unavailable',
+}
 
 export function LogsPage({
   query,
@@ -314,7 +353,10 @@ export function LogsPage({
       return next
     })
   }, [])
-  const filter = useCallback((key: string, value: string, mode: 'include' | 'exclude') => onChange({ query: toggleLogFilter(query, key, value, mode) }), [onChange, query])
+  const filter = useCallback(
+    (key: string, value: string, mode: 'include' | 'exclude') => onChange({ query: toggleLogFilter(query, key, value, mode) }),
+    [onChange, query],
+  )
   const virtualizer = useVirtualizer({
     count: rows.length + (list.hasNextPage ? 1 : 0),
     getScrollElement: () => scrollRef.current,
@@ -399,13 +441,22 @@ export function LogsPage({
           <div className="flex items-center gap-2 text-xs">
             <Badge variant="brand" className="gap-1">
               {range}
-              <button type="button" onClick={() => onChange({ start: undefined, end: undefined })} aria-label="Clear time range" className="hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => onChange({ start: undefined, end: undefined })}
+                aria-label="Clear time range"
+                className="hover:text-foreground"
+              >
                 <X />
               </button>
             </Badge>
           </div>
         )}
-        <LogHistogram data={hist.data} loading={hist.isPending} onPick={(s, e) => onChange({ start: new Date(s).toISOString(), end: new Date(e).toISOString() })} />
+        <LogHistogram
+          data={hist.data}
+          loading={hist.isPending}
+          onPick={(s, e) => onChange({ start: new Date(s).toISOString(), end: new Date(e).toISOString() })}
+        />
       </ExploreHeader>
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-64 shrink-0 overflow-y-auto border-r lg:block" aria-label="Attribute facets">
@@ -472,9 +523,24 @@ export function LogsPage({
                 {items.map((v) => {
                   const row = rows[v.index]
                   return (
-                    <div key={v.key} data-index={v.index} ref={virtualizer.measureElement} className="absolute inset-x-0" style={{ transform: `translateY(${v.start}px)` }}>
+                    <div
+                      key={v.key}
+                      data-index={v.index}
+                      ref={virtualizer.measureElement}
+                      className="absolute inset-x-0"
+                      style={{ transform: `translateY(${v.start}px)` }}
+                    >
                       {row ? (
-                        <LogLine row={row} org={org} index={v.index} expanded={expanded.has(row.id)} focused={v.index === focused} service={serviceName(row.project_id)} onToggle={toggle} onFilter={filter} />
+                        <LogLine
+                          row={row}
+                          org={org}
+                          index={v.index}
+                          expanded={expanded.has(row.id)}
+                          focused={v.index === focused}
+                          service={serviceName(row.project_id)}
+                          onToggle={toggle}
+                          onFilter={filter}
+                        />
                       ) : (
                         <div className="flex h-[30px] items-center px-4 text-xs text-muted-foreground">Loading more…</div>
                       )}

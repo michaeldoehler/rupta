@@ -45,7 +45,13 @@ export function ExploreHeader({
 }
 
 /** Underlined section tabs, like the issue sections. */
-export function SectionTabs({ label, items }: { label: string; items: { to: LinkProps['to']; params?: Record<string, string>; label: string; exact?: boolean; search?: Record<string, unknown> }[] }) {
+export function SectionTabs({
+  label,
+  items,
+}: {
+  label: string
+  items: { to: LinkProps['to']; params?: Record<string, string>; label: string; exact?: boolean; search?: Record<string, unknown> }[]
+}) {
   return (
     <nav aria-label={label} className="-mx-1 flex gap-1 overflow-x-auto">
       {items.map((it) => (
@@ -65,7 +71,19 @@ export function SectionTabs({ label, items }: { label: string; items: { to: Link
   )
 }
 
-export function StatTile({ label, value, hint, className, valueClassName }: { label: string; value: ReactNode; hint?: ReactNode; className?: string; valueClassName?: string }) {
+export function StatTile({
+  label,
+  value,
+  hint,
+  className,
+  valueClassName,
+}: {
+  label: string
+  value: ReactNode
+  hint?: ReactNode
+  className?: string
+  valueClassName?: string
+}) {
   return (
     <div className={cn('min-w-0 rounded-lg border bg-card px-3 py-2.5', className)}>
       <div className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{label}</div>
@@ -85,7 +103,21 @@ export function StatTilesSkeleton({ count = 5 }: { count?: number }) {
   )
 }
 
-export function Panel({ title, description, actions, children, className, bodyClassName }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string }) {
+export function Panel({
+  title,
+  description,
+  actions,
+  children,
+  className,
+  bodyClassName,
+}: {
+  title: ReactNode
+  description?: ReactNode
+  actions?: ReactNode
+  children: ReactNode
+  className?: string
+  bodyClassName?: string
+}) {
   return (
     <section className={cn('min-w-0 rounded-lg border bg-card', className)}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
@@ -101,12 +133,28 @@ export function Panel({ title, description, actions, children, className, bodyCl
 }
 
 /** A column header that sorts (server or client side). */
-export function SortButton({ label, active, desc = true, onClick, className }: { label: string; active: boolean; desc?: boolean; onClick: () => void; className?: string }) {
+export function SortButton({
+  label,
+  active,
+  desc = true,
+  onClick,
+  className,
+}: {
+  label: string
+  active: boolean
+  desc?: boolean
+  onClick: () => void
+  className?: string
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn('inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none', active && 'text-foreground', className)}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+        active && 'text-foreground',
+        className,
+      )}
       aria-label={`Sort by ${label}`}
       aria-pressed={active}
     >
@@ -179,7 +227,13 @@ export function InfiniteVirtualList<T>({
         {items.map((v) => {
           const row = rows[v.index]
           return (
-            <div key={v.key} role="row" aria-rowindex={v.index + 1} className="absolute inset-x-0" style={{ height: v.size, transform: `translateY(${v.start}px)` }}>
+            <div
+              key={v.key}
+              role="row"
+              aria-rowindex={v.index + 1}
+              className="absolute inset-x-0"
+              style={{ height: v.size, transform: `translateY(${v.start}px)` }}
+            >
               {row ? (
                 render(row, v.index)
               ) : (

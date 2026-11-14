@@ -128,7 +128,7 @@ export function DetailsTab({ org, issueId, event: which }: { org: string; issueI
       </div>
       {e && issue.data ? (
         <div className={ev.isPlaceholderData ? 'opacity-60 transition-opacity' : undefined}>
-          <EventView event={e} issue={issue.data} org={org} />
+          <EventView event={e} issue={issue.data} org={org} related={false} />
           <JsonDialog event={e} open={json} onOpenChange={setJson} />
         </div>
       ) : (

@@ -15,7 +15,9 @@ export const Route = createFileRoute('/_auth/$org/performance/')({
     return (
       <TransactionsPage
         sort={s.sort ?? 'tpm'}
-        onSort={(sort) => void navigate({ to: '.', search: (prev: Record<string, unknown>) => ({ ...prev, sort: sort === 'tpm' ? undefined : sort }), replace: true })}
+        onSort={(sort) =>
+          void navigate({ to: '.', search: (prev: Record<string, unknown>) => ({ ...prev, sort: sort === 'tpm' ? undefined : sort }), replace: true })
+        }
       />
     )
   },

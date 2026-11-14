@@ -15,6 +15,11 @@ export const Route = createFileRoute('/_auth/$org/metrics/')({
   component: function Metrics() {
     const s = Route.useSearch()
     const navigate = useNavigate()
-    return <MetricsPage state={s} onChange={(next) => void navigate({ to: '.', search: (prev: Record<string, unknown>) => ({ ...prev, ...next }), replace: true })} />
+    return (
+      <MetricsPage
+        state={s}
+        onChange={(next) => void navigate({ to: '.', search: (prev: Record<string, unknown>) => ({ ...prev, ...next }), replace: true })}
+      />
+    )
   },
 })

@@ -160,7 +160,11 @@ const PERIOD_MS: Record<string, number> = { '1h': HOUR, '24h': DAY, '7d': 7 * DA
 /** Sparkline like the server: hourly up to 48 hours, daily beyond. */
 function periodSeries(i: DbIssue, period: string) {
   const ms = PERIOD_MS[period] ?? DAY
-  return ms < DAY ? issueSeries(i, world.now, 12, ms / 12) : ms <= 2 * DAY ? issueSeries(i, world.now, Math.round(ms / HOUR), HOUR) : issueSeries(i, world.now, Math.round(ms / DAY), DAY)
+  return ms < DAY
+    ? issueSeries(i, world.now, 12, ms / 12)
+    : ms <= 2 * DAY
+      ? issueSeries(i, world.now, Math.round(ms / HOUR), HOUR)
+      : issueSeries(i, world.now, Math.round(ms / DAY), DAY)
 }
 
 function issueOut(i: DbIssue, period = '24h'): Issue {
@@ -564,7 +568,12 @@ function findIssue(id: string) {
 function serverPrefs(u: World['users'][number]) {
   const p = u.preferences
   const { deploys: _local, ...notifications } = p.notifications ?? {}
-  return { timezone: !p.timezone || p.timezone === 'browser' ? null : p.timezone, clock: p.clock_24h === false ? '12h' : '24h', theme: p.theme ?? 'system', notifications }
+  return {
+    timezone: !p.timezone || p.timezone === 'browser' ? null : p.timezone,
+    clock: p.clock_24h === false ? '12h' : '24h',
+    theme: p.theme ?? 'system',
+    notifications,
+  }
 }
 
 function userProfile(u: World['users'][number]): UserProfile {

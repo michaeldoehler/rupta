@@ -1,15 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { Bookmark, ChevronRight, Ellipsis, Share2, Trash2, UserPlus } from 'lucide-react'
+import { Bookmark, ChevronRight, Ellipsis, Share2, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/api/endpoints'
 import { qk, useDeleteIssues, useIssue, useSession, useUpdateIssues } from '@/api/queries'
-import type { Assignee, IssueDetail, Priority } from '@/api/types'
+import type { Assignee, IssueDetail } from '@/api/types'
 import { CopyButton } from '@/components/common/copy-button'
 import { LevelBadge } from '@/components/common/level'
 import { PlatformIcon } from '@/components/common/platform-icon'
 import { ErrorState } from '@/components/common/states'
-import { RelativeTime } from '@/components/common/time'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,16 +21,25 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tip } from '@/components/ui/tooltip'
 import { copyText } from '@/hooks/use-copy'
 import { useHotkeys } from '@/hooks/use-hotkeys'
 import { compact, shortVersion, thousands } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { AssigneeAvatar, AssigneePicker, IgnoreButton, ResolveButton, type ActionHandler } from '@/features/issues/actions'
+import { type ActionHandler } from '@/features/issues/actions'
 import { StatusBadge } from '@/features/issues/issue-row'
-import { IssueChart } from './issue-chart'
+import { IssueContextPanel } from './context-panel'
+
+function PanelSkeleton() {
+  return (
+    <div className="space-y-3 p-4 xl:border-l" aria-busy="true" aria-label="Loading issue context">
+      <Skeleton className="h-8 w-full" />
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-16 w-full" />
+    </div>
+  )
+}
 
 function HeaderSkeleton() {
   return (
@@ -47,17 +55,6 @@ function HeaderSkeleton() {
     </div>
   )
 }
-
-function Stat({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <div className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{label}</div>
-      <div className="mt-0.5 text-[13px]">{children}</div>
-    </div>
-  )
-}
-
-const PRIORITY_DOT: Record<Priority, string> = { high: 'bg-level-error', medium: 'bg-level-warning', low: 'bg-level-debug' }
 
 export function IssueLayout({ org, issueId }: { org: string; issueId: string }) {
   const issue = useIssue(issueId)
@@ -135,8 +132,11 @@ export function IssueLayout({ org, issueId }: { org: string; issueId: string }) 
           </Link>
         ))}
       </nav>
-      <div className="flex-1">
-        <Outlet />
+      <div className="grid flex-1 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="order-2 min-w-0 xl:order-1">
+          <Outlet />
+        </div>
+        <div className="order-1 border-b xl:order-2 xl:border-b-0">{d ? <IssueContextPanel d={d} org={org} act={act} /> : <PanelSkeleton />}</div>
       </div>
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
@@ -213,93 +213,30 @@ function Header({ d, org, act, permalink, onDelete }: { d: IssueDetail; org: str
         </div>
       </div>
 
-      <div className="mt-2 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,340px)]">
-        <div className="min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <LevelBadge level={d.level} />
-            <StatusBadge issue={d} />
-            {d.status === 'resolved' && d.resolved_in_release && (
-              <span className="text-xs text-muted-foreground">
-                in <span className="font-mono">{d.resolved_in_release === 'next' ? 'the next release' : shortVersion(d.resolved_in_release)}</span>
-              </span>
-            )}
-          </div>
-          <h1 className="text-xl leading-tight font-semibold tracking-tight break-words">
-            {t ? (
-              <>
-                {t}
-                <span className="font-normal text-foreground/80">: {d.metadata.value}</span>
-              </>
-            ) : (
-              d.title
-            )}
-          </h1>
-          {d.culprit && <p className="font-mono text-[12.5px] break-all text-muted-foreground">{d.culprit}</p>}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <ResolveButton resolved={d.status === 'resolved'} onAction={act} currentRelease={d.last_release?.version} />
-            <IgnoreButton ignored={d.status === 'ignored'} onAction={act} />
-            <AssigneePicker
-              org={org}
-              value={d.assignee}
-              align="start"
-              onChange={(a) => act({ assignee: a ? { type: a.type, id: a.id } : null }, a ? `Assigned to ${a.name}` : 'Unassigned', { assignee: a })}
-              trigger={
-                <Button variant="outline" size="sm" className="font-normal">
-                  {d.assignee ? <AssigneeAvatar assignee={d.assignee} className="size-4" /> : <UserPlus />}
-                  {d.assignee ? d.assignee.name : 'Assign'}
-                </Button>
-              }
-            />
-            <Select value={d.priority} onValueChange={(v) => act({ priority: v as Priority }, `Priority set to ${v}`)}>
-              <SelectTrigger size="sm" className="w-auto gap-1.5" aria-label="Priority">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(['high', 'medium', 'low'] as const).map((p) => (
-                  <SelectItem key={p} value={p}>
-                    <span className={cn('size-2 rounded-full', PRIORITY_DOT[p])} />
-                    <span className="capitalize">{p}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="mt-2 min-w-0 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <LevelBadge level={d.level} />
+          <StatusBadge issue={d} />
+          {d.status === 'resolved' && d.resolved_in_release && (
+            <span className="text-xs text-muted-foreground">
+              in <span className="font-mono">{d.resolved_in_release === 'next' ? 'the next release' : shortVersion(d.resolved_in_release)}</span>
+            </span>
+          )}
+          <span className="text-xs text-muted-foreground tabular">
+            {thousands(d.count)} events · {thousands(d.user_count)} users
+          </span>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border bg-card p-3">
-          <Stat label="Events">
-            <span className="text-lg font-semibold tabular">{thousands(d.count)}</span>
-          </Stat>
-          <Stat label="Users">
-            <span className="text-lg font-semibold tabular">{thousands(d.user_count)}</span>
-          </Stat>
-          <div className="col-span-2">
-            <IssueChart issueId={d.id} />
-          </div>
-          <Stat label="First seen">
-            <RelativeTime date={d.first_seen} long />
-            {d.first_release && (
-              <Link
-                to="/$org/releases/$version"
-                params={{ org, version: d.first_release.version }}
-                className="block truncate font-mono text-xs text-brand-text hover:underline"
-              >
-                {shortVersion(d.first_release.version)}
-              </Link>
-            )}
-          </Stat>
-          <Stat label="Last seen">
-            <RelativeTime date={d.last_seen} long />
-            {d.last_release && (
-              <Link
-                to="/$org/releases/$version"
-                params={{ org, version: d.last_release.version }}
-                className="block truncate font-mono text-xs text-brand-text hover:underline"
-              >
-                {shortVersion(d.last_release.version)}
-              </Link>
-            )}
-          </Stat>
-        </div>
+        <h1 className="text-xl leading-tight font-semibold tracking-tight break-words">
+          {t ? (
+            <>
+              {t}
+              <span className="font-normal text-foreground/80">: {d.metadata.value}</span>
+            </>
+          ) : (
+            d.title
+          )}
+        </h1>
+        {d.culprit && <p className="font-mono text-[12.5px] break-all text-muted-foreground">{d.culprit}</p>}
       </div>
     </header>
   )

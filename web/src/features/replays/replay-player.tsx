@@ -189,7 +189,11 @@ export default function ReplayPlayer({ events, markers, onTime, seek }: PlayerPr
   const [hoverMarker, setHoverMarker] = useState<Marker | null>(null)
 
   return (
-    <div ref={shellRef} className={cn('flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card', fullscreen && 'h-full rounded-none border-0')} data-testid="replay-player">
+    <div
+      ref={shellRef}
+      className={cn('flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card', fullscreen && 'h-full rounded-none border-0')}
+      data-testid="replay-player"
+    >
       <div className="flex h-8 items-center gap-2 border-b bg-muted/40 px-3 text-xs">
         <span className="flex gap-1" aria-hidden>
           <span className="size-2 rounded-full bg-border" />
@@ -203,7 +207,13 @@ export default function ReplayPlayer({ events, markers, onTime, seek }: PlayerPr
           {size.width}×{size.height}
         </span>
       </div>
-      <div ref={stageRef} className={cn('relative flex items-center justify-center overflow-hidden bg-[repeating-conic-gradient(var(--muted)_0%_25%,transparent_0%_50%)] [background-size:16px_16px]', fullscreen ? 'flex-1' : 'aspect-video')}>
+      <div
+        ref={stageRef}
+        className={cn(
+          'relative flex items-center justify-center overflow-hidden bg-[repeating-conic-gradient(var(--muted)_0%_25%,transparent_0%_50%)] [background-size:16px_16px]',
+          fullscreen ? 'flex-1' : 'aspect-video',
+        )}
+      >
         {failed ? (
           <div className="flex flex-col items-center gap-2 p-6 text-center text-[13px]">
             <TriangleAlert className="size-5 text-destructive" />
@@ -212,7 +222,11 @@ export default function ReplayPlayer({ events, markers, onTime, seek }: PlayerPr
           </div>
         ) : (
           <div style={{ width: size.width * scale, height: size.height * scale }} className="relative shadow-lg">
-            <div ref={frameRef} className="replay-frame origin-top-left overflow-hidden bg-white" style={{ width: size.width, height: size.height, transform: `scale(${scale})` }} />
+            <div
+              ref={frameRef}
+              className="replay-frame origin-top-left overflow-hidden bg-white"
+              style={{ width: size.width, height: size.height, transform: `scale(${scale})` }}
+            />
             <button type="button" className="absolute inset-0" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'} />
             {!playing && time === 0 && (
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
@@ -221,7 +235,11 @@ export default function ReplayPlayer({ events, markers, onTime, seek }: PlayerPr
                 </span>
               </span>
             )}
-            {skipping && <span className="absolute top-2 right-2 flex items-center gap-1 rounded-md bg-foreground/80 px-2 py-1 text-xs text-background"><FastForward className="size-3.5" /> Skipping inactivity</span>}
+            {skipping && (
+              <span className="absolute top-2 right-2 flex items-center gap-1 rounded-md bg-foreground/80 px-2 py-1 text-xs text-background">
+                <FastForward className="size-3.5" /> Skipping inactivity
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -261,7 +279,11 @@ export default function ReplayPlayer({ events, markers, onTime, seek }: PlayerPr
             return (
               <span
                 key={`${m.kind}-${i}`}
-                className={cn('absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-card', s.cls, m.kind === 'error' ? 'size-2.5' : 'size-1.5')}
+                className={cn(
+                  'absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-card',
+                  s.cls,
+                  m.kind === 'error' ? 'size-2.5' : 'size-1.5',
+                )}
                 style={{ left: `${total ? (m.offset / total) * 100 : 0}%` }}
                 onPointerEnter={() => setHoverMarker(m)}
                 onPointerLeave={() => setHoverMarker(null)}
@@ -269,9 +291,15 @@ export default function ReplayPlayer({ events, markers, onTime, seek }: PlayerPr
               />
             )
           })}
-          <span className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-brand shadow" style={{ left: `${total ? (time / total) * 100 : 0}%` }} />
+          <span
+            className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-brand shadow"
+            style={{ left: `${total ? (time / total) * 100 : 0}%` }}
+          />
           {hoverMarker && (
-            <span className="pointer-events-none absolute bottom-full z-10 mb-1 max-w-72 -translate-x-1/2 truncate rounded-md border bg-popover px-2 py-1 text-xs shadow-md" style={{ left: `${(hoverMarker.offset / (total || 1)) * 100}%` }}>
+            <span
+              className="pointer-events-none absolute bottom-full z-10 mb-1 max-w-72 -translate-x-1/2 truncate rounded-md border bg-popover px-2 py-1 text-xs shadow-md"
+              style={{ left: `${(hoverMarker.offset / (total || 1)) * 100}%` }}
+            >
               {MARKER_STYLE[hoverMarker.kind].label} · {clock(hoverMarker.offset)} · {hoverMarker.label}
             </span>
           )}

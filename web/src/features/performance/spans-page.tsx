@@ -19,7 +19,15 @@ import { PERFORMANCE_TABS } from './transactions-page'
 
 const TRACE_ID = /^[0-9a-f]{32}$/i
 
-export function SpansPage({ groupBy, query, onChange }: { groupBy: SpanGroupBy; query: string; onChange: (p: { group_by?: SpanGroupBy; q?: string }) => void }) {
+export function SpansPage({
+  groupBy,
+  query,
+  onChange,
+}: {
+  groupBy: SpanGroupBy
+  query: string
+  onChange: (p: { group_by?: SpanGroupBy; q?: string }) => void
+}) {
   const { org, projects, environments, period } = useGlobalFilters()
   const navigate = useNavigate()
   const [traceInput, setTraceInput] = useState('')
@@ -27,8 +35,20 @@ export function SpansPage({ groupBy, query, onChange }: { groupBy: SpanGroupBy; 
   const deferred = useDeferredValue(text.trim())
   const params = { project: projects, environment: environments, period, group_by: groupBy, query: deferred }
   const grouped = groupBy !== 'none'
-  const q = useQuery({ queryKey: tk.spans(org, params), queryFn: ({ signal }) => telemetryApi.spans.groups(org, params, signal), placeholderData: keepPreviousData, staleTime: 30_000, enabled: grouped })
-  const samples = useQuery({ queryKey: tk.spans(org, { ...params, samples: true }), queryFn: ({ signal }) => telemetryApi.spans.samples(org, { project: projects, environment: environments, period, query: deferred }, signal), placeholderData: keepPreviousData, staleTime: 30_000, enabled: !grouped })
+  const q = useQuery({
+    queryKey: tk.spans(org, params),
+    queryFn: ({ signal }) => telemetryApi.spans.groups(org, params, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    enabled: grouped,
+  })
+  const samples = useQuery({
+    queryKey: tk.spans(org, { ...params, samples: true }),
+    queryFn: ({ signal }) => telemetryApi.spans.samples(org, { project: projects, environment: environments, period, query: deferred }, signal),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    enabled: !grouped,
+  })
   const total = useMemo(() => (q.data ?? []).reduce((s, r) => s + r.sum, 0), [q.data])
   const traceId = traceInput.trim().replace(/-/g, '')
 
@@ -45,7 +65,14 @@ export function SpansPage({ groupBy, query, onChange }: { groupBy: SpanGroupBy; 
           >
             <div className="relative flex-1">
               <RouteIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={traceInput} onChange={(e) => setTraceInput(e.target.value)} placeholder="Open a trace by id (32 hex characters)" className="pl-8 font-mono text-[13px]" aria-label="Trace id" spellCheck={false} />
+              <Input
+                value={traceInput}
+                onChange={(e) => setTraceInput(e.target.value)}
+                placeholder="Open a trace by id (32 hex characters)"
+                className="pl-8 font-mono text-[13px]"
+                aria-label="Trace id"
+                spellCheck={false}
+              />
             </div>
             <Button type="submit" variant="outline" disabled={!TRACE_ID.test(traceId)}>
               Open <ArrowRight />
@@ -102,13 +129,23 @@ export function SpansPage({ groupBy, query, onChange }: { groupBy: SpanGroupBy; 
                       </span>
                     </TableCell>
                     <TableCell className="max-w-[36vw] truncate font-mono text-[12.5px]">
-                      <Link to="/$org/traces/$traceId" params={{ org, traceId: r.trace_id }} search={{ span: r.span_id }} className="hover:text-brand-text hover:underline" title={r.description ?? undefined}>
+                      <Link
+                        to="/$org/traces/$traceId"
+                        params={{ org, traceId: r.trace_id }}
+                        search={{ span: r.span_id }}
+                        className="hover:text-brand hover:underline"
+                        title={r.description ?? undefined}
+                      >
                         {r.description ?? '(no description)'}
                       </Link>
                     </TableCell>
                     <TableCell className="hidden max-w-64 truncate font-mono text-xs text-muted-foreground lg:table-cell">{r.transaction ?? '—'}</TableCell>
-                    <TableCell className={r.status && r.status !== 'ok' ? 'text-right font-medium text-destructive tabular' : 'text-right font-medium tabular'}>{ms(r.duration_ms)}</TableCell>
-                    <TableCell className="pr-4 text-right text-muted-foreground sm:pr-6">{r.timestamp ? <RelativeTime date={r.timestamp} suffix plain /> : '—'}</TableCell>
+                    <TableCell className={r.status && r.status !== 'ok' ? 'text-right font-medium text-destructive tabular' : 'text-right font-medium tabular'}>
+                      {ms(r.duration_ms)}
+                    </TableCell>
+                    <TableCell className="pr-4 text-right text-muted-foreground sm:pr-6">
+                      {r.timestamp ? <RelativeTime date={r.timestamp} suffix plain /> : '—'}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -120,7 +157,11 @@ export function SpansPage({ groupBy, query, onChange }: { groupBy: SpanGroupBy; 
       ) : q.isError ? (
         <ErrorState error={q.error} retry={() => q.refetch()} />
       ) : q.data.length === 0 ? (
-        <EmptyState icon={<RouteIcon />} title="No spans" description="Spans appear once SDKs send transactions or streamed spans for the selected projects and period." />
+        <EmptyState
+          icon={<RouteIcon />}
+          title="No spans"
+          description="Spans appear once SDKs send transactions or streamed spans for the selected projects and period."
+        />
       ) : (
         <div className="overflow-x-auto">
           <Table aria-label="Span groups">
@@ -145,18 +186,24 @@ export function SpansPage({ groupBy, query, onChange }: { groupBy: SpanGroupBy; 
                     onChange({ group_by: 'description', q: `op:${r.op}` })
                   }}
                 >
-{groupBy === 'op' && (
-                  <TableCell className="pl-4 sm:pl-6">
-                    <span className="inline-flex items-center gap-2 font-mono text-[12.5px]">
-                      <span className="size-2 rounded-[2px]" style={{ background: opColor(opCategory(r.op)) }} />
-                      {r.op ?? '(none)'}
-                    </span>
-                  </TableCell>
+                  {groupBy === 'op' && (
+                    <TableCell className="pl-4 sm:pl-6">
+                      <span className="inline-flex items-center gap-2 font-mono text-[12.5px]">
+                        <span className="size-2 rounded-[2px]" style={{ background: opColor(opCategory(r.op)) }} />
+                        {r.op ?? '(none)'}
+                      </span>
+                    </TableCell>
                   )}
                   {groupBy !== 'op' && (
                     <TableCell className="max-w-[40vw] truncate pl-4 font-mono text-[12.5px] sm:pl-6" title={r.group ?? undefined}>
                       {groupBy === 'transaction' && r.group ? (
-                        <Link to="/$org/performance/summary" params={{ org }} search={(prev: Record<string, unknown>) => ({ ...prev, name: r.group! })} className="hover:text-brand-text hover:underline" onClick={(e) => e.stopPropagation()}>
+                        <Link
+                          to="/$org/performance/summary"
+                          params={{ org }}
+                          search={(prev: Record<string, unknown>) => ({ ...prev, name: r.group! })}
+                          className="hover:text-brand hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           {r.group}
                         </Link>
                       ) : (
@@ -170,7 +217,9 @@ export function SpansPage({ groupBy, query, onChange }: { groupBy: SpanGroupBy; 
                   <TableCell className="pr-4 sm:pr-6">
                     <div className="flex items-center gap-2">
                       <ShareBar value={total ? r.sum / total : 0} color={opColor(opCategory(r.op))} />
-                      <span className="w-12 shrink-0 text-right text-xs text-muted-foreground tabular">{total ? `${((r.sum / total) * 100).toFixed(1)}%` : '—'}</span>
+                      <span className="w-12 shrink-0 text-right text-xs text-muted-foreground tabular">
+                        {total ? `${((r.sum / total) * 100).toFixed(1)}%` : '—'}
+                      </span>
                     </div>
                   </TableCell>
                 </TableRow>

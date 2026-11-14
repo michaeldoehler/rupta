@@ -88,7 +88,11 @@ export function SpanDrawer({
         <div className="flex flex-wrap gap-1.5 border-b px-4 py-2.5">
           {s.is_segment && s.transaction && (
             <Button asChild variant="outline" size="xs">
-              <Link to="/$org/performance/summary" params={{ org }} search={(prev: Record<string, unknown>) => ({ ...prev, name: s.transaction!, tx_project: s.project_id ?? undefined })}>
+              <Link
+                to="/$org/performance/summary"
+                params={{ org }}
+                search={(prev: Record<string, unknown>) => ({ ...prev, name: s.transaction!, tx_project: s.project_id ?? undefined })}
+              >
                 <Gauge /> Transaction summary
               </Link>
             </Button>
@@ -112,7 +116,11 @@ export function SpanDrawer({
               {errors.map((e) => (
                 <li key={e.event_id}>
                   {e.issue_id ? (
-                    <Link to="/$org/issues/$issueId" params={{ org, issueId: e.issue_id }} className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-[13px] hover:bg-row-hover">
+                    <Link
+                      to="/$org/issues/$issueId"
+                      params={{ org, issueId: e.issue_id }}
+                      className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-[13px] hover:bg-row-hover"
+                    >
                       <LevelDot level={e.level} />
                       <span className="min-w-0 flex-1 truncate">{e.title}</span>
                       {e.short_id && <span className="font-mono text-[11px] text-muted-foreground">{e.short_id}</span>}
@@ -144,7 +152,13 @@ export function SpanDrawer({
         <Block title="Span">
           <KeyValueTable
             rows={[
-              ['span id', <span key="s" className="inline-flex items-center gap-1">{s.span_id}<CopyButton value={s.span_id} label="Copy span id" /></span>],
+              [
+                'span id',
+                <span key="s" className="inline-flex items-center gap-1">
+                  {s.span_id}
+                  <CopyButton value={s.span_id} label="Copy span id" />
+                </span>,
+              ],
               [
                 'parent',
                 s.parent_span_id ? (

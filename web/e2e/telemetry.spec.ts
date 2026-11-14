@@ -13,7 +13,10 @@ test('performance: transactions, summary with web vitals, trace waterfall and sp
   await page.getByRole('button', { name: 'Sort by p95' }).click()
   await expect(page).toHaveURL(/sort=p95/)
   await page.getByLabel('Search transactions').fill('checkout')
-  await table.getByRole('link', { name: /\/checkout/ }).first().click()
+  await table
+    .getByRole('link', { name: /\/checkout/ })
+    .first()
+    .click()
   await expect(page).toHaveURL(/performance\/summary/)
   await expect(page.getByTestId('vital-lcp')).toBeVisible()
   await expect(page.getByRole('img', { name: 'Duration histogram' })).toBeVisible()
@@ -89,7 +92,10 @@ test('logs: query with autocomplete, facets, expand a row and live tail', async 
 
 test('metrics explorer and a dashboard with a new widget', async ({ page }) => {
   await start(page, '/acme/metrics')
-  await page.getByRole('listbox', { name: 'Metrics' }).getByRole('button', { name: /http\.server\.duration/ }).click()
+  await page
+    .getByRole('listbox', { name: 'Metrics' })
+    .getByRole('button', { name: /http\.server\.duration/ })
+    .click()
   await expect(page).toHaveURL(/name=http.server.duration/)
   await page.getByLabel('Group by').fill('route')
   await page.getByLabel('Group by').press('Enter')
@@ -111,7 +117,11 @@ test('metrics explorer and a dashboard with a new widget', async ({ page }) => {
 
 test('profiles: flamegraph search, zoom and tables', async ({ page }) => {
   await start(page, '/acme/profiles')
-  await page.getByRole('grid', { name: 'Profiles' }).getByRole('link', { name: /GET \/api/ }).first().click()
+  await page
+    .getByRole('grid', { name: 'Profiles' })
+    .getByRole('link', { name: /GET \/api/ })
+    .first()
+    .click()
   await expect(page.getByTestId('flamegraph')).toBeVisible()
   await page.getByLabel('Search frames').fill('psycopg')
   await expect(page.getByRole('status')).toContainText('% of samples')

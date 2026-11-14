@@ -203,7 +203,13 @@ export const api = {
         issuer: r?.issuer,
         authorization_endpoint: r?.authorization_endpoint,
         problems: r?.problems ?? [],
-        message: r?.message ?? (r?.problems?.length ? r.problems.join(' ') : r?.ok ? 'The server loaded the discovery document and found the endpoints it needs.' : 'The check failed.'),
+        message:
+          r?.message ??
+          (r?.problems?.length
+            ? r.problems.join(' ')
+            : r?.ok
+              ? 'The server loaded the discovery document and found the endpoints it needs.'
+              : 'The check failed.'),
       })),
 
     tokens: (org: string) => requestList<ApiToken>(`/orgs/${e(org)}/tokens`),

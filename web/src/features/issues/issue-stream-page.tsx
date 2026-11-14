@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowDownUp, ArrowUp, Bookmark, BookmarkCheck, ChevronDown, CircleCheckBig, Inbox, Save, Star, Trash2, UserPlus } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDownUp, ArrowUp, Bookmark, BookmarkCheck, ChevronDown, CircleCheckBig, Inbox, PanelRight, Save, Star, Trash2, UserPlus } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '@/api/endpoints'
 import { qk, useApiMutation, useDeleteIssues, useIssueList, useSavedSearches, useSession, useUpdateIssues } from '@/api/queries'
 import type { Assignee, Issue, IssueQueryParams, IssueSort, IssueUpdate, Page } from '@/api/types'
@@ -45,6 +45,24 @@ import { useGlobalFilters } from '@/features/shell/use-global-filters'
 import { AssigneePicker, IgnoreButton, ResolveButton, type ActionHandler } from './actions'
 import { IssueRow, ROW_HEIGHT } from './issue-row'
 import { SearchBar, type SearchBarHandle } from './search-bar'
+
+const IssuePreview = lazy(() => import('./issue-preview'))
+
+const SPLIT_KEY = 'rupta-issue-split'
+const WIDE = '(min-width: 1440px)'
+
+function useMediaQuery(query: string) {
+  const [match, setMatch] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.(query).matches))
+  useEffect(() => {
+    const mq = window.matchMedia?.(query)
+    if (!mq) return
+    const on = () => setMatch(mq.matches)
+    on()
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [query])
+  return match
+}
 
 export const DEFAULT_QUERY = 'is:unresolved'
 
@@ -100,6 +118,25 @@ export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSor
   const visible = useDocumentVisible()
   const searchRef = useRef<SearchBarHandle>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Split view: list and preview side by side on wide screens (remembered).
+  const wide = useMediaQuery(WIDE)
+  const [splitPref, setSplitPref] = useState(() => {
+    try {
+      return localStorage.getItem(SPLIT_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleSplit = () =>
+    setSplitPref((v) => {
+      try {
+        localStorage.setItem(SPLIT_KEY, v ? '0' : '1')
+      } catch {
+        /* ignore */
+      }
+      return !v
+    })
+  const split = wide && splitPref
 
   const params: IssueQueryParams = useMemo(
     () => ({ project: projects, environment: environments, query, sort, period }),
@@ -236,6 +273,7 @@ export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSor
   )
 
   const focused = issues.find((i) => i.id === focusedId)
+  const previewId = split ? (focused?.id ?? issues[0]?.id ?? null) : null
   useHotkeys(
     {
       j: () => move(1),
@@ -381,6 +419,11 @@ export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSor
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {wide && (
+            <Button variant={split ? 'secondary' : 'outline'} size="sm" aria-pressed={split} onClick={toggleSplit} title="Show a preview next to the list">
+              <PanelRight /> Preview
+            </Button>
+          )}
           <ToggleGroup
             type="single"
             value={stats}
@@ -411,68 +454,84 @@ export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSor
         </div>
       </div>
 
-      {/* column header */}
-      <div
-        className="hidden h-7 shrink-0 items-center gap-3 border-b pr-4 pl-[54px] text-[11px] font-medium tracking-wide text-muted-foreground uppercase sm:flex"
-        aria-hidden
-      >
-        <span className="flex-1">Issue</span>
-        <span className="hidden w-24 text-right lg:block">Last seen</span>
-        <span className="hidden w-[100px] md:block">Graph · {stats}</span>
-        <span className="w-16 text-right">Events</span>
-        <span className="w-14 text-right">Users</span>
-        <span className="w-8" />
-      </div>
-
-      {newIssues.length > 0 && (
-        <button
-          type="button"
-          onClick={showNew}
-          className="flex items-center justify-center gap-2 border-b bg-brand-soft py-1.5 text-[13px] font-medium text-brand-text hover:brightness-[0.98]"
-        >
-          <ArrowUp className="size-3.5" /> {newIssues.length === 50 ? '50+' : newIssues.length} new {newIssues.length === 1 ? 'issue' : 'issues'} · Show
-        </button>
-      )}
-
-      <div
-        ref={scrollRef}
-        className="relative min-h-0 flex-1 overflow-y-auto contain-strict"
-        role={issues.length ? 'grid' : 'region'}
-        aria-label="Issues"
-        aria-rowcount={issues.length ? (total ?? rowCount) : undefined}
-        aria-busy={list.isFetching}
-      >
-        {list.isPending ? (
-          <ListSkeleton rows={12} />
-        ) : list.isError ? (
-          <ErrorState error={list.error} retry={() => list.refetch()} />
-        ) : issues.length === 0 ? (
-          <StreamEmpty org={org} tab={tab} query={query} onReset={() => setSearch({ query: DEFAULT_QUERY })} />
-        ) : (
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-            {items.map((vi) => {
-              const issue = issues[vi.index]
-              return (
-                <div key={vi.key} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: vi.size, transform: `translateY(${vi.start}px)` }}>
-                  {issue ? (
-                    <IssueRow
-                      issue={issue}
-                      org={org}
-                      selected={selected.has(issue.id)}
-                      focused={issue.id === focusedId}
-                      onToggle={toggle}
-                      onFocus={setFocusedId}
-                      onAssign={assignOne}
-                      statsPeriod={stats}
-                      rowIndex={vi.index + 1}
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Loading more…</div>
-                  )}
-                </div>
-              )
-            })}
+      <div className="flex min-h-0 flex-1">
+        <div className={cn('flex min-w-0 flex-1 flex-col', split && 'max-w-[52%] min-w-[520px]')}>
+          {/* column header */}
+          <div
+            className="hidden h-7 shrink-0 items-center gap-3 border-b pr-4 pl-[54px] text-[11px] font-medium tracking-wide text-muted-foreground uppercase sm:flex"
+            aria-hidden
+          >
+            <span className="flex-1">Issue</span>
+            {!split && <span className="hidden w-24 text-right lg:block">Last seen</span>}
+            {!split && <span className="hidden w-[100px] md:block">Graph · {stats}</span>}
+            <span className="w-16 text-right">Events</span>
+            <span className="w-14 text-right">Users</span>
+            <span className="w-8" />
           </div>
+
+          {newIssues.length > 0 && (
+            <button
+              type="button"
+              onClick={showNew}
+              className="flex items-center justify-center gap-2 border-b bg-brand-soft py-1.5 text-[13px] font-medium text-brand-text hover:brightness-[0.98]"
+            >
+              <ArrowUp className="size-3.5" /> {newIssues.length === 50 ? '50+' : newIssues.length} new {newIssues.length === 1 ? 'issue' : 'issues'} · Show
+            </button>
+          )}
+
+          <div
+            ref={scrollRef}
+            className="relative min-h-0 flex-1 overflow-y-auto contain-strict"
+            role={issues.length ? 'grid' : 'region'}
+            aria-label="Issues"
+            aria-rowcount={issues.length ? (total ?? rowCount) : undefined}
+            aria-busy={list.isFetching}
+          >
+            {list.isPending ? (
+              <ListSkeleton rows={12} />
+            ) : list.isError ? (
+              <ErrorState error={list.error} retry={() => list.refetch()} />
+            ) : issues.length === 0 ? (
+              <StreamEmpty org={org} tab={tab} query={query} onReset={() => setSearch({ query: DEFAULT_QUERY })} />
+            ) : (
+              <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+                {items.map((vi) => {
+                  const issue = issues[vi.index]
+                  return (
+                    <div key={vi.key} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: vi.size, transform: `translateY(${vi.start}px)` }}>
+                      {issue ? (
+                        <IssueRow
+                          issue={issue}
+                          org={org}
+                          selected={selected.has(issue.id)}
+                          focused={issue.id === focusedId}
+                          onToggle={toggle}
+                          onFocus={setFocusedId}
+                          onAssign={assignOne}
+                          statsPeriod={stats}
+                          rowIndex={vi.index + 1}
+                          previewing={split}
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Loading more…</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+        {split && (
+          <aside className="min-w-0 flex-1 overflow-y-auto border-l" aria-label="Issue preview">
+            {previewId ? (
+              <Suspense fallback={<ListSkeleton rows={4} />}>
+                <IssuePreview key={previewId} org={org} issueId={previewId} />
+              </Suspense>
+            ) : (
+              <EmptyState compact icon={<PanelRight />} title="Nothing to preview" description="Select an issue with j and k, or click one." />
+            )}
+          </aside>
         )}
       </div>
 

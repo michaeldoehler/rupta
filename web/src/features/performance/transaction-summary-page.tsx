@@ -60,9 +60,7 @@ function VitalCard({ k, value, count }: { k: VitalName; value: number | null; co
       </div>
       <div className="mt-1.5 flex justify-between text-[11px] text-muted-foreground tabular">
         <span>p75 of {compact(count)}</span>
-        <span>
-          good ≤ {v.unit === 'ms' ? ms(v.good) : v.good}
-        </span>
+        <span>good ≤ {v.unit === 'ms' ? ms(v.good) : v.good}</span>
       </div>
     </div>
   )
@@ -74,7 +72,12 @@ export function TransactionSummaryPage({ name, projectId }: { name: string; proj
   const project = projectList?.find((p) => p.id === projectId)
   const scope = projectId ? [projectId] : projects
   const params = { project: scope, environment: environments, period }
-  const q = useQuery({ queryKey: tk.summary(org, name, params), queryFn: ({ signal }) => telemetryApi.performance.summary(org, name, params, signal), placeholderData: (p) => p, staleTime: 30_000 })
+  const q = useQuery({
+    queryKey: tk.summary(org, name, params),
+    queryFn: ({ signal }) => telemetryApi.performance.summary(org, name, params, signal),
+    placeholderData: (p) => p,
+    staleTime: 30_000,
+  })
   const d: TransactionSummary | undefined = q.data
   const isBrowser = d && (d.op === 'pageload' || d.op === 'navigation' || Object.values(d.vitals).some((v) => v && v.count > 0))
 
@@ -108,7 +111,11 @@ export function TransactionSummaryPage({ name, projectId }: { name: string; proj
         }
         actions={
           <Button asChild variant="outline" size="sm">
-            <Link to="/$org/profiles/aggregate" params={{ org }} search={(prev: Record<string, unknown>) => ({ ...prev, transaction: name, tx_project: projectId })}>
+            <Link
+              to="/$org/profiles/aggregate"
+              params={{ org }}
+              search={(prev: Record<string, unknown>) => ({ ...prev, transaction: name, tx_project: projectId })}
+            >
               <Flame /> Aggregated flamegraph
             </Link>
           </Button>
@@ -127,14 +134,25 @@ export function TransactionSummaryPage({ name, projectId }: { name: string; proj
                 <StatTile label="Count" value={compact(d.totals.count)} />
                 <StatTile label="p50" value={ms(d.totals.p50)} />
                 <StatTile label="p95" value={ms(d.totals.p95)} />
-                <StatTile label="Failure rate" value={pct(d.totals.failure_rate)} valueClassName={d.totals.failure_rate >= 0.02 ? 'text-destructive' : undefined} />
+                <StatTile
+                  label="Failure rate"
+                  value={pct(d.totals.failure_rate)}
+                  valueClassName={d.totals.failure_rate >= 0.02 ? 'text-destructive' : undefined}
+                />
                 <StatTile label="Apdex" value={d.totals.apdex.toFixed(2)} valueClassName={GRADE_TEXT[apdexGrade(d.totals.apdex)]} />
               </div>
             )
           )}
           <div className="grid gap-3 lg:grid-cols-2">
             <Panel title="Throughput" description="Transactions per interval">
-              <TimeSeriesChart loading={!d} type="bar" label="Throughput over time" series={[{ name: 'count', data: (d?.series ?? []).map((p) => [p.ts, p.count]), color: 'var(--series-2)' }]} format={(v) => compact(Math.round(v))} height={180} />
+              <TimeSeriesChart
+                loading={!d}
+                type="bar"
+                label="Throughput over time"
+                series={[{ name: 'count', data: (d?.series ?? []).map((p) => [p.ts, p.count]), color: 'var(--series-2)' }]}
+                format={(v) => compact(Math.round(v))}
+                height={180}
+              />
             </Panel>
             <Panel title="Duration" description="p50 and p95 per interval">
               <TimeSeriesChart
@@ -168,7 +186,14 @@ export function TransactionSummaryPage({ name, projectId }: { name: string; proj
                   label="Duration histogram"
                   buckets={d.histogram}
                   format={ms}
-                  lines={d.totals ? [{ value: d.totals.p50, label: 'p50' }, { value: d.totals.p95, label: 'p95' }] : []}
+                  lines={
+                    d.totals
+                      ? [
+                          { value: d.totals.p50, label: 'p50' },
+                          { value: d.totals.p95, label: 'p95' },
+                        ]
+                      : []
+                  }
                 />
               ) : (
                 <Skeleton className="h-[180px] w-full" />
@@ -186,7 +211,11 @@ export function TransactionSummaryPage({ name, projectId }: { name: string; proj
                 <ul className="divide-y">
                   {d.related_issues.map((i) => (
                     <li key={i.id}>
-                      <Link to="/$org/issues/$issueId" params={{ org, issueId: i.id }} className="flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-row-hover">
+                      <Link
+                        to="/$org/issues/$issueId"
+                        params={{ org, issueId: i.id }}
+                        className="flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-row-hover"
+                      >
                         <LevelDot level={i.level} />
                         <span className="min-w-0 flex-1 truncate">{i.title}</span>
                         <span className="font-mono text-[11px] text-muted-foreground">{i.short_id}</span>
@@ -224,7 +253,11 @@ export function TransactionSummaryPage({ name, projectId }: { name: string; proj
                     {d.slowest.map((s) => (
                       <TableRow key={s.trace_id}>
                         <TableCell className="pl-3">
-                          <Link to="/$org/traces/$traceId" params={{ org, traceId: s.trace_id }} className="inline-flex items-center gap-1.5 font-mono text-[12.5px] text-brand-text hover:underline">
+                          <Link
+                            to="/$org/traces/$traceId"
+                            params={{ org, traceId: s.trace_id }}
+                            className="inline-flex items-center gap-1.5 font-mono text-[12.5px] text-brand-text hover:underline"
+                          >
                             {s.status && s.status !== 'ok' && <span className="size-1.5 rounded-full bg-destructive" aria-label="failed" />}
                             {s.trace_id.slice(0, 16)}
                           </Link>
@@ -238,7 +271,11 @@ export function TransactionSummaryPage({ name, projectId }: { name: string; proj
                             {s.profile_id && s.project_id && (
                               <Tip content="Profile">
                                 <Button asChild variant="ghost" size="icon-xs">
-                                  <Link to="/$org/profiles/$project/$profileId" params={{ org, project: s.project_id, profileId: s.profile_id }} aria-label="Open profile">
+                                  <Link
+                                    to="/$org/profiles/$project/$profileId"
+                                    params={{ org, project: s.project_id, profileId: s.profile_id }}
+                                    aria-label="Open profile"
+                                  >
                                     <Flame />
                                   </Link>
                                 </Button>
@@ -247,7 +284,11 @@ export function TransactionSummaryPage({ name, projectId }: { name: string; proj
                             {s.replay_id && s.project_id && (
                               <Tip content="Session replay">
                                 <Button asChild variant="ghost" size="icon-xs">
-                                  <Link to="/$org/replays/$project/$replayId" params={{ org, project: s.project_id, replayId: s.replay_id }} aria-label="Open session replay">
+                                  <Link
+                                    to="/$org/replays/$project/$replayId"
+                                    params={{ org, project: s.project_id, replayId: s.replay_id }}
+                                    aria-label="Open session replay"
+                                  >
                                     <Film />
                                   </Link>
                                 </Button>

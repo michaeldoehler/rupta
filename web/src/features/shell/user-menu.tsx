@@ -1,31 +1,25 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Keyboard, LogOut, Monitor, Moon, Settings, Sun, UserRound } from 'lucide-react'
+import { Keyboard, LogOut, Settings, UserRound } from 'lucide-react'
 import { api } from '@/api/endpoints'
 import { qk, useSession } from '@/api/queries'
 import { UserAvatar } from '@/components/common/avatar'
-import { useTheme, type Theme } from '@/components/theme-provider'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useShell } from './shell-context'
 
-export function UserMenu({ org, collapsed }: { org: string; collapsed: boolean }) {
+/** Account menu; `compact` shows only the avatar (top bar). */
+export function UserMenu({ org, compact = false }: { org: string; compact?: boolean }) {
   const { data: session } = useSession()
-  const { theme, setTheme } = useTheme()
   const { openShortcuts } = useShell()
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -47,12 +41,12 @@ export function UserMenu({ org, collapsed }: { org: string; collapsed: boolean }
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className={cn('h-9 w-full justify-start gap-2 px-1.5', collapsed && 'justify-center px-0')}
-          aria-label={collapsed ? 'Account menu' : undefined}
+          className={cn('justify-start gap-2', compact ? 'size-8 rounded-full p-0' : 'h-9 w-full px-1.5')}
+          aria-label={compact ? `Account menu (${user.email})` : undefined}
           title="Account menu"
         >
           <UserAvatar name={user.name || user.email} src={user.avatar_url} />
-          {!collapsed && (
+          {!compact && (
             <span className="min-w-0 flex-1 text-left">
               <span className="block truncate text-[13px] leading-tight font-medium">{user.name || user.email}</span>
               <span className="block truncate text-[11px] leading-tight text-muted-foreground">{user.email}</span>
@@ -60,7 +54,7 @@ export function UserMenu({ org, collapsed }: { org: string; collapsed: boolean }
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" className="w-60">
+      <DropdownMenuContent align="end" side="bottom" className="w-60">
         <DropdownMenuLabel className="normal-case">{user.email}</DropdownMenuLabel>
         <DropdownMenuItem asChild>
           <Link to="/$org/settings/account" params={{ org }}>
@@ -72,16 +66,6 @@ export function UserMenu({ org, collapsed }: { org: string; collapsed: boolean }
             <Settings /> Organization settings
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>{theme === 'dark' ? <Moon /> : theme === 'light' ? <Sun /> : <Monitor />} Theme</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuRadioGroup value={theme} onValueChange={(v) => setTheme(v as Theme)}>
-              <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="system">System</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
         <DropdownMenuItem onSelect={openShortcuts}>
           <Keyboard /> Keyboard shortcuts <DropdownMenuShortcut>?</DropdownMenuShortcut>
         </DropdownMenuItem>

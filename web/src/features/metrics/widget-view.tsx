@@ -21,7 +21,18 @@ export const OPS_BY_TYPE: Record<MetricType, MetricOp[]> = {
   set: ['count_unique', 'count'],
 }
 
-export const OP_LABEL: Record<MetricOp, string> = { sum: 'Sum', avg: 'Average', min: 'Minimum', max: 'Maximum', count: 'Count', count_unique: 'Distinct values', p50: 'p50', p75: 'p75', p95: 'p95', p99: 'p99' }
+export const OP_LABEL: Record<MetricOp, string> = {
+  sum: 'Sum',
+  avg: 'Average',
+  min: 'Minimum',
+  max: 'Maximum',
+  count: 'Count',
+  count_unique: 'Distinct values',
+  p50: 'p50',
+  p75: 'p75',
+  p95: 'p95',
+  p99: 'p99',
+}
 
 /** Ops that add up across groups, so bars and areas can stack. */
 export const STACKABLE: MetricOp[] = ['sum', 'count', 'count_unique']
@@ -34,7 +45,15 @@ interface Scope {
 }
 
 export function useMetricSeries(scope: Scope, q: { name?: string; op?: MetricOp; group_by?: string; query?: string }, enabled = true) {
-  const params = { name: q.name ?? '', op: q.op ?? 'sum', group_by: q.group_by || undefined, query: q.query || undefined, period: scope.period, project: scope.project, environment: scope.environment }
+  const params = {
+    name: q.name ?? '',
+    op: q.op ?? 'sum',
+    group_by: q.group_by || undefined,
+    query: q.query || undefined,
+    period: scope.period,
+    project: scope.project,
+    environment: scope.environment,
+  }
   return useQuery({
     queryKey: tk.metricQuery(scope.org, params),
     queryFn: ({ signal }) => telemetryApi.metrics.query(scope.org, params, signal),
@@ -51,37 +70,91 @@ function MetricWidget({ w, scope, height }: { w: Widget; scope: Scope; height: n
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} className="py-6" />
   const unit = w.query.op === 'count' ? null : (meta?.unit ?? null)
   const series: ChartSeries[] = (q.data?.series ?? []).map((s) => ({ name: s.group || w.query.name || '', data: s.data }))
-  return <TimeSeriesChart series={series} type={w.chart} loading={q.isPending} height={height} format={(v) => withUnit(v, unit)} stacked={w.chart !== 'line' && STACKABLE.includes(w.query.op ?? 'sum')} label={w.title || `${w.query.op} of ${w.query.name}`} />
+  return (
+    <TimeSeriesChart
+      series={series}
+      type={w.chart}
+      loading={q.isPending}
+      height={height}
+      format={(v) => withUnit(v, unit)}
+      stacked={w.chart !== 'line' && STACKABLE.includes(w.query.op ?? 'sum')}
+      label={w.title || `${w.query.op} of ${w.query.name}`}
+    />
+  )
 }
 
 function TransactionWidget({ w, scope, height }: { w: Widget; scope: Scope; height: number }) {
   const name = w.query.transaction ?? ''
   const params = { project: scope.project, environment: scope.environment, period: scope.period }
-  const q = useQuery({ queryKey: tk.summary(scope.org, name, params), queryFn: ({ signal }) => telemetryApi.performance.summary(scope.org, name, params, signal), enabled: Boolean(name), staleTime: 30_000, placeholderData: keepPreviousData })
+  const q = useQuery({
+    queryKey: tk.summary(scope.org, name, params),
+    queryFn: ({ signal }) => telemetryApi.performance.summary(scope.org, name, params, signal),
+    enabled: Boolean(name),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  })
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} className="py-6" />
   const field = w.query.field ?? 'p95'
   const data = (q.data?.series ?? []).map((p) => [p.ts, p[field]] as [number, number])
-  return <TimeSeriesChart series={[{ name: field, data }]} type={w.chart} loading={q.isPending} height={height} format={field === 'count' ? (v) => compact(Math.round(v)) : ms} label={w.title || `${field} of ${name}`} />
+  return (
+    <TimeSeriesChart
+      series={[{ name: field, data }]}
+      type={w.chart}
+      loading={q.isPending}
+      height={height}
+      format={field === 'count' ? (v) => compact(Math.round(v)) : ms}
+      label={w.title || `${field} of ${name}`}
+    />
+  )
 }
 
 function LogsWidget({ w, scope, height }: { w: Widget; scope: Scope; height: number }) {
   const params = { project: scope.project, environment: scope.environment, period: scope.period, query: w.query.query ?? '' }
-  const q = useQuery({ queryKey: tk.logHistogram(scope.org, params), queryFn: ({ signal }) => telemetryApi.logs.histogram(scope.org, params, signal), staleTime: 30_000, placeholderData: keepPreviousData })
+  const q = useQuery({
+    queryKey: tk.logHistogram(scope.org, params),
+    queryFn: ({ signal }) => telemetryApi.logs.histogram(scope.org, params, signal),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  })
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} className="py-6" />
   const levels = [...LOG_LEVELS].reverse().filter((l) => (q.data?.buckets ?? []).some((b) => b.counts[l]))
-  const series: ChartSeries[] = levels.map((l) => ({ name: l, color: LOG_LEVEL_VAR[l], data: (q.data?.buckets ?? []).map((b) => [b.ts, b.counts[l] ?? 0] as [number, number]) }))
-  return <TimeSeriesChart series={series} type={w.chart} loading={q.isPending} height={height} stacked format={(v) => compact(Math.round(v))} label={w.title || 'Log lines'} />
+  const series: ChartSeries[] = levels.map((l) => ({
+    name: l,
+    color: LOG_LEVEL_VAR[l],
+    data: (q.data?.buckets ?? []).map((b) => [b.ts, b.counts[l] ?? 0] as [number, number]),
+  }))
+  return (
+    <TimeSeriesChart
+      series={series}
+      type={w.chart}
+      loading={q.isPending}
+      height={height}
+      stacked
+      format={(v) => compact(Math.round(v))}
+      label={w.title || 'Log lines'}
+    />
+  )
 }
 
 function IssuesWidget({ w, scope, height }: { w: Widget; scope: Scope; height: number }) {
   const q = useQuery({
     queryKey: ['issues', 'widget', scope, w.query.query],
-    queryFn: ({ signal }) => api.issues.list(scope.org, { project: scope.project, environment: scope.environment, query: w.query.query || 'is:unresolved', sort: 'freq', limit: 6 }, signal),
+    queryFn: ({ signal }) =>
+      api.issues.list(
+        scope.org,
+        { project: scope.project, environment: scope.environment, query: w.query.query || 'is:unresolved', sort: 'freq', limit: 6 },
+        signal,
+      ),
     staleTime: 30_000,
   })
   if (q.isPending) return <Skeleton className="w-full" style={{ height }} />
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} className="py-6" />
-  if (!q.data.data.length) return <div className="flex items-center justify-center text-xs text-muted-foreground" style={{ height }}>No matching issues</div>
+  if (!q.data.data.length)
+    return (
+      <div className="flex items-center justify-center text-xs text-muted-foreground" style={{ height }}>
+        No matching issues
+      </div>
+    )
   return (
     <ul className="divide-y overflow-y-auto" style={{ maxHeight: height }}>
       {q.data.data.map((i) => (

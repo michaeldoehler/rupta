@@ -73,7 +73,9 @@ export function ProfilesPage() {
     {
       j: () => setFocused((f) => Math.min(rows.length - 1, f + 1)),
       k: () => setFocused((f) => Math.max(0, f - 1)),
-      Enter: () => rows[focused] && void navigate({ to: '/$org/profiles/$project/$profileId', params: { org, project: rows[focused].project_id, profileId: rows[focused].profile_id } }),
+      Enter: () =>
+        rows[focused] &&
+        void navigate({ to: '/$org/profiles/$project/$profileId', params: { org, project: rows[focused].project_id, profileId: rows[focused].profile_id } }),
     },
     [rows, focused],
   )
@@ -82,7 +84,13 @@ export function ProfilesPage() {
       <ExploreHeader title="Profiles" tabs={<SectionTabs label="Profiling sections" items={PROFILE_TABS(org)} />}>
         <div className="relative max-w-md">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Filter by transaction" className="pl-8" aria-label="Filter profiles by transaction" />
+          <Input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Filter by transaction"
+            className="pl-8"
+            aria-label="Filter profiles by transaction"
+          />
         </div>
       </ExploreHeader>
       {list.isPending ? (
@@ -90,7 +98,15 @@ export function ProfilesPage() {
       ) : list.isError ? (
         <ErrorState error={list.error} retry={() => list.refetch()} />
       ) : rows.length === 0 ? (
-        <EmptyState icon={<Flame />} title={text ? 'No profiles match' : 'No profiles yet'} description={text ? 'Try another transaction or a longer period.' : 'Enable profiling in your SDK (for example profilesSampleRate or profiles_sample_rate together with tracing).'} />
+        <EmptyState
+          icon={<Flame />}
+          title={text ? 'No profiles match' : 'No profiles yet'}
+          description={
+            text
+              ? 'Try another transaction or a longer period.'
+              : 'Enable profiling in your SDK (for example profilesSampleRate or profiles_sample_rate together with tracing).'
+          }
+        />
       ) : (
         <InfiniteVirtualList
           label="Profiles"
@@ -102,13 +118,29 @@ export function ProfilesPage() {
           isFetchingNextPage={list.isFetchingNextPage}
           focusedIndex={focused}
           header={
-            <div className={cn(COLS, 'sticky top-0 z-10 h-8 border-b bg-background/95 text-[11px] font-medium tracking-wide text-muted-foreground uppercase backdrop-blur')} role="row">
+            <div
+              className={cn(
+                COLS,
+                'sticky top-0 z-10 h-8 border-b bg-background/95 text-[11px] font-medium tracking-wide text-muted-foreground uppercase backdrop-blur',
+              )}
+              role="row"
+            >
               <span role="columnheader">Transaction</span>
-              <span role="columnheader" className="hidden md:block">Project</span>
-              <span role="columnheader" className="text-right">Duration</span>
-              <span role="columnheader" className="hidden md:block">Release</span>
-              <span role="columnheader" className="hidden md:block">Environment</span>
-              <span role="columnheader" className="text-right">When</span>
+              <span role="columnheader" className="hidden md:block">
+                Project
+              </span>
+              <span role="columnheader" className="text-right">
+                Duration
+              </span>
+              <span role="columnheader" className="hidden md:block">
+                Release
+              </span>
+              <span role="columnheader" className="hidden md:block">
+                Environment
+              </span>
+              <span role="columnheader" className="text-right">
+                When
+              </span>
             </div>
           }
           render={(p, i) => <ProfileListRow p={p} org={org} project={projectList?.find((x) => x.id === p.project_id)} focused={i === focused} />}
@@ -123,7 +155,11 @@ export function ProfileTransactionsPage() {
   const { org, projects, environments, period } = useGlobalFilters()
   const { data: projectList } = useProjects(org)
   const params = { project: projects, environment: environments, period }
-  const q = useQuery({ queryKey: tk.profiles(org, { ...params, all: true }), queryFn: ({ signal }) => telemetryApi.profiles.list(org, { ...params, limit: 1000 }, signal), staleTime: 60_000 })
+  const q = useQuery({
+    queryKey: tk.profiles(org, { ...params, all: true }),
+    queryFn: ({ signal }) => telemetryApi.profiles.list(org, { ...params, limit: 1000 }, signal),
+    staleTime: 60_000,
+  })
   const groups = useMemo(() => {
     const m = new Map<string, { name: string; project_id: string; count: number; durations: number[]; last: string; platform: string | null }>()
     for (const p of q.data?.data ?? []) {
@@ -187,7 +223,13 @@ function ViewerFallback() {
   )
 }
 
-function FlamegraphSection({ q, durationMs }: { q: { data?: Flamegraph; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown }; durationMs?: number | null }) {
+function FlamegraphSection({
+  q,
+  durationMs,
+}: {
+  q: { data?: Flamegraph; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown }
+  durationMs?: number | null
+}) {
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} />
   if (q.isPending || !q.data) return <ViewerFallback />
   if (!q.data.root.total_weight) return <EmptyState icon={<Flame />} title="No samples" description="The profile has no samples on the profiled thread." />
@@ -201,11 +243,18 @@ function FlamegraphSection({ q, durationMs }: { q: { data?: Flamegraph; isPendin
 export function ProfilePage({ project, profileId }: { project: string; profileId: string }) {
   const { org, projects, period } = useGlobalFilters()
   const { data: projectList } = useProjects(org)
-  const q = useQuery({ queryKey: tk.flamegraph(org, project, profileId), queryFn: () => telemetryApi.profiles.flamegraph(org, project, profileId), staleTime: Infinity })
+  const q = useQuery({
+    queryKey: tk.flamegraph(org, project, profileId),
+    queryFn: () => telemetryApi.profiles.flamegraph(org, project, profileId),
+    staleTime: Infinity,
+  })
   // The list row has the metadata; the flamegraph endpoint has the tree.
   const meta = useQuery({
     queryKey: tk.profiles(org, { find: profileId, projects, period }),
-    queryFn: async () => (await telemetryApi.profiles.list(org, { project: [project].filter((p) => /^\d+$/.test(p)), period: '90d', limit: 100 })).data.find((p) => p.profile_id === profileId) ?? null,
+    queryFn: async () =>
+      (await telemetryApi.profiles.list(org, { project: [project].filter((p) => /^\d+$/.test(p)), period: '90d', limit: 100 })).data.find(
+        (p) => p.profile_id === profileId,
+      ) ?? null,
     staleTime: 60_000,
   })
   const m = meta.data
@@ -240,7 +289,11 @@ export function ProfilePage({ project, profileId }: { project: string; profileId
             )}
             {m?.transaction_name && (
               <Button asChild variant="outline" size="sm">
-                <Link to="/$org/profiles/aggregate" params={{ org }} search={(prev: Record<string, unknown>) => ({ ...prev, transaction: m.transaction_name!, tx_project: m.project_id })}>
+                <Link
+                  to="/$org/profiles/aggregate"
+                  params={{ org }}
+                  search={(prev: Record<string, unknown>) => ({ ...prev, transaction: m.transaction_name!, tx_project: m.project_id })}
+                >
                   <Flame /> Aggregated
                 </Link>
               </Button>
@@ -256,7 +309,11 @@ export function ProfilePage({ project, profileId }: { project: string; profileId
       <div className="space-y-3 p-3 sm:p-5">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <StatTile label="Duration" value={m ? ms(m.duration_ms) : '—'} />
-          <StatTile label="Samples" value={q.data ? q.data.samples.toLocaleString('en-US') : '—'} hint={q.data && m ? `≈ ${ms(m.duration_ms / Math.max(1, q.data.samples))} per sample` : undefined} />
+          <StatTile
+            label="Samples"
+            value={q.data ? q.data.samples.toLocaleString('en-US') : '—'}
+            hint={q.data && m ? `≈ ${ms(m.duration_ms / Math.max(1, q.data.samples))} per sample` : undefined}
+          />
           <StatTile label="Release" value={<span className="font-mono text-sm">{m?.release ?? '—'}</span>} hint={m?.environment ?? undefined} />
           <StatTile label="Recorded" value={m ? <RelativeTime date={m.start} suffix /> : '—'} hint={m ? absolute(m.start) : undefined} />
         </div>
@@ -270,7 +327,12 @@ export function AggregateProfilePage({ transaction, projectId }: { transaction: 
   const { org, projects, environments, period } = useGlobalFilters()
   const scope = projectId ? [projectId] : projects
   const params = { transaction, project: scope, environment: environments, period }
-  const q = useQuery({ queryKey: tk.aggregate(org, params), queryFn: () => telemetryApi.profiles.aggregate(org, params), enabled: Boolean(transaction), staleTime: 60_000 })
+  const q = useQuery({
+    queryKey: tk.aggregate(org, params),
+    queryFn: () => telemetryApi.profiles.aggregate(org, params),
+    enabled: Boolean(transaction),
+    staleTime: 60_000,
+  })
   return (
     <div>
       <ExploreHeader
@@ -286,14 +348,21 @@ export function AggregateProfilePage({ transaction, projectId }: { transaction: 
         }
         actions={
           <Button asChild variant="outline" size="sm">
-            <Link to="/$org/performance/summary" params={{ org }} search={(prev: Record<string, unknown>) => ({ ...prev, name: transaction, tx_project: projectId })}>
+            <Link
+              to="/$org/performance/summary"
+              params={{ org }}
+              search={(prev: Record<string, unknown>) => ({ ...prev, name: transaction, tx_project: projectId })}
+            >
               Transaction summary
             </Link>
           </Button>
         }
       />
       <div className="p-3 sm:p-5">
-        <p className="mb-3 text-[13px] text-muted-foreground">Merged from the latest profiles (at most 50) of this transaction in the period. Widths are shares of all samples; time order is the order calls were first seen across profiles.</p>
+        <p className="mb-3 text-[13px] text-muted-foreground">
+          Merged from the latest profiles (at most 50) of this transaction in the period. Widths are shares of all samples; time order is the order calls were
+          first seen across profiles.
+        </p>
         <FlamegraphSection q={q} />
       </div>
     </div>

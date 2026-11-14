@@ -64,13 +64,7 @@ describe('buildSpanTree', () => {
 describe('critical path and self time', () => {
   it('follows the latest-ending child chain', () => {
     // a: 0..100; b: 0..40, c: 45..95 (critical), c1 inside c ends last; e overlaps b
-    const roots = buildSpanTree([
-      span('a', null, 0, 100),
-      span('b', 'a', 0, 40),
-      span('e', 'a', 5, 20),
-      span('c', 'a', 45, 50),
-      span('c1', 'c', 50, 44),
-    ])
+    const roots = buildSpanTree([span('a', null, 0, 100), span('b', 'a', 0, 40), span('e', 'a', 5, 20), span('c', 'a', 45, 50), span('c1', 'c', 50, 44)])
     const path = criticalPath(roots)
     expect([...path].sort()).toEqual(['a', 'b', 'c', 'c1'])
     expect(path.has('e')).toBe(false)
@@ -96,7 +90,15 @@ describe('normTrace', () => {
     const t = normTrace(
       {
         transactions: [{ span_id: 'root', name: 'GET /', op: 'http.server', start_timestamp: 1700000000.5, duration_ms: 120 }],
-        spans: [{ span_id: 'a', parent_span_id: 'root', start_timestamp: 1700000000.6, timestamp: 1700000000.7, children: [{ span_id: 'b', parent_span_id: 'a', start: '2023-11-14T22:13:20.650Z', duration: 5 }] }],
+        spans: [
+          {
+            span_id: 'a',
+            parent_span_id: 'root',
+            start_timestamp: 1700000000.6,
+            timestamp: 1700000000.7,
+            children: [{ span_id: 'b', parent_span_id: 'a', start: '2023-11-14T22:13:20.650Z', duration: 5 }],
+          },
+        ],
         errors: [{ event_id: 'e1', issue_id: 7, span_id: 'b', timestamp: '2023-11-14T22:13:20.652Z', title: 'Boom' }],
         logs_count: 3,
       },

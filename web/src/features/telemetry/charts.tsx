@@ -26,7 +26,19 @@ function tickTime(span: number) {
   }
 }
 
-function ChartTooltip({ active, payload, label, format, names }: { active?: boolean; payload?: { dataKey?: unknown; value?: unknown; color?: string }[]; label?: unknown; format: (v: number) => string; names: string[] }) {
+function ChartTooltip({
+  active,
+  payload,
+  label,
+  format,
+  names,
+}: {
+  active?: boolean
+  payload?: { dataKey?: unknown; value?: unknown; color?: string }[]
+  label?: unknown
+  format: (v: number) => string
+  names: string[]
+}) {
   if (!active || !payload?.length) return null
   const rows = payload.filter((p) => p.value !== null && p.value !== undefined).sort((a, b) => Number(b.value) - Number(a.value))
   return (
@@ -112,11 +124,31 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
   const axes = (
     <>
       <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
-      <XAxis dataKey="ts" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={tickTime(span)} tick={AXIS} tickLine={false} axisLine={false} minTickGap={40} />
+      <XAxis
+        dataKey="ts"
+        type="number"
+        scale="time"
+        domain={['dataMin', 'dataMax']}
+        tickFormatter={tickTime(span)}
+        tick={AXIS}
+        tickLine={false}
+        axisLine={false}
+        minTickGap={40}
+      />
       <YAxis tickFormatter={(v: number) => format(v)} tick={AXIS} tickLine={false} axisLine={false} width={56} allowDecimals />
-      <Tooltip content={<ChartTooltip format={format} names={names} />} cursor={type === 'bar' ? { fill: 'var(--accent)' } : { stroke: 'var(--muted-foreground)', strokeDasharray: '3 3' }} isAnimationActive={false} />
+      <Tooltip
+        content={<ChartTooltip format={format} names={names} />}
+        cursor={type === 'bar' ? { fill: 'var(--accent)' } : { stroke: 'var(--muted-foreground)', strokeDasharray: '3 3' }}
+        isAnimationActive={false}
+      />
       {markers.map((m) => (
-        <ReferenceLine key={m.ts} x={m.ts} stroke="var(--muted-foreground)" strokeDasharray="2 3" label={{ value: m.label, position: 'insideTopLeft', fontSize: 10, fill: 'var(--muted-foreground)' }} />
+        <ReferenceLine
+          key={m.ts}
+          x={m.ts}
+          stroke="var(--muted-foreground)"
+          strokeDasharray="2 3"
+          label={{ value: m.label, position: 'insideTopLeft', fontSize: 10, fill: 'var(--muted-foreground)' }}
+        />
       ))}
     </>
   )
@@ -126,7 +158,14 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
       <BarChart {...common} barCategoryGap={1}>
         {axes}
         {shown.map((_, i) => (
-          <Bar key={i} dataKey={`s${i}`} stackId={stacked ? 'a' : undefined} fill={colors[i]} radius={stacked && i < shown.length - 1 ? 0 : [2, 2, 0, 0]} isAnimationActive={false} />
+          <Bar
+            key={i}
+            dataKey={`s${i}`}
+            stackId={stacked ? 'a' : undefined}
+            fill={colors[i]}
+            radius={stacked && i < shown.length - 1 ? 0 : [2, 2, 0, 0]}
+            isAnimationActive={false}
+          />
         ))}
       </BarChart>
     )
@@ -135,7 +174,19 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
       <AreaChart {...common}>
         {axes}
         {shown.map((_, i) => (
-          <Area key={i} dataKey={`s${i}`} type="monotone" stackId={stacked ? 'a' : undefined} stroke={colors[i]} strokeWidth={1.5} fill={colors[i]} fillOpacity={stacked ? 0.35 : 0.14} connectNulls isAnimationActive={false} dot={false} />
+          <Area
+            key={i}
+            dataKey={`s${i}`}
+            type="monotone"
+            stackId={stacked ? 'a' : undefined}
+            stroke={colors[i]}
+            strokeWidth={1.5}
+            fill={colors[i]}
+            fillOpacity={stacked ? 0.35 : 0.14}
+            connectNulls
+            isAnimationActive={false}
+            dot={false}
+          />
         ))}
       </AreaChart>
     )
@@ -144,7 +195,17 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
       <LineChart {...common}>
         {axes}
         {shown.map((_, i) => (
-          <Line key={i} dataKey={`s${i}`} type="monotone" stroke={colors[i]} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--card)' }} connectNulls isAnimationActive={false} />
+          <Line
+            key={i}
+            dataKey={`s${i}`}
+            type="monotone"
+            stroke={colors[i]}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--card)' }}
+            connectNulls
+            isAnimationActive={false}
+          />
         ))}
       </LineChart>
     )
@@ -175,13 +236,27 @@ export function HistogramChart({
   label: string
 }) {
   const data = buckets.map((b) => ({ x: (b.start + b.end) / 2, count: b.count, start: b.start, end: b.end }))
-  if (!data.length) return <div className="flex items-center justify-center text-xs text-muted-foreground" style={{ height }}>No data</div>
+  if (!data.length)
+    return (
+      <div className="flex items-center justify-center text-xs text-muted-foreground" style={{ height }}>
+        No data
+      </div>
+    )
   return (
     <div style={{ height }} role="img" aria-label={label}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 14, right: 8, bottom: 0, left: 0 }} barCategoryGap={1}>
           <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
-          <XAxis dataKey="x" type="number" domain={['dataMin', 'dataMax']} tickFormatter={format} tick={AXIS} tickLine={false} axisLine={false} minTickGap={30} />
+          <XAxis
+            dataKey="x"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            tickFormatter={format}
+            tick={AXIS}
+            tickLine={false}
+            axisLine={false}
+            minTickGap={30}
+          />
           <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44} allowDecimals={false} tickFormatter={(v: number) => compact(v)} />
           <Tooltip
             isAnimationActive={false}
@@ -199,7 +274,13 @@ export function HistogramChart({
           />
           <Bar dataKey="count" fill="var(--series-2)" radius={[2, 2, 0, 0]} isAnimationActive={false} />
           {lines.map((l) => (
-            <ReferenceLine key={l.label} x={l.value} stroke="var(--brand)" strokeDasharray="3 3" label={{ value: l.label, position: 'top', fontSize: 10, fill: 'var(--muted-foreground)' }} />
+            <ReferenceLine
+              key={l.label}
+              x={l.value}
+              stroke="var(--brand)"
+              strokeDasharray="3 3"
+              label={{ value: l.label, position: 'top', fontSize: 10, fill: 'var(--muted-foreground)' }}
+            />
           ))}
         </BarChart>
       </ResponsiveContainer>

@@ -61,7 +61,12 @@ export function TransactionsPage({ sort, onSort }: { sort: TransactionSort; onSo
   }, [rows])
 
   const project = (id: string | null) => projectList?.find((p) => p.id === id)
-  const open = (r: TransactionRow) => void navigate({ to: '/$org/performance/summary', params: { org }, search: (prev: Record<string, unknown>) => ({ ...prev, name: r.name, tx_project: r.project_id ?? undefined }) })
+  const open = (r: TransactionRow) =>
+    void navigate({
+      to: '/$org/performance/summary',
+      params: { org },
+      search: (prev: Record<string, unknown>) => ({ ...prev, name: r.name, tx_project: r.project_id ?? undefined }),
+    })
 
   useHotkeys(
     {
@@ -128,8 +133,18 @@ export function TransactionsPage({ sort, onSort }: { sort: TransactionSort; onSo
         <>
           <div className="grid grid-cols-2 gap-2 px-3 pt-3 sm:grid-cols-4 sm:px-5">
             <StatTile label="Throughput" value={`${rate(totals.tpm)} tpm`} hint={`${compact(totals.count)} transactions`} />
-            <StatTile label="Failure rate" value={pct(totals.failure)} valueClassName={totals.failure > 0.01 ? 'text-destructive' : undefined} hint="Status other than ok" />
-            <StatTile label="Apdex" value={totals.apdex.toFixed(2)} valueClassName={GRADE_TEXT[apdexGrade(totals.apdex)]} hint="Weighted by count, T = 300 ms" />
+            <StatTile
+              label="Failure rate"
+              value={pct(totals.failure)}
+              valueClassName={totals.failure > 0.01 ? 'text-destructive' : undefined}
+              hint="Status other than ok"
+            />
+            <StatTile
+              label="Apdex"
+              value={totals.apdex.toFixed(2)}
+              valueClassName={GRADE_TEXT[apdexGrade(totals.apdex)]}
+              hint="Weighted by count, T = 300 ms"
+            />
             <StatTile label="Slowest p95" value={ms(totals.slowest?.p95)} hint={totals.slowest?.name} />
           </div>
           <div className="mt-3 overflow-x-auto border-t">
@@ -154,7 +169,7 @@ export function TransactionsPage({ sort, onSort }: { sort: TransactionSort; onSo
                       </span>
                     </Tip>
                   </TableHead>
-                  <TableHead className="hidden pr-4 text-right xl:table-cell sm:pr-6">
+                  <TableHead className="hidden pr-4 text-right sm:pr-6 xl:table-cell">
                     <SortButton label="Count" active={!clientSort && sort === 'count'} onClick={() => (setClientSort(null), onSort('count'))} />
                   </TableHead>
                 </TableRow>
@@ -163,7 +178,12 @@ export function TransactionsPage({ sort, onSort }: { sort: TransactionSort; onSo
                 {rows.map((r, i) => {
                   const p = project(r.project_id)
                   return (
-                    <TableRow key={`${r.project_id}-${r.name}`} data-focused={i === focused || undefined} className={cn(i === focused && 'bg-row-selected')} onMouseEnter={() => setFocused(i)}>
+                    <TableRow
+                      key={`${r.project_id}-${r.name}`}
+                      data-focused={i === focused || undefined}
+                      className={cn(i === focused && 'bg-row-selected')}
+                      onMouseEnter={() => setFocused(i)}
+                    >
                       <TableCell className="max-w-0 pl-4 sm:pl-6">
                         <Link
                           to="/$org/performance/summary"
@@ -172,7 +192,7 @@ export function TransactionsPage({ sort, onSort }: { sort: TransactionSort; onSo
                           className="group flex min-w-0 items-center gap-2"
                         >
                           <PlatformIcon platform={p?.platform} size="sm" />
-                          <span className="truncate font-mono text-[13px] font-medium group-hover:text-brand-text group-hover:underline">{r.name}</span>
+                          <span className="truncate font-mono text-[13px] font-medium group-hover:text-brand group-hover:underline">{r.name}</span>
                           {r.op && (
                             <Badge variant="outline" className="hidden font-mono font-normal sm:inline-flex">
                               {r.op}
@@ -184,10 +204,19 @@ export function TransactionsPage({ sort, onSort }: { sort: TransactionSort; onSo
                       <TableCell className="text-right tabular">{ms(r.p50)}</TableCell>
                       <TableCell className="hidden text-right tabular md:table-cell">{ms(r.p75)}</TableCell>
                       <TableCell className={cn('text-right font-medium tabular', r.p95 > 3000 && 'text-warning')}>{ms(r.p95)}</TableCell>
-                      <TableCell className="hidden text-right tabular text-muted-foreground lg:table-cell">{ms(r.p99)}</TableCell>
-                      <TableCell className={cn('text-right tabular', r.failure_rate >= 0.02 ? 'text-destructive' : r.failure_rate >= 0.005 ? 'text-warning' : 'text-muted-foreground')}>{pct(r.failure_rate)}</TableCell>
-                      <TableCell className={cn('hidden text-right font-medium tabular sm:table-cell', GRADE_TEXT[apdexGrade(r.apdex)])}>{r.apdex.toFixed(2)}</TableCell>
-                      <TableCell className="hidden pr-4 text-right tabular text-muted-foreground xl:table-cell sm:pr-6">{thousands(r.count)}</TableCell>
+                      <TableCell className="hidden text-right text-muted-foreground tabular lg:table-cell">{ms(r.p99)}</TableCell>
+                      <TableCell
+                        className={cn(
+                          'text-right tabular',
+                          r.failure_rate >= 0.02 ? 'text-destructive' : r.failure_rate >= 0.005 ? 'text-warning' : 'text-muted-foreground',
+                        )}
+                      >
+                        {pct(r.failure_rate)}
+                      </TableCell>
+                      <TableCell className={cn('hidden text-right font-medium tabular sm:table-cell', GRADE_TEXT[apdexGrade(r.apdex)])}>
+                        {r.apdex.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="hidden pr-4 text-right text-muted-foreground tabular sm:pr-6 xl:table-cell">{thousands(r.count)}</TableCell>
                     </TableRow>
                   )
                 })}

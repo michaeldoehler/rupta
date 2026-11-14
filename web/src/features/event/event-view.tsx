@@ -197,7 +197,8 @@ const ERROR_TEXT: Record<string, string> = {
   past_timestamp: 'The event timestamp was too far in the past and was adjusted.',
 }
 
-export function EventView({ event, issue, org }: { event: RuptaEvent; issue: Issue | IssueDetail; org: string }) {
+/** `related`: show the trace and replay links (the issue page shows them in its context panel). */
+export function EventView({ event, issue, org, related = true }: { event: RuptaEvent; issue: Issue | IssueDetail; org: string; related?: boolean }) {
   const [opts, setOpts] = useState<StacktraceOptions>({ inAppOnly: true, newestFirst: true, view: 'symbolicated', expandAll: false })
   const values = event.exception?.values ?? []
   const ordered = opts.newestFirst ? [...values].reverse() : values
@@ -225,7 +226,7 @@ export function EventView({ event, issue, org }: { event: RuptaEvent; issue: Iss
 
       <EventSection id="highlights" title="Highlights">
         <Highlights event={event} org={org} />
-        <Related event={event} org={org} />
+        {related && <Related event={event} org={org} />}
         {event.errors && event.errors.length > 0 && (
           <div className="mt-3 flex gap-2.5 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-[13px]" role="note">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />

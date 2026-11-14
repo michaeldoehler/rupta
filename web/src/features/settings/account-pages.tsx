@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Monitor, Moon, Plus, Sun } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { ApiError, errorMessage } from '@/api/client'
@@ -9,14 +9,11 @@ import type { UserPreferences } from '@/api/types'
 import { UserAvatar } from '@/components/common/avatar'
 import { Field, FormError } from '@/components/common/field'
 import { CardsSkeleton } from '@/components/common/states'
-import { useTheme, type Theme } from '@/components/theme-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { absolute, setTimePreferences } from '@/lib/format'
-import { cn } from '@/lib/utils'
 import { SettingsCard, SettingsPage, ToggleRow } from './settings-layout'
 import { CreateTokenDialog, TokenTable } from './tokens'
 
@@ -35,7 +32,6 @@ function timezones(): string[] {
 export function ProfilePage() {
   const user = useUser()
   const qc = useQueryClient()
-  const { theme, setTheme } = useTheme()
   const [name, setName] = useState('')
   useEffect(() => {
     if (user.data) setName(user.data.name)
@@ -57,13 +53,8 @@ export function ProfilePage() {
     )
   if (!user.data) return null
   const prefs = user.data.preferences
-  const themes: { v: Theme; label: string; icon: React.ReactNode }[] = [
-    { v: 'light', label: 'Light', icon: <Sun className="size-4" /> },
-    { v: 'dark', label: 'Dark', icon: <Moon className="size-4" /> },
-    { v: 'system', label: 'System', icon: <Monitor className="size-4" /> },
-  ]
   return (
-    <SettingsPage title="Profile & preferences" description="How you appear to others and how rupta looks for you.">
+    <SettingsPage title="Profile & preferences" description="How you appear to others, and how times are shown.">
       <SettingsCard
         title="Profile"
         footer={
@@ -84,30 +75,6 @@ export function ProfilePage() {
             </Field>
           </div>
         </div>
-      </SettingsCard>
-
-      <SettingsCard title="Theme" description="Stored in this browser.">
-        <RadioGroup
-          value={theme}
-          onValueChange={(v) => {
-            setTheme(v as Theme)
-            update.mutate({ preferences: { ...prefs, theme: v as Theme } })
-          }} className="grid grid-cols-3 gap-3" aria-label="Theme">
-          {themes.map((t) => (
-            <label
-              key={t.v}
-              className={cn(
-                'flex cursor-pointer flex-col items-center gap-2 rounded-lg border p-3 text-[13px] hover:bg-accent',
-                theme === t.v && 'border-brand ring-1 ring-brand',
-              )}
-            >
-              <ThemePreview mode={t.v} />
-              <span className="flex items-center gap-2">
-                <RadioGroupItem value={t.v} aria-label={t.label} /> {t.icon} {t.label}
-              </span>
-            </label>
-          ))}
-        </RadioGroup>
       </SettingsCard>
 
       <SettingsCard title="Time" description={`Saved in this browser. Times are shown like this: ${absolute(new Date(), { seconds: true })}`}>
@@ -138,21 +105,6 @@ export function ProfilePage() {
       </SettingsCard>
     </SettingsPage>
   )
-}
-
-function ThemePreview({ mode }: { mode: Theme }) {
-  const half = mode === 'system'
-  const pane = (dark: boolean) => (
-    <div className={cn('flex h-full flex-1 gap-1 p-1.5', dark ? 'bg-[oklch(0.17_0.004_60)]' : 'bg-[oklch(0.985_0.002_75)]')}>
-      <div className={cn('w-3 rounded-sm', dark ? 'bg-white/10' : 'bg-black/8')} />
-      <div className="flex flex-1 flex-col gap-1">
-        <div className={cn('h-1.5 w-3/4 rounded-sm', dark ? 'bg-white/25' : 'bg-black/20')} />
-        <div className={cn('h-1.5 w-1/2 rounded-sm', dark ? 'bg-white/15' : 'bg-black/10')} />
-        <div className="h-1.5 w-1/3 rounded-sm bg-brand" />
-      </div>
-    </div>
-  )
-  return <div className="flex h-14 w-full overflow-hidden rounded-md border">{half ? [pane(false), pane(true)] : pane(mode === 'dark')}</div>
 }
 
 export function SecurityPage() {
@@ -309,8 +261,8 @@ export function NotificationsPage() {
       </SettingsCard>
       <p className="text-xs text-muted-foreground">
         Issue alerts, workflow and the weekly report are saved on the server; deploy notifications only in this browser. No weekly report is sent yet: the
-        choice is stored for when it is. Today, who gets emailed is decided by the
-        recipients of each alert rule. Email delivery needs SMTP on the server (RUPTA_SMTP_URL).
+        choice is stored for when it is. Today, who gets emailed is decided by the recipients of each alert rule. Email delivery needs SMTP on the server
+        (RUPTA_SMTP_URL).
       </p>
     </SettingsPage>
   )

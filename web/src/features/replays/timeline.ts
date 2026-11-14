@@ -77,7 +77,14 @@ export function extractBreadcrumbs(events: RecordingEvent[]): Crumb[] {
     // Internal bookkeeping crumbs are noise for people.
     if (category.startsWith('replay.') || category === 'sentry.transaction') continue
     const ts = p.timestamp !== undefined ? sdkMs(p.timestamp) : e.timestamp
-    out.push({ offset: Math.max(0, ts - start), timestamp: ts, category, level: String(p.level ?? 'info'), message: String(p.message ?? ''), data: obj(p.data) })
+    out.push({
+      offset: Math.max(0, ts - start),
+      timestamp: ts,
+      category,
+      level: String(p.level ?? 'info'),
+      message: String(p.message ?? ''),
+      data: obj(p.data),
+    })
   }
   return out.sort((a, b) => a.timestamp - b.timestamp)
 }
@@ -133,7 +140,8 @@ export function buildMarkers(events: RecordingEvent[], errors: ReplayError[] = [
   } else {
     for (const e of events) {
       const d = obj(e.data)
-      if (e.type === EV.Incremental && d.source === SOURCE_MOUSE_INTERACTION && d.type === MOUSE_CLICK) markers.push({ kind: 'click', offset: clamp(e.timestamp), label: 'Click' })
+      if (e.type === EV.Incremental && d.source === SOURCE_MOUSE_INTERACTION && d.type === MOUSE_CLICK)
+        markers.push({ kind: 'click', offset: clamp(e.timestamp), label: 'Click' })
     }
   }
 
@@ -146,7 +154,9 @@ export function buildMarkers(events: RecordingEvent[], errors: ReplayError[] = [
     }
   }
   if (!navs.length) {
-    for (const c of crumbs) if (c.category === 'navigation') navs.push({ kind: 'navigation', offset: clamp(c.timestamp), label: String(c.data.to ?? c.message), ref: String(c.data.to ?? '') })
+    for (const c of crumbs)
+      if (c.category === 'navigation')
+        navs.push({ kind: 'navigation', offset: clamp(c.timestamp), label: String(c.data.to ?? c.message), ref: String(c.data.to ?? '') })
   }
   if (!navs.length) {
     for (const e of events) {
@@ -162,7 +172,9 @@ export function buildMarkers(events: RecordingEvent[], errors: ReplayError[] = [
   const timed = errors.filter((e) => e.timestamp)
   for (const err of timed) markers.push({ kind: 'error', offset: clamp(err.timestamp), label: err.title, ref: err.event_id })
   // Without error times, console errors the SDK recorded mark where things failed.
-  if (!timed.length) for (const c of crumbs) if (c.category === 'console' && c.level === 'error') markers.push({ kind: 'error', offset: clamp(c.timestamp), label: c.message || 'Console error' })
+  if (!timed.length)
+    for (const c of crumbs)
+      if (c.category === 'console' && c.level === 'error') markers.push({ kind: 'error', offset: clamp(c.timestamp), label: c.message || 'Console error' })
   return markers.sort((a, b) => a.offset - b.offset)
 }
 

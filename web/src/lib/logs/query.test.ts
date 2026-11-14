@@ -69,7 +69,9 @@ describe('toggleLogFilter', () => {
 
 describe('facets and suggestions', () => {
   it('counts top values per attribute and skips per-row unique ones', () => {
-    const rows = Array.from({ length: 40 }, (_, i) => row({ id: String(i), level: i % 4 === 0 ? 'warn' : 'info', attributes: { 'service.name': i % 2 ? 'api' : 'worker', 'request.id': `r${i}` } }))
+    const rows = Array.from({ length: 40 }, (_, i) =>
+      row({ id: String(i), level: i % 4 === 0 ? 'warn' : 'info', attributes: { 'service.name': i % 2 ? 'api' : 'worker', 'request.id': `r${i}` } }),
+    )
     const facets = computeFacets(rows)
     expect(facets[0].key).toBe('level')
     expect(facets[0].values[0]).toEqual({ value: 'info', count: 30 })

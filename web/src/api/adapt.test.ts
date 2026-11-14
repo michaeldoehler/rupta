@@ -32,7 +32,11 @@ describe('adapters for the server API', () => {
     expect(issueUpdateBody({ assignee: { type: 'team', id: '2' } })).toEqual({ assignee: 'team:2' })
     expect(issueUpdateBody({ assignee: null })).toEqual({ assignee: null })
     expect(issueUpdateBody({ status: 'resolved', resolved_in_next_release: true })).toEqual({ status: 'resolved', resolved_in: 'next_release' })
-    expect(issueUpdateBody({ status: 'ignored', ignore_user_count: 100, ignore_user_window: 60 })).toEqual({ status: 'ignored', ignore_user_count: 100, ignore_user_window: 60 })
+    expect(issueUpdateBody({ status: 'ignored', ignore_user_count: 100, ignore_user_window: 60 })).toEqual({
+      status: 'ignored',
+      ignore_user_count: 100,
+      ignore_user_window: 60,
+    })
   })
 
   it('reads issues resolved in the next release', () => {

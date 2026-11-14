@@ -163,7 +163,13 @@ export function summary(t: Telemetry, world: World, def: TxDef, period: string) 
     const existing = t.sampled.get(trace_id)
     const duration = existing?.duration ?? round(percentile(def, 'p99') * (2.4 - i * 0.12) * (0.95 + r.float() * 0.1))
     const start = existing?.start ?? t.now - r.int(1, 55) * MIN
-    const profile = existing ? existing.profile : def.op === 'http.server' || def.browser || def.op === 'queue.process' ? (i % 3 === 0 ? profileIdFor(def.name, i) : undefined) : undefined
+    const profile = existing
+      ? existing.profile
+      : def.op === 'http.server' || def.browser || def.op === 'queue.process'
+        ? i % 3 === 0
+          ? profileIdFor(def.name, i)
+          : undefined
+        : undefined
     if (!existing) t.sampled.set(trace_id, { def: TX.indexOf(def), duration, start, profile })
     return {
       trace_id,
@@ -185,7 +191,13 @@ export function summary(t: Telemetry, world: World, def: TxDef, period: string) 
     .map((i) => ({ id: i.id, short_id: i.short_id, title: i.title, level: i.level, count: Math.round(i.count / 6) }))
   const v = def.browser ? VITALS_BASE[def.name] : undefined
   const vitals = v
-    ? { lcp: { p75: v[0], count: Math.round(total * 0.8) }, fcp: { p75: v[1], count: Math.round(total * 0.9) }, cls: { p75: v[2], count: Math.round(total * 0.8) }, inp: { p75: v[3], count: Math.round(total * 0.5) }, ttfb: { p75: v[4], count: total } }
+    ? {
+        lcp: { p75: v[0], count: Math.round(total * 0.8) },
+        fcp: { p75: v[1], count: Math.round(total * 0.9) },
+        cls: { p75: v[2], count: Math.round(total * 0.8) },
+        inp: { p75: v[3], count: Math.round(total * 0.5) },
+        ttfb: { p75: v[4], count: total },
+      }
     : {}
   const row = transactionRow(def, projectId, period)
   // The server's shape: `stats`, `interval` seconds, `web_vitals`.
@@ -264,7 +276,15 @@ const SQL = [
 ]
 
 /** A server transaction with middleware, database, cache and outbound spans. */
-function serverTx(b: TraceBuilder, parent: MockSpan | null, project: string, name: string, start: number, duration: number, opts: { fail?: boolean; nPlusOne?: boolean; errorSpan?: string; profile?: string; long?: boolean } = {}) {
+function serverTx(
+  b: TraceBuilder,
+  parent: MockSpan | null,
+  project: string,
+  name: string,
+  start: number,
+  duration: number,
+  opts: { fail?: boolean; nPlusOne?: boolean; errorSpan?: string; profile?: string; long?: boolean } = {},
+) {
   const r = b.rng
   const projectId = b.projects.get(project) ?? ''
   const segId = b.id()
@@ -280,7 +300,15 @@ function serverTx(b: TraceBuilder, parent: MockSpan | null, project: string, nam
     start_timestamp: start,
     duration_ms: duration,
     status: opts.fail ? 'internal_error' : 'ok',
-    data: project === 'worker' ? { 'messaging.system': 'redis', 'messaging.destination.name': 'orders', 'job.attempt': 1 } : { 'http.request.method': name.split(' ')[0], 'http.route': name.split(' ')[1] ?? name, 'http.response.status_code': opts.fail ? 500 : 200, 'server.address': `${project}-7d9f${r.hex(2)}` },
+    data:
+      project === 'worker'
+        ? { 'messaging.system': 'redis', 'messaging.destination.name': 'orders', 'job.attempt': 1 }
+        : {
+            'http.request.method': name.split(' ')[0],
+            'http.route': name.split(' ')[1] ?? name,
+            'http.response.status_code': opts.fail ? 500 : 200,
+            'server.address': `${project}-7d9f${r.hex(2)}`,
+          },
     tags: { environment: 'production', 'service.name': project },
     profile_id: opts.profile ?? null,
   })
@@ -290,11 +318,28 @@ function serverTx(b: TraceBuilder, parent: MockSpan | null, project: string, nam
     const batches = 120
     for (let i = 0; i < batches && t < start + duration - 200; i++) {
       const batchDur = (duration - 300) / batches
-      const batch = b.add({ parent_span_id: segId, project_id: projectId, segment_id: segId, op: 'function', description: `index_batch(${i * 200}..${i * 200 + 199})`, start_timestamp: t, duration_ms: batchDur * 0.95 })
+      const batch = b.add({
+        parent_span_id: segId,
+        project_id: projectId,
+        segment_id: segId,
+        op: 'function',
+        description: `index_batch(${i * 200}..${i * 200 + 199})`,
+        start_timestamp: t,
+        duration_ms: batchDur * 0.95,
+      })
       let u = t + 2
       for (let k = 0; k < 10; k++) {
         const d = batchDur * 0.09 * (0.6 + r.float() * 0.5)
-        b.add({ parent_span_id: batch.span_id, project_id: projectId, segment_id: segId, op: k % 3 === 2 ? 'http.client' : 'db.query', description: k % 3 === 2 ? 'POST http://search:9200/_bulk' : SQL[k % 3], start_timestamp: u, duration_ms: d, data: k % 3 === 2 ? { 'http.response.status_code': 200 } : { 'db.system': 'postgresql', 'db.rows': 200 } })
+        b.add({
+          parent_span_id: batch.span_id,
+          project_id: projectId,
+          segment_id: segId,
+          op: k % 3 === 2 ? 'http.client' : 'db.query',
+          description: k % 3 === 2 ? 'POST http://search:9200/_bulk' : SQL[k % 3],
+          start_timestamp: u,
+          duration_ms: d,
+          data: k % 3 === 2 ? { 'http.response.status_code': 200 } : { 'db.system': 'postgresql', 'db.rows': 200 },
+        })
         u += d + 0.4
       }
       t += batchDur
@@ -302,7 +347,20 @@ function serverTx(b: TraceBuilder, parent: MockSpan | null, project: string, nam
     return seg
   }
   let t = start + Math.min(3, duration * 0.02)
-  const mw = b.add({ parent_span_id: segId, project_id: projectId, segment_id: segId, op: 'middleware', description: project === 'billing' ? 'Illuminate\\Auth\\Middleware\\Authenticate' : project === 'worker' ? 'bullmq.worker.run' : 'django.contrib.sessions.middleware.SessionMiddleware', start_timestamp: t, duration_ms: duration * 0.96 })
+  const mw = b.add({
+    parent_span_id: segId,
+    project_id: projectId,
+    segment_id: segId,
+    op: 'middleware',
+    description:
+      project === 'billing'
+        ? 'Illuminate\\Auth\\Middleware\\Authenticate'
+        : project === 'worker'
+          ? 'bullmq.worker.run'
+          : 'django.contrib.sessions.middleware.SessionMiddleware',
+    start_timestamp: t,
+    duration_ms: duration * 0.96,
+  })
   t += duration * 0.03
   const end = start + duration * 0.97
   const step = (frac: number) => {
@@ -313,7 +371,16 @@ function serverTx(b: TraceBuilder, parent: MockSpan | null, project: string, nam
   }
   {
     const [s0, d] = step(0.04)
-    b.add({ parent_span_id: mw.span_id, project_id: projectId, segment_id: segId, op: 'cache.get', description: `session:${r.hex(12)}`, start_timestamp: s0, duration_ms: d, data: { 'cache.hit': true, 'cache.item_size': 412, 'network.peer.address': 'redis:6379' } })
+    b.add({
+      parent_span_id: mw.span_id,
+      project_id: projectId,
+      segment_id: segId,
+      op: 'cache.get',
+      description: `session:${r.hex(12)}`,
+      start_timestamp: s0,
+      duration_ms: d,
+      data: { 'cache.hit': true, 'cache.item_size': 412, 'network.peer.address': 'redis:6379' },
+    })
   }
   const queries = opts.nPlusOne ? 14 : 2 + r.int(0, 3)
   for (let i = 0; i < queries; i++) {
@@ -345,17 +412,35 @@ function serverTx(b: TraceBuilder, parent: MockSpan | null, project: string, nam
       start_timestamp: s0,
       duration_ms: d,
       status: isErr ? 'deadline_exceeded' : 'ok',
-      data: { 'http.request.method': 'POST', 'http.response.status_code': isErr ? 504 : 200, 'server.address': project === 'worker' ? 'api.postmarkapp.com' : 'api.stripe.com' },
+      data: {
+        'http.request.method': 'POST',
+        'http.response.status_code': isErr ? 504 : 200,
+        'server.address': project === 'worker' ? 'api.postmarkapp.com' : 'api.stripe.com',
+      },
     })
   }
   {
     const [s0, d] = step(0.08)
-    b.add({ parent_span_id: mw.span_id, project_id: projectId, segment_id: segId, op: project === 'billing' ? 'view.render' : 'serialize', description: project === 'billing' ? 'invoices/show.blade.php' : 'ProductSerializer.data', start_timestamp: s0, duration_ms: d })
+    b.add({
+      parent_span_id: mw.span_id,
+      project_id: projectId,
+      segment_id: segId,
+      op: project === 'billing' ? 'view.render' : 'serialize',
+      description: project === 'billing' ? 'invoices/show.blade.php' : 'ProductSerializer.data',
+      start_timestamp: s0,
+      duration_ms: d,
+    })
   }
   return seg
 }
 
-function browserTx(b: TraceBuilder, def: TxDef, start: number, duration: number, opts: { fail?: boolean; errorSpan?: string; profile?: string; errorProject?: string }) {
+function browserTx(
+  b: TraceBuilder,
+  def: TxDef,
+  start: number,
+  duration: number,
+  opts: { fail?: boolean; errorSpan?: string; profile?: string; errorProject?: string },
+) {
   const r = b.rng
   const projectId = b.projects.get(def.project) ?? ''
   const segId = b.id()
@@ -376,19 +461,80 @@ function browserTx(b: TraceBuilder, def: TxDef, start: number, duration: number,
   })
   const ttfb = Math.min(duration * 0.25, 120 + r.float() * 300)
   if (def.op === 'pageload') {
-    b.add({ parent_span_id: segId, project_id: projectId, segment_id: segId, op: 'browser.request', description: 'Request document', start_timestamp: start + 2, duration_ms: ttfb })
+    b.add({
+      parent_span_id: segId,
+      project_id: projectId,
+      segment_id: segId,
+      op: 'browser.request',
+      description: 'Request document',
+      start_timestamp: start + 2,
+      duration_ms: ttfb,
+    })
     let t = start + ttfb + 8
-    const assets = ['/assets/index-3f9a2c1d.js', '/assets/vendor-react-8b21.js', '/assets/router-4c90.js', '/assets/index-d81a.css', '/assets/fonts/geist-latin.woff2', '/img/hero@2x.avif', '/img/products/trail-jacket.avif']
+    const assets = [
+      '/assets/index-3f9a2c1d.js',
+      '/assets/vendor-react-8b21.js',
+      '/assets/router-4c90.js',
+      '/assets/index-d81a.css',
+      '/assets/fonts/geist-latin.woff2',
+      '/img/hero@2x.avif',
+      '/img/products/trail-jacket.avif',
+    ]
     for (const a of assets) {
       const d = 20 + r.float() * duration * 0.18
-      b.add({ parent_span_id: segId, project_id: projectId, segment_id: segId, op: a.endsWith('.js') ? 'resource.script' : a.endsWith('.css') ? 'resource.css' : a.includes('font') ? 'resource.font' : 'resource.img', description: a, start_timestamp: t, duration_ms: d, data: { 'http.response_content_length': r.int(4_000, 240_000), 'http.response_transfer_size': r.int(2_000, 90_000), 'resource.render_blocking_status': a.endsWith('.css') ? 'blocking' : 'non-blocking' } })
+      b.add({
+        parent_span_id: segId,
+        project_id: projectId,
+        segment_id: segId,
+        op: a.endsWith('.js') ? 'resource.script' : a.endsWith('.css') ? 'resource.css' : a.includes('font') ? 'resource.font' : 'resource.img',
+        description: a,
+        start_timestamp: t,
+        duration_ms: d,
+        data: {
+          'http.response_content_length': r.int(4_000, 240_000),
+          'http.response_transfer_size': r.int(2_000, 90_000),
+          'resource.render_blocking_status': a.endsWith('.css') ? 'blocking' : 'non-blocking',
+        },
+      })
       t += 4 + r.float() * 16
     }
-    b.add({ parent_span_id: segId, project_id: projectId, segment_id: segId, op: 'browser.domContentLoadedEvent', description: 'DOMContentLoaded', start_timestamp: start + duration * 0.42, duration_ms: 6 })
-    b.add({ parent_span_id: segId, project_id: projectId, segment_id: segId, op: 'browser.loadEvent', description: 'load', start_timestamp: start + duration * 0.8, duration_ms: 9 })
+    b.add({
+      parent_span_id: segId,
+      project_id: projectId,
+      segment_id: segId,
+      op: 'browser.domContentLoadedEvent',
+      description: 'DOMContentLoaded',
+      start_timestamp: start + duration * 0.42,
+      duration_ms: 6,
+    })
+    b.add({
+      parent_span_id: segId,
+      project_id: projectId,
+      segment_id: segId,
+      op: 'browser.loadEvent',
+      description: 'load',
+      start_timestamp: start + duration * 0.8,
+      duration_ms: 9,
+    })
   }
-  b.add({ parent_span_id: segId, project_id: projectId, segment_id: segId, op: 'ui.long-task', description: 'Main UI thread blocked', start_timestamp: start + duration * 0.36, duration_ms: 60 + r.float() * 140 })
-  b.add({ parent_span_id: segId, project_id: projectId, segment_id: segId, op: 'ui.react.render', description: def.name === '/checkout' ? '<CheckoutPage>' : '<ProductPage>', start_timestamp: start + duration * 0.45, duration_ms: duration * 0.12 })
+  b.add({
+    parent_span_id: segId,
+    project_id: projectId,
+    segment_id: segId,
+    op: 'ui.long-task',
+    description: 'Main UI thread blocked',
+    start_timestamp: start + duration * 0.36,
+    duration_ms: 60 + r.float() * 140,
+  })
+  b.add({
+    parent_span_id: segId,
+    project_id: projectId,
+    segment_id: segId,
+    op: 'ui.react.render',
+    description: def.name === '/checkout' ? '<CheckoutPage>' : '<ProductPage>',
+    start_timestamp: start + duration * 0.45,
+    duration_ms: duration * 0.12,
+  })
   // API calls with their server transactions.
   const calls =
     def.name === '/checkout'
@@ -414,16 +560,38 @@ function browserTx(b: TraceBuilder, def: TxDef, start: number, duration: number,
       data: { 'http.request.method': call.split(' ')[0], 'http.response.status_code': failHere ? 502 : 200, 'http.response_content_length': r.int(800, 24000) },
     })
     const errHere = failHere && opts.errorProject === 'api' ? opts.errorSpan : undefined
-    const apiTx = serverTx(b, http, 'api', call, t + d * 0.08, d * 0.84, { fail: failHere, nPlusOne: call === 'GET /api/products' && r.chance(0.4), errorSpan: errHere })
+    const apiTx = serverTx(b, http, 'api', call, t + d * 0.08, d * 0.84, {
+      fail: failHere,
+      nPlusOne: call === 'GET /api/products' && r.chance(0.4),
+      errorSpan: errHere,
+    })
     if (call === 'POST /api/orders') {
       // the order is processed later by the worker
-      const pub = b.add({ parent_span_id: apiTx.span_id, project_id: apiTx.project_id, segment_id: apiTx.span_id, op: 'queue.publish', description: 'orders:process-order', start_timestamp: t + d * 0.7, duration_ms: 2.4 })
+      const pub = b.add({
+        parent_span_id: apiTx.span_id,
+        project_id: apiTx.project_id,
+        segment_id: apiTx.span_id,
+        op: 'queue.publish',
+        description: 'orders:process-order',
+        start_timestamp: t + d * 0.7,
+        duration_ms: 2.4,
+      })
       serverTx(b, pub, 'worker', 'process-order', t + d + 180, 420 + r.float() * 400, {})
     }
     t += d * (0.4 + r.float() * 0.5)
   }
   if (opts.errorSpan && opts.errorProject !== 'api') {
-    b.add({ span_id: opts.errorSpan, parent_span_id: segId, project_id: projectId, segment_id: segId, op: 'ui.action.click', description: 'button.place-order', start_timestamp: start + duration * 0.9, duration_ms: 12, status: 'internal_error' })
+    b.add({
+      span_id: opts.errorSpan,
+      parent_span_id: segId,
+      project_id: projectId,
+      segment_id: segId,
+      op: 'ui.action.click',
+      description: 'button.place-order',
+      start_timestamp: start + duration * 0.9,
+      duration_ms: 12,
+      status: 'internal_error',
+    })
   }
   return seg
 }
@@ -438,7 +606,10 @@ export function buildTrace(t: Telemetry, world: World, traceId: string) {
   if (sampled) def = TX[sampled.def]
   else if (issue) {
     const slug = world.projects.find((p) => p.id === issue.project_id)?.slug ?? 'web-app'
-    def = slug === 'web-app' || slug === 'storefront' ? TX.find((d) => d.project === slug && d.name === '/checkout')! ?? TX[2] : TX.find((d) => d.project === 'web-app' && d.name === '/checkout')!
+    def =
+      slug === 'web-app' || slug === 'storefront'
+        ? (TX.find((d) => d.project === slug && d.name === '/checkout')! ?? TX[2])
+        : TX.find((d) => d.project === 'web-app' && d.name === '/checkout')!
   } else {
     const browserDefs = TX.filter((d) => d.browser)
     def = browserDefs[hashString(traceId) % browserDefs.length]
@@ -448,25 +619,67 @@ export function buildTrace(t: Telemetry, world: World, traceId: string) {
   const errSpan = issue ? errorSpanId(traceId) : undefined
   const issueSlug = issue ? world.projects.find((p) => p.id === issue.project_id)?.slug : undefined
   const fail = Boolean(issue) || (sampled ? sampled.duration > percentile(def, 'p99') * 2 : rng.chance(0.25))
-  if (def.browser) browserTx(b, def, start, Math.max(duration, 300), { fail, errorSpan: errSpan, profile: sampled?.profile, errorProject: issueSlug === 'web-app' || issueSlug === 'storefront' ? 'browser' : 'api' })
-  else serverTx(b, null, def.project, def.name, start, duration, { fail, profile: sampled?.profile, long: def.name === 'reindex-search', errorSpan: errSpan, nPlusOne: def.name === 'GET /api/products' })
+  if (def.browser)
+    browserTx(b, def, start, Math.max(duration, 300), {
+      fail,
+      errorSpan: errSpan,
+      profile: sampled?.profile,
+      errorProject: issueSlug === 'web-app' || issueSlug === 'storefront' ? 'browser' : 'api',
+    })
+  else
+    serverTx(b, null, def.project, def.name, start, duration, {
+      fail,
+      profile: sampled?.profile,
+      long: def.name === 'reindex-search',
+      errorSpan: errSpan,
+      nPlusOne: def.name === 'GET /api/products',
+    })
 
   const errors: Record<string, unknown>[] = []
   if (issue) {
-    errors.push({ event_id: new Rng(`ev:${traceId}`).hex(32), issue_id: issue.id, short_id: issue.short_id, title: issue.title, level: issue.level, span_id: errSpan, project_id: issue.project_id, timestamp: iso(b.spans.find((s) => s.span_id === errSpan)?.start_timestamp ?? start) })
+    errors.push({
+      event_id: new Rng(`ev:${traceId}`).hex(32),
+      issue_id: issue.id,
+      short_id: issue.short_id,
+      title: issue.title,
+      level: issue.level,
+      span_id: errSpan,
+      project_id: issue.project_id,
+      timestamp: iso(b.spans.find((s) => s.span_id === errSpan)?.start_timestamp ?? start),
+    })
   } else {
     // spans that failed get an error event from a matching issue
     for (const s of b.spans.filter((x) => x.status !== 'ok').slice(0, 2)) {
       const candidates = world.issues.filter((i) => i.project_id === s.project_id && i.status === 'unresolved')
       const i = candidates[hashString(s.span_id) % Math.max(1, candidates.length)]
-      if (i) errors.push({ event_id: new Rng(`ev:${s.span_id}`).hex(32), issue_id: i.id, short_id: i.short_id, title: i.title, level: i.level, span_id: s.span_id, project_id: i.project_id, timestamp: iso(s.start_timestamp + s.duration_ms * 0.8) })
+      if (i)
+        errors.push({
+          event_id: new Rng(`ev:${s.span_id}`).hex(32),
+          issue_id: i.id,
+          short_id: i.short_id,
+          title: i.title,
+          level: i.level,
+          span_id: s.span_id,
+          project_id: i.project_id,
+          timestamp: iso(s.start_timestamp + s.duration_ms * 0.8),
+        })
     }
   }
   const logs = traceLogs(t, b.spans, errors.length > 0)
   const segs = b.spans.filter((s) => s.is_segment)
   return {
     trace_id: traceId,
-    transactions: segs.map((s) => ({ span_id: s.span_id, parent_span_id: s.parent_span_id, name: s.transaction, op: s.op, project_id: s.project_id, start_timestamp: s.start_timestamp, duration_ms: s.duration_ms, status: s.status, profile_id: s.profile_id })),
+    transactions: segs.map((s) => ({
+      span_id: s.span_id,
+      parent_span_id: s.parent_span_id,
+      name: s.transaction,
+      op: s.op,
+      project_id: s.project_id,
+      start_timestamp: s.start_timestamp,
+      duration_ms: s.duration_ms,
+      status: s.status,
+      profile_id: s.profile_id,
+    })),
     spans: nest(b.spans),
     errors,
     logs_count: logs.length,
@@ -479,7 +692,12 @@ function nest(spans: MockSpan[]) {
   const byId = new Map<string, Out>()
   for (const s of spans) {
     const { timestamp: _t, ...rest } = s
-    byId.set(s.span_id, { ...rest, start_timestamp: new Date(s.start_timestamp).toISOString(), end_timestamp: new Date(s.start_timestamp + s.duration_ms).toISOString(), children: [] })
+    byId.set(s.span_id, {
+      ...rest,
+      start_timestamp: new Date(s.start_timestamp).toISOString(),
+      end_timestamp: new Date(s.start_timestamp + s.duration_ms).toISOString(),
+      children: [],
+    })
   }
   const roots: Out[] = []
   for (const s of spans) {
@@ -506,20 +724,50 @@ export function traceLogs(t: Telemetry, spans: MockSpan[], failed: boolean): Moc
     if (s.is_segment) body = `Handling ${s.description}`
     else if (s.op === 'db.query') {
       level = s.duration_ms > 80 ? 'warn' : 'debug'
-      body = s.duration_ms > 80 ? `Slow query (${Math.round(s.duration_ms)} ms): ${s.description.slice(0, 60)}…` : `Query ${s.description.split(' ')[0]} took ${Math.round(s.duration_ms)} ms`
+      body =
+        s.duration_ms > 80
+          ? `Slow query (${Math.round(s.duration_ms)} ms): ${s.description.slice(0, 60)}…`
+          : `Query ${s.description.split(' ')[0]} took ${Math.round(s.duration_ms)} ms`
       attributes['db.system'] = 'postgresql'
       attributes.duration_ms = Math.round(s.duration_ms)
     } else if (s.op === 'queue.publish') body = `Enqueued job ${s.description}`
     else {
       level = s.status === 'ok' ? 'info' : 'error'
-      body = s.status === 'ok' ? `${s.description} → ${String(s.data['http.response.status_code'] ?? 200)}` : `Request failed: ${s.description} (${String(s.data['http.response.status_code'] ?? 'timeout')})`
+      body =
+        s.status === 'ok'
+          ? `${s.description} → ${String(s.data['http.response.status_code'] ?? 200)}`
+          : `Request failed: ${s.description} (${String(s.data['http.response.status_code'] ?? 'timeout')})`
       attributes['http.response.status_code'] = s.data['http.response.status_code'] ?? 504
     }
-    out.push({ id: `tl-${s.span_id}`, timestamp: at, project_id: s.project_id, trace_id: s.trace_id, span_id: s.span_id, level, body, attributes, environment: 'production', release: null, sdk: service === 'web-app' ? 'sentry.javascript.browser' : 'sentry.python.django' })
+    out.push({
+      id: `tl-${s.span_id}`,
+      timestamp: at,
+      project_id: s.project_id,
+      trace_id: s.trace_id,
+      span_id: s.span_id,
+      level,
+      body,
+      attributes,
+      environment: 'production',
+      release: null,
+      sdk: service === 'web-app' ? 'sentry.javascript.browser' : 'sentry.python.django',
+    })
   }
   if (failed) {
     const errSpan = spans.find((s) => s.status !== 'ok') ?? spans[0]
-    out.push({ id: `tl-err-${errSpan.span_id}`, timestamp: errSpan.start_timestamp + errSpan.duration_ms, project_id: errSpan.project_id, trace_id: errSpan.trace_id, span_id: errSpan.span_id, level: 'error', body: 'Unhandled exception while processing the request; see the linked issue', attributes: { 'service.name': 'api', 'exception.type': 'PaymentProviderTimeout' }, environment: 'production', release: null, sdk: 'sentry.python.django' })
+    out.push({
+      id: `tl-err-${errSpan.span_id}`,
+      timestamp: errSpan.start_timestamp + errSpan.duration_ms,
+      project_id: errSpan.project_id,
+      trace_id: errSpan.trace_id,
+      span_id: errSpan.span_id,
+      level: 'error',
+      body: 'Unhandled exception while processing the request; see the linked issue',
+      attributes: { 'service.name': 'api', 'exception.type': 'PaymentProviderTimeout' },
+      environment: 'production',
+      release: null,
+      sdk: 'sentry.python.django',
+    })
   }
   return out.sort((a, b) => a.timestamp - b.timestamp)
 }
@@ -556,24 +804,75 @@ const TEMPLATES_BY_SERVICE: Record<string, { sdk: string; templates: LogTemplate
         make: (r) => {
           const route = r.pick(ROUTES)
           const method = route.includes('orders') || route.includes('login') || route.includes('cart') ? r.pick(['POST', 'GET']) : 'GET'
-          const status = r.weighted([[200, 90], [201, 4], [304, 3], [404, 2], [400, 1]] as const)
+          const status = r.weighted([
+            [200, 90],
+            [201, 4],
+            [304, 3],
+            [404, 2],
+            [400, 1],
+          ] as const)
           const ms = Math.round(lognormalSimple(r, 40, 0.7))
-          return [`${method} ${route.replace('{id}', String(r.int(1, 900)))} ${status} in ${ms}ms`, { 'http.request.method': method, 'http.route': route, 'http.response.status_code': status, duration_ms: ms, 'user.id': String(r.int(1000, 9999)), 'server.address': `api-7d9f${r.hex(2)}` }]
+          return [
+            `${method} ${route.replace('{id}', String(r.int(1, 900)))} ${status} in ${ms}ms`,
+            {
+              'http.request.method': method,
+              'http.route': route,
+              'http.response.status_code': status,
+              duration_ms: ms,
+              'user.id': String(r.int(1000, 9999)),
+              'server.address': `api-7d9f${r.hex(2)}`,
+            },
+          ]
         },
       },
-      { level: 'debug', weight: 22, make: (r) => [`Cache ${r.chance(0.8) ? 'hit' : 'miss'} for products:page:${r.int(1, 30)}`, { 'cache.key': `products:page:${r.int(1, 30)}`, 'cache.hit': r.chance(0.8), 'server.address': `api-7d9f${r.hex(2)}` }] },
+      {
+        level: 'debug',
+        weight: 22,
+        make: (r) => [
+          `Cache ${r.chance(0.8) ? 'hit' : 'miss'} for products:page:${r.int(1, 30)}`,
+          { 'cache.key': `products:page:${r.int(1, 30)}`, 'cache.hit': r.chance(0.8), 'server.address': `api-7d9f${r.hex(2)}` },
+        ],
+      },
       {
         level: 'warn',
         weight: 6,
         make: (r) => {
           const ms = r.int(500, 2400)
-          return [`Slow query (${ms} ms): SELECT … FROM "orders" WHERE "customer_id" = %s`, { 'db.system': 'postgresql', 'db.operation': 'SELECT', duration_ms: ms, 'server.address': `api-7d9f${r.hex(2)}` }]
+          return [
+            `Slow query (${ms} ms): SELECT … FROM "orders" WHERE "customer_id" = %s`,
+            { 'db.system': 'postgresql', 'db.operation': 'SELECT', duration_ms: ms, 'server.address': `api-7d9f${r.hex(2)}` },
+          ]
         },
       },
-      { level: 'error', weight: 3, make: (r) => [`Payment provider request failed: timeout after 10000 ms (order ${r.int(10000, 19999)})`, { 'payment.provider': 'stripe', 'order.id': String(r.int(10000, 19999)), attempt: r.int(1, 3), 'http.response.status_code': 504 }] },
-      { level: 'info', weight: 5, make: (r) => [`User ${r.int(1000, 9999)} signed in`, { 'user.id': String(r.int(1000, 9999)), 'auth.method': r.pick(['password', 'sso', 'sso', 'magic_link']) }] },
-      { level: 'warn', weight: 2, make: (r) => [`Rate limit close for API token rpt_${r.hex(6)}: ${r.int(85, 99)}% used`, { 'token.prefix': `rpt_${r.hex(6)}` }] },
-      { level: 'trace', weight: 1, make: (r) => [`Entering ProductDetailView.get(id=${r.int(1, 900)})`, { 'code.function': 'ProductDetailView.get', 'code.filepath': 'shop/views/products.py' }] },
+      {
+        level: 'error',
+        weight: 3,
+        make: (r) => [
+          `Payment provider request failed: timeout after 10000 ms (order ${r.int(10000, 19999)})`,
+          { 'payment.provider': 'stripe', 'order.id': String(r.int(10000, 19999)), attempt: r.int(1, 3), 'http.response.status_code': 504 },
+        ],
+      },
+      {
+        level: 'info',
+        weight: 5,
+        make: (r) => [
+          `User ${r.int(1000, 9999)} signed in`,
+          { 'user.id': String(r.int(1000, 9999)), 'auth.method': r.pick(['password', 'sso', 'sso', 'magic_link']) },
+        ],
+      },
+      {
+        level: 'warn',
+        weight: 2,
+        make: (r) => [`Rate limit close for API token rpt_${r.hex(6)}: ${r.int(85, 99)}% used`, { 'token.prefix': `rpt_${r.hex(6)}` }],
+      },
+      {
+        level: 'trace',
+        weight: 1,
+        make: (r) => [
+          `Entering ProductDetailView.get(id=${r.int(1, 900)})`,
+          { 'code.function': 'ProductDetailView.get', 'code.filepath': 'shop/views/products.py' },
+        ],
+      },
     ],
   },
   worker: {
@@ -585,38 +884,120 @@ const TEMPLATES_BY_SERVICE: Record<string, { sdk: string; templates: LogTemplate
         make: (r) => {
           const job = r.pick(['process-order', 'send-email', 'send-email', 'sync-inventory'])
           const ms = r.int(80, 1400)
-          return [`Job ${job} completed in ${ms}ms`, { 'job.name': job, 'job.id': `${r.int(100000, 999999)}`, 'messaging.destination.name': r.pick(QUEUES), duration_ms: ms, attempt: 1 }]
+          return [
+            `Job ${job} completed in ${ms}ms`,
+            { 'job.name': job, 'job.id': `${r.int(100000, 999999)}`, 'messaging.destination.name': r.pick(QUEUES), duration_ms: ms, attempt: 1 },
+          ]
         },
       },
-      { level: 'debug', weight: 18, make: (r) => [`Polling queue ${r.pick(QUEUES)}: ${r.int(0, 12)} jobs waiting`, { 'messaging.destination.name': r.pick(QUEUES), 'queue.depth': r.int(0, 12) }] },
-      { level: 'warn', weight: 5, make: (r) => [`Retrying job send-email (attempt ${r.int(2, 4)}/5): SMTP 421 Too many connections`, { 'job.name': 'send-email', attempt: r.int(2, 4), 'smtp.code': 421 }] },
-      { level: 'error', weight: 2, make: (r) => [`Job sync-inventory failed: ECONNRESET while reading from warehouse API`, { 'job.name': 'sync-inventory', 'job.id': `${r.int(100000, 999999)}`, 'error.type': 'ECONNRESET' }] },
-      { level: 'fatal', weight: 0.15, make: () => ['Worker out of memory: heap limit reached (2048 MB), exiting', { 'process.runtime.name': 'node', 'process.memory.heap_limit_mb': 2048 }] },
+      {
+        level: 'debug',
+        weight: 18,
+        make: (r) => [
+          `Polling queue ${r.pick(QUEUES)}: ${r.int(0, 12)} jobs waiting`,
+          { 'messaging.destination.name': r.pick(QUEUES), 'queue.depth': r.int(0, 12) },
+        ],
+      },
+      {
+        level: 'warn',
+        weight: 5,
+        make: (r) => [
+          `Retrying job send-email (attempt ${r.int(2, 4)}/5): SMTP 421 Too many connections`,
+          { 'job.name': 'send-email', attempt: r.int(2, 4), 'smtp.code': 421 },
+        ],
+      },
+      {
+        level: 'error',
+        weight: 2,
+        make: (r) => [
+          `Job sync-inventory failed: ECONNRESET while reading from warehouse API`,
+          { 'job.name': 'sync-inventory', 'job.id': `${r.int(100000, 999999)}`, 'error.type': 'ECONNRESET' },
+        ],
+      },
+      {
+        level: 'fatal',
+        weight: 0.15,
+        make: () => ['Worker out of memory: heap limit reached (2048 MB), exiting', { 'process.runtime.name': 'node', 'process.memory.heap_limit_mb': 2048 }],
+      },
     ],
   },
   billing: {
     sdk: 'sentry.php.laravel',
     templates: [
-      { level: 'info', weight: 20, make: (r) => [`Invoice INV-2026-${String(r.int(1000, 9999)).padStart(5, '0')} created for ${r.pick(CUSTOMERS)}`, { 'invoice.amount': r.int(900, 99000) / 100, currency: 'EUR', 'customer.id': r.pick(CUSTOMERS) }] },
-      { level: 'info', weight: 10, make: (r) => [`Stripe webhook ${r.pick(['invoice.paid', 'payment_intent.succeeded', 'customer.updated'])} processed`, { 'webhook.provider': 'stripe', 'webhook.event': r.pick(['invoice.paid', 'payment_intent.succeeded']) }] },
-      { level: 'error', weight: 1.5, make: () => ['Stripe webhook signature verification failed', { 'webhook.provider': 'stripe', 'http.response.status_code': 400 }] },
-      { level: 'warn', weight: 2, make: (r) => [`PDF rendering took ${r.int(3000, 9000)} ms for invoice`, { duration_ms: r.int(3000, 9000), 'pdf.pages': r.int(1, 6) }] },
+      {
+        level: 'info',
+        weight: 20,
+        make: (r) => [
+          `Invoice INV-2026-${String(r.int(1000, 9999)).padStart(5, '0')} created for ${r.pick(CUSTOMERS)}`,
+          { 'invoice.amount': r.int(900, 99000) / 100, currency: 'EUR', 'customer.id': r.pick(CUSTOMERS) },
+        ],
+      },
+      {
+        level: 'info',
+        weight: 10,
+        make: (r) => [
+          `Stripe webhook ${r.pick(['invoice.paid', 'payment_intent.succeeded', 'customer.updated'])} processed`,
+          { 'webhook.provider': 'stripe', 'webhook.event': r.pick(['invoice.paid', 'payment_intent.succeeded']) },
+        ],
+      },
+      {
+        level: 'error',
+        weight: 1.5,
+        make: () => ['Stripe webhook signature verification failed', { 'webhook.provider': 'stripe', 'http.response.status_code': 400 }],
+      },
+      {
+        level: 'warn',
+        weight: 2,
+        make: (r) => [`PDF rendering took ${r.int(3000, 9000)} ms for invoice`, { duration_ms: r.int(3000, 9000), 'pdf.pages': r.int(1, 6) }],
+      },
     ],
   },
   gateway: {
     sdk: 'sentry.go',
     templates: [
-      { level: 'info', weight: 30, make: (r) => [`envelope accepted (${r.int(1, 6)} items, ${r.int(1, 220)} KiB)`, { 'project.id': String(r.int(1, 7)), 'envelope.items': r.int(1, 6), 'http.request.body.size': r.int(1000, 220000) }] },
-      { level: 'warn', weight: 1.2, make: (r) => [`rate limited project ${r.int(1, 7)}: 429 for category error`, { 'project.id': String(r.int(1, 7)), 'http.response.status_code': 429, 'rate_limit.category': 'error' }] },
+      {
+        level: 'info',
+        weight: 30,
+        make: (r) => [
+          `envelope accepted (${r.int(1, 6)} items, ${r.int(1, 220)} KiB)`,
+          { 'project.id': String(r.int(1, 7)), 'envelope.items': r.int(1, 6), 'http.request.body.size': r.int(1000, 220000) },
+        ],
+      },
+      {
+        level: 'warn',
+        weight: 1.2,
+        make: (r) => [
+          `rate limited project ${r.int(1, 7)}: 429 for category error`,
+          { 'project.id': String(r.int(1, 7)), 'http.response.status_code': 429, 'rate_limit.category': 'error' },
+        ],
+      },
       { level: 'debug', weight: 8, make: (r) => [`key cache refreshed: ${r.int(10, 40)} keys`, { 'cache.size': r.int(10, 40) }] },
     ],
   },
   'web-app': {
     sdk: 'sentry.javascript.browser',
     templates: [
-      { level: 'info', weight: 10, make: (r) => [`Route change to ${r.pick(['/checkout', '/cart', '/products/trail-jacket', '/account/orders', '/'])}`, { 'browser.name': r.pick(['Chrome', 'Safari', 'Firefox', 'Edge']), 'url.path': r.pick(['/checkout', '/cart']) }] },
-      { level: 'warn', weight: 3, make: (r) => [`Recommendation widget slow to load (${r.int(900, 3000)} ms)`, { 'browser.name': r.pick(['Chrome', 'Safari']), duration_ms: r.int(900, 3000) }] },
-      { level: 'error', weight: 1.2, make: () => ['Failed to fetch /api/orders: 502 Bad Gateway', { 'browser.name': 'Chrome', 'http.response.status_code': 502, 'url.path': '/checkout' }] },
+      {
+        level: 'info',
+        weight: 10,
+        make: (r) => [
+          `Route change to ${r.pick(['/checkout', '/cart', '/products/trail-jacket', '/account/orders', '/'])}`,
+          { 'browser.name': r.pick(['Chrome', 'Safari', 'Firefox', 'Edge']), 'url.path': r.pick(['/checkout', '/cart']) },
+        ],
+      },
+      {
+        level: 'warn',
+        weight: 3,
+        make: (r) => [
+          `Recommendation widget slow to load (${r.int(900, 3000)} ms)`,
+          { 'browser.name': r.pick(['Chrome', 'Safari']), duration_ms: r.int(900, 3000) },
+        ],
+      },
+      {
+        level: 'error',
+        weight: 1.2,
+        make: () => ['Failed to fetch /api/orders: 502 Bad Gateway', { 'browser.name': 'Chrome', 'http.response.status_code': 502, 'url.path': '/checkout' }],
+      },
       { level: 'debug', weight: 4, make: (r) => [`Feature flag new_checkout = ${r.chance(0.4) ? 'on' : 'off'}`, { 'feature.flag': 'new_checkout' }] },
     ],
   },
@@ -658,7 +1039,18 @@ function makeLog(rng: Rng, i: number, timestamp: number, projectIds: Map<string,
 /** One live log line at `timestamp` (live tail). */
 export function liveLog(t: Telemetry, seq: number, timestamp: number): MockLog {
   const rng = new Rng(`live:${seq}:${timestamp}`)
-  return makeLog(rng, 900_000 + seq, timestamp, t.projectIds, new Map(), t.logs.slice(0, 50).map((l) => l.trace_id).filter((x): x is string => Boolean(x)).concat(['0'.repeat(32)]))
+  return makeLog(
+    rng,
+    900_000 + seq,
+    timestamp,
+    t.projectIds,
+    new Map(),
+    t.logs
+      .slice(0, 50)
+      .map((l) => l.trace_id)
+      .filter((x): x is string => Boolean(x))
+      .concat(['0'.repeat(32)]),
+  )
 }
 
 function buildLogs(now: number, projectIds: Map<string, string>, world: World): MockLog[] {
@@ -714,18 +1106,53 @@ export interface MetricDef {
 }
 
 export const METRICS: MetricDef[] = [
-  { name: 'checkout.completed', type: 'counter', unit: null, project: 'web-app', base: 4.2, attributes: { payment_method: ['card', 'paypal', 'sepa', 'apple_pay'], country: ['DE', 'FR', 'NL', 'US'] } },
-  { name: 'checkout.failed', type: 'counter', unit: null, project: 'web-app', base: 0.18, attributes: { reason: ['payment_timeout', 'card_declined', 'validation'], payment_method: ['card', 'paypal'] } },
+  {
+    name: 'checkout.completed',
+    type: 'counter',
+    unit: null,
+    project: 'web-app',
+    base: 4.2,
+    attributes: { payment_method: ['card', 'paypal', 'sepa', 'apple_pay'], country: ['DE', 'FR', 'NL', 'US'] },
+  },
+  {
+    name: 'checkout.failed',
+    type: 'counter',
+    unit: null,
+    project: 'web-app',
+    base: 0.18,
+    attributes: { reason: ['payment_timeout', 'card_declined', 'validation'], payment_method: ['card', 'paypal'] },
+  },
   { name: 'cart.value', type: 'distribution', unit: 'euro', project: 'web-app', base: 84, attributes: { country: ['DE', 'FR', 'NL', 'US'] } },
-  { name: 'http.server.duration', type: 'distribution', unit: 'millisecond', project: 'api', base: 46, attributes: { route: ['/api/products', '/api/orders', '/api/users/me', '/api/search'], status_class: ['2xx', '4xx', '5xx'] } },
+  {
+    name: 'http.server.duration',
+    type: 'distribution',
+    unit: 'millisecond',
+    project: 'api',
+    base: 46,
+    attributes: { route: ['/api/products', '/api/orders', '/api/users/me', '/api/search'], status_class: ['2xx', '4xx', '5xx'] },
+  },
   { name: 'db.pool.in_use', type: 'gauge', unit: null, project: 'api', base: 14, attributes: { host: ['api-7d9f1a', 'api-7d9f2b', 'api-7d9f3c'] } },
   { name: 'cache.requests', type: 'counter', unit: null, project: 'api', base: 380, attributes: { result: ['hit', 'miss'], cache: ['products', 'sessions'] } },
   { name: 'users.active', type: 'set', unit: null, project: 'web-app', base: 220, attributes: { plan: ['free', 'pro', 'business'] } },
   { name: 'queue.depth', type: 'gauge', unit: null, project: 'worker', base: 9, attributes: { queue: QUEUES } },
-  { name: 'jobs.processed', type: 'counter', unit: null, project: 'worker', base: 62, attributes: { job: ['process-order', 'send-email', 'sync-inventory'], status: ['ok', 'failed'] } },
+  {
+    name: 'jobs.processed',
+    type: 'counter',
+    unit: null,
+    project: 'worker',
+    base: 62,
+    attributes: { job: ['process-order', 'send-email', 'sync-inventory'], status: ['ok', 'failed'] },
+  },
   { name: 'email.send.duration', type: 'distribution', unit: 'millisecond', project: 'worker', base: 310, attributes: { provider: ['postmark', 'ses'] } },
   { name: 'invoice.amount', type: 'distribution', unit: 'euro', project: 'billing', base: 240, attributes: { plan: ['pro', 'business', 'enterprise'] } },
-  { name: 'envelope.size', type: 'distribution', unit: 'byte', project: 'gateway', base: 18_400, attributes: { item_type: ['event', 'transaction', 'replay_recording', 'log'] } },
+  {
+    name: 'envelope.size',
+    type: 'distribution',
+    unit: 'byte',
+    project: 'gateway',
+    base: 18_400,
+    attributes: { item_type: ['event', 'transaction', 'replay_recording', 'log'] },
+  },
   { name: 'process.memory.rss', type: 'gauge', unit: 'byte', project: 'worker', base: 512_000_000, attributes: { host: ['worker-1', 'worker-2'] } },
 ]
 
@@ -753,7 +1180,12 @@ export function metricSeries(t: Telemetry, def: MetricDef, op: string, groupBy: 
       for (let i = 0; i < n; i++) {
         const ts = start + i * step
         const daily = 0.7 + 0.4 * Math.sin((((ts / HOUR) % 24) / 24) * 2 * Math.PI - 1.4)
-        const spike = def.name === 'checkout.failed' && Math.abs(ts - (t.now - 3 * HOUR)) < 25 * MIN ? 9 : def.name === 'queue.depth' && Math.abs(ts - (t.now - 3 * HOUR)) < 40 * MIN ? 6 : 1
+        const spike =
+          def.name === 'checkout.failed' && Math.abs(ts - (t.now - 3 * HOUR)) < 25 * MIN
+            ? 9
+            : def.name === 'queue.depth' && Math.abs(ts - (t.now - 3 * HOUR)) < 40 * MIN
+              ? 6
+              : 1
         let v: number
         if (def.type === 'counter' || (def.type === 'distribution' && op === 'count') || (def.type === 'set' && op === 'count')) {
           v = def.base * (step / MIN) * daily * share * spike * (0.8 + rng.float() * 0.4)
@@ -800,7 +1232,18 @@ const PY_MODEL: ModelNode = {
             {
               f: lib('get_response', 'django/core/handlers/base.py', 'django', 140),
               children: [
-                { f: lib('process_request', 'django/contrib/sessions/middleware.py', 'django', 19), at: [0, 0.12], self: 0.2, children: [{ f: lib('get', 'redis/commands/core.py', 'redis', 1829), self: 0.3, children: [{ f: lib('read_response', 'redis/connection.py', 'redis', 512), self: 1 }] }] },
+                {
+                  f: lib('process_request', 'django/contrib/sessions/middleware.py', 'django', 19),
+                  at: [0, 0.12],
+                  self: 0.2,
+                  children: [
+                    {
+                      f: lib('get', 'redis/commands/core.py', 'redis', 1829),
+                      self: 0.3,
+                      children: [{ f: lib('read_response', 'redis/connection.py', 'redis', 512), self: 1 }],
+                    },
+                  ],
+                },
                 {
                   f: lib('_get_response', 'django/core/handlers/base.py', 'django', 197),
                   at: [0.1, 1],
@@ -823,13 +1266,24 @@ const PY_MODEL: ModelNode = {
                                     {
                                       f: lib('execute_sql', 'django/db/models/sql/compiler.py', 'django', 1562),
                                       self: 0.1,
-                                      children: [{ f: lib('execute', 'psycopg/cursor.py', 'psycopg', 732), self: 0.15, children: [{ f: lib('wait', 'psycopg/waiting.py', 'psycopg', 320), self: 1 }] }],
+                                      children: [
+                                        {
+                                          f: lib('execute', 'psycopg/cursor.py', 'psycopg', 732),
+                                          self: 0.15,
+                                          children: [{ f: lib('wait', 'psycopg/waiting.py', 'psycopg', 320), self: 1 }],
+                                        },
+                                      ],
                                     },
                                   ],
                                 },
                               ],
                             },
-                            { f: app('apply_regional_prices', 'shop/services/pricing.py', 77), weight: 1.2, self: 0.6, children: [{ f: lib('quantize', 'decimal.py', 'python', 2409), self: 1 }] },
+                            {
+                              f: app('apply_regional_prices', 'shop/services/pricing.py', 77),
+                              weight: 1.2,
+                              self: 0.6,
+                              children: [{ f: lib('quantize', 'decimal.py', 'python', 2409), self: 1 }],
+                            },
                           ],
                         },
                         {
@@ -849,7 +1303,11 @@ const PY_MODEL: ModelNode = {
                               f: lib('to_representation', 'rest_framework/serializers.py', 'djangorestframework', 522),
                               self: 0.3,
                               children: [
-                                { f: app('ProductSerializer.get_image_urls', 'shop/serializers.py', 64), self: 0.5, children: [{ f: lib('url', 'storages/backends/s3.py', 'django-storages', 590), self: 1 }] },
+                                {
+                                  f: app('ProductSerializer.get_image_urls', 'shop/serializers.py', 64),
+                                  self: 0.5,
+                                  children: [{ f: lib('url', 'storages/backends/s3.py', 'django-storages', 590), self: 1 }],
+                                },
                                 { f: lib('to_representation', 'rest_framework/fields.py', 'djangorestframework', 1173), self: 1 },
                               ],
                             },
@@ -879,19 +1337,39 @@ const JS_MODEL: ModelNode = {
           f: lib('beginWork', 'react-dom/cjs/react-dom-client.production.js', 'react-dom', 7110),
           self: 0.2,
           children: [
-            { f: app('ProductPage', 'src/pages/product-page.tsx', 41), self: 0.2, children: [{ f: app('useProductQuery', 'src/api/products.ts', 18), self: 0.4, children: [{ f: lib('fetchQuery', '@tanstack/query-core/build/modern/queryClient.js', '@tanstack/query-core', 140), self: 1 }] }] },
+            {
+              f: app('ProductPage', 'src/pages/product-page.tsx', 41),
+              self: 0.2,
+              children: [
+                {
+                  f: app('useProductQuery', 'src/api/products.ts', 18),
+                  self: 0.4,
+                  children: [{ f: lib('fetchQuery', '@tanstack/query-core/build/modern/queryClient.js', '@tanstack/query-core', 140), self: 1 }],
+                },
+              ],
+            },
             { f: app('Gallery', 'src/components/gallery.tsx', 22), self: 0.3, children: [{ f: app('computeSrcSet', 'src/lib/images.ts', 9), self: 1 }] },
             { f: app('PriceTag', 'src/components/price-tag.tsx', 12), self: 0.2, children: [{ f: lib('format', 'Intl.NumberFormat', null, 0), self: 1 }] },
           ],
         },
-        { f: lib('completeWork', 'react-dom/cjs/react-dom-client.production.js', 'react-dom', 8022), self: 0.6, children: [{ f: lib('setInitialProperties', 'react-dom/cjs/react-dom-client.production.js', 'react-dom', 13001), self: 1 }] },
+        {
+          f: lib('completeWork', 'react-dom/cjs/react-dom-client.production.js', 'react-dom', 8022),
+          self: 0.6,
+          children: [{ f: lib('setInitialProperties', 'react-dom/cjs/react-dom-client.production.js', 'react-dom', 13001), self: 1 }],
+        },
       ],
     },
     {
       f: lib('commitRoot', 'react-dom/cjs/react-dom-client.production.js', 'react-dom', 11904),
       at: [0.6, 0.85],
       self: 0.3,
-      children: [{ f: lib('commitLayoutEffects', 'react-dom/cjs/react-dom-client.production.js', 'react-dom', 9420), self: 0.4, children: [{ f: app('useStickyHeader', 'src/hooks/use-sticky-header.ts', 7), self: 1 }] }],
+      children: [
+        {
+          f: lib('commitLayoutEffects', 'react-dom/cjs/react-dom-client.production.js', 'react-dom', 9420),
+          self: 0.4,
+          children: [{ f: app('useStickyHeader', 'src/hooks/use-sticky-header.ts', 7), self: 1 }],
+        },
+      ],
     },
     {
       f: lib('flush', 'src/lib/analytics.ts', null, 0),
@@ -911,10 +1389,42 @@ const NODE_MODEL: ModelNode = {
           f: app('processOrder', 'src/jobs/process-order.ts', 14),
           self: 0.05,
           children: [
-            { f: app('loadOrder', 'src/db/orders.ts', 40), at: [0, 0.3], children: [{ f: lib('Client.query', 'pg/lib/client.js', 'pg', 526), self: 0.3, children: [{ f: lib('Parser.parse', 'pg-protocol/dist/parser.js', 'pg-protocol', 99), self: 1 }] }] },
-            { f: app('reserveInventory', 'src/services/inventory.ts', 61), at: [0.28, 0.55], self: 0.2, children: [{ f: lib('Client.query', 'pg/lib/client.js', 'pg', 526), self: 1 }] },
-            { f: app('renderReceipt', 'src/emails/receipt.ts', 22), at: [0.52, 0.8], self: 0.1, children: [{ f: lib('render', 'ejs/lib/ejs.js', 'ejs', 412), self: 0.5, children: [{ f: lib('escapeXML', 'ejs/lib/utils.js', 'ejs', 109), self: 1 }] }] },
-            { f: app('sendEmail', 'src/services/mailer.ts', 18), at: [0.78, 1], children: [{ f: lib('request', 'undici/lib/api/api-request.js', 'undici', 171), self: 0.4, children: [{ f: lib('TLSSocket.write', 'node:tls', 'node', 0), self: 1 }] }] },
+            {
+              f: app('loadOrder', 'src/db/orders.ts', 40),
+              at: [0, 0.3],
+              children: [
+                {
+                  f: lib('Client.query', 'pg/lib/client.js', 'pg', 526),
+                  self: 0.3,
+                  children: [{ f: lib('Parser.parse', 'pg-protocol/dist/parser.js', 'pg-protocol', 99), self: 1 }],
+                },
+              ],
+            },
+            {
+              f: app('reserveInventory', 'src/services/inventory.ts', 61),
+              at: [0.28, 0.55],
+              self: 0.2,
+              children: [{ f: lib('Client.query', 'pg/lib/client.js', 'pg', 526), self: 1 }],
+            },
+            {
+              f: app('renderReceipt', 'src/emails/receipt.ts', 22),
+              at: [0.52, 0.8],
+              self: 0.1,
+              children: [
+                { f: lib('render', 'ejs/lib/ejs.js', 'ejs', 412), self: 0.5, children: [{ f: lib('escapeXML', 'ejs/lib/utils.js', 'ejs', 109), self: 1 }] },
+              ],
+            },
+            {
+              f: app('sendEmail', 'src/services/mailer.ts', 18),
+              at: [0.78, 1],
+              children: [
+                {
+                  f: lib('request', 'undici/lib/api/api-request.js', 'undici', 171),
+                  self: 0.4,
+                  children: [{ f: lib('TLSSocket.write', 'node:tls', 'node', 0), self: 1 }],
+                },
+              ],
+            },
           ],
         },
       ],
@@ -1004,7 +1514,12 @@ export function sampledProfile(p: MockProfile) {
 export function flamegraphOf(profiles: ReturnType<typeof sampledProfile>[]): Flamegraph {
   const frames: ProfileFrame[] = []
   const frameKey = new Map<string, number>()
-  const root: CallTreeNode & { by?: Map<number, CallTreeNode & { by?: Map<number, unknown> }> } = { frame_index: null, self_weight: 0, total_weight: 0, children: [] }
+  const root: CallTreeNode & { by?: Map<number, CallTreeNode & { by?: Map<number, unknown> }> } = {
+    frame_index: null,
+    self_weight: 0,
+    total_weight: 0,
+    children: [],
+  }
   type N = CallTreeNode & { by?: Map<number, N> }
   let samples = 0
   for (const prof of profiles) {
@@ -1038,14 +1553,24 @@ export function flamegraphOf(profiles: ReturnType<typeof sampledProfile>[]): Fla
       samples += 1
     }
   }
-  const strip = (n: N): CallTreeNode => ({ frame_index: n.frame_index, self_weight: n.self_weight, total_weight: n.total_weight, children: n.children.map((c) => strip(c as N)) })
+  const strip = (n: N): CallTreeNode => ({
+    frame_index: n.frame_index,
+    self_weight: n.self_weight,
+    total_weight: n.total_weight,
+    children: n.children.map((c) => strip(c as N)),
+  })
   return { frames, root: strip(root as N), samples, profiles: profiles.length }
 }
 
 function buildProfiles(t: Telemetry, world: World): MockProfile[] {
   const rng = new Rng('profiles')
   const out: MockProfile[] = []
-  const defs = TX.filter((d) => (d.project === 'api' && d.op === 'http.server') || (d.project === 'web-app' && d.op === 'pageload') || (d.project === 'worker' && d.name === 'process-order'))
+  const defs = TX.filter(
+    (d) =>
+      (d.project === 'api' && d.op === 'http.server') ||
+      (d.project === 'web-app' && d.op === 'pageload') ||
+      (d.project === 'worker' && d.name === 'process-order'),
+  )
   for (const def of defs) {
     const projectId = t.projectIds.get(def.project) ?? ''
     const release = world.releases.find((r) => r.project_ids.includes(projectId))?.version ?? null
@@ -1069,7 +1594,13 @@ function buildProfiles(t: Telemetry, world: World): MockProfile[] {
         duration_ms: Math.round(Math.min(duration, 20_000)),
       })
       // traces of these profiles point back to them
-      if (!sampled) t.sampled.set(trace_id, { def: TX.indexOf(def), duration: Math.round(Math.min(duration, 20_000)), start: out[out.length - 1].start, profile: profile_id })
+      if (!sampled)
+        t.sampled.set(trace_id, {
+          def: TX.indexOf(def),
+          duration: Math.round(Math.min(duration, 20_000)),
+          start: out[out.length - 1].start,
+          profile: profile_id,
+        })
       else sampled.profile = profile_id
     }
   }
@@ -1106,7 +1637,18 @@ export const RECORDING_MS = RECORDING.events[RECORDING.events.length - 1].timest
 
 // The pages of the recorded demo shop, so the list matches the recording.
 const PAGES = ['/', '/products', '/cart', '/order/confirmed', '/journal', '/products?sort=price']
-const NAMES = ['Maria Keller', 'Jonas Weber', 'Li Wei', 'Sam Carter', 'Inês Duarte', 'Tomás Rivera', 'Aiko Tanaka', 'Noah Fischer', 'Emma Laurent', 'Ola Nordmann']
+const NAMES = [
+  'Maria Keller',
+  'Jonas Weber',
+  'Li Wei',
+  'Sam Carter',
+  'Inês Duarte',
+  'Tomás Rivera',
+  'Aiko Tanaka',
+  'Noah Fischer',
+  'Emma Laurent',
+  'Ola Nordmann',
+]
 
 function buildReplays(t: Telemetry, world: World): MockReplay[] {
   const jsProjects = world.projects.filter((p) => p.slug === 'web-app' || p.slug === 'storefront')
@@ -1137,8 +1679,20 @@ function buildReplays(t: Telemetry, world: World): MockReplay[] {
       project_id: project.id,
       started: t.now - (i === 0 ? 4 * MIN : rng.int(10, 14 * 24 * 60) * MIN),
       duration_ms: Math.round(i < 8 ? RECORDING_MS : rng.powerLaw(8, 1800) * 1000),
-      urls: rng.shuffle(PAGES).slice(0, urlCount).map((p) => `https://shop.acme.dev${p}`),
-      user: { id: String(rng.int(1000, 99999)), email: `${name.split(' ')[0].toLowerCase().normalize('NFD').replace(/[^a-z]/g, '')}.${name.split(' ')[1].toLowerCase()}@example.com`, name, ip: `203.0.113.${rng.int(2, 254)}` },
+      urls: rng
+        .shuffle(PAGES)
+        .slice(0, urlCount)
+        .map((p) => `https://shop.acme.dev${p}`),
+      user: {
+        id: String(rng.int(1000, 99999)),
+        email: `${name
+          .split(' ')[0]
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[^a-z]/g, '')}.${name.split(' ')[1].toLowerCase()}@example.com`,
+        name,
+        ip: `203.0.113.${rng.int(2, 254)}`,
+      },
       browser,
       os: mobile ? 'iOS 18.1' : rng.pick(['macOS 15.1', 'Windows 11', 'Windows 10', 'Ubuntu 24.04']),
       device: mobile ? 'iPhone' : 'Desktop',
@@ -1164,10 +1718,24 @@ function seedDashboards(now: number): Dashboard[] {
       updated_at: at(2),
       widgets: [
         { id: 'w1', title: 'Completed checkouts', kind: 'metric', chart: 'bar', query: { name: 'checkout.completed', op: 'sum' }, width: 2 },
-        { id: 'w2', title: 'Failed checkouts by reason', kind: 'metric', chart: 'area', query: { name: 'checkout.failed', op: 'sum', group_by: 'reason' }, width: 2 },
+        {
+          id: 'w2',
+          title: 'Failed checkouts by reason',
+          kind: 'metric',
+          chart: 'area',
+          query: { name: 'checkout.failed', op: 'sum', group_by: 'reason' },
+          width: 2,
+        },
         { id: 'w3', title: 'POST /api/orders p95', kind: 'transactions', chart: 'line', query: { transaction: 'POST /api/orders', field: 'p95' }, width: 2 },
         { id: 'w4', title: 'Payment errors in logs', kind: 'logs', chart: 'bar', query: { query: 'level:error payment.provider:stripe' }, width: 2 },
-        { id: 'w5', title: 'Cart value p75 by country', kind: 'metric', chart: 'line', query: { name: 'cart.value', op: 'p75', group_by: 'country' }, width: 3 },
+        {
+          id: 'w5',
+          title: 'Cart value p75 by country',
+          kind: 'metric',
+          chart: 'line',
+          query: { name: 'cart.value', op: 'p75', group_by: 'country' },
+          width: 3,
+        },
         { id: 'w6', title: 'Top checkout issues', kind: 'issues', chart: 'bar', query: { query: 'is:unresolved transaction:/checkout' }, width: 1 },
       ],
     },
@@ -1192,7 +1760,16 @@ function seedDashboards(now: number): Dashboard[] {
 export function createTelemetry(world: World): Telemetry {
   const acme = world.orgs.find((o) => o.slug === 'acme')
   const projectIds = new Map(world.projects.filter((p) => p.org_id === acme?.id).map((p) => [p.slug, p.id]))
-  const t: Telemetry = { now: world.now, projectIds, sampled: new Map(), logs: [], profiles: [], replays: [], dashboards: seedDashboards(world.now), nextDashboard: 3 }
+  const t: Telemetry = {
+    now: world.now,
+    projectIds,
+    sampled: new Map(),
+    logs: [],
+    profiles: [],
+    replays: [],
+    dashboards: seedDashboards(world.now),
+    nextDashboard: 3,
+  }
   // Register the slowest samples of every transaction so their traces match.
   for (const def of TX) summary(t, world, def, '14d')
   t.logs = buildLogs(world.now, projectIds, world)
@@ -1220,6 +1797,12 @@ export function replayErrors(world: World, r: MockReplay) {
   return r.issues.map((issueId, k) => {
     const issue = world.issues.find((i) => i.id === issueId)!
     const offset = k === 0 ? (RECORDING.errors[0]?.offset_ms ?? 15_000) : Math.min(RECORDING_MS - 500, 5_000 + k * 6_000)
-    return { event_id: new Rng(`replay-err:${r.replay_id}:${issueId}`).hex(32), issue_id: issue.id, short_id: issue.short_id, title: issue.title, timestamp: iso(r.started + offset) }
+    return {
+      event_id: new Rng(`replay-err:${r.replay_id}:${issueId}`).hex(32),
+      issue_id: issue.id,
+      short_id: issue.short_id,
+      title: issue.title,
+      timestamp: iso(r.started + offset),
+    }
   })
 }

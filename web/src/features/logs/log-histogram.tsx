@@ -8,7 +8,17 @@ import { LOG_LEVEL_VAR } from '@/features/telemetry/format'
 const ORDER: LogLevel[] = [...LOG_LEVELS] // trace at the bottom … fatal on top
 
 /** Stacked log counts per interval and level. Plain SVG (no chart library). */
-export const LogHistogram = memo(function LogHistogram({ data, loading, height = 72, onPick }: { data: Histogram | undefined; loading?: boolean; height?: number; onPick?: (start: number, end: number) => void }) {
+export const LogHistogram = memo(function LogHistogram({
+  data,
+  loading,
+  height = 72,
+  onPick,
+}: {
+  data: Histogram | undefined
+  loading?: boolean
+  height?: number
+  onPick?: (start: number, end: number) => void
+}) {
   const [hover, setHover] = useState<number | null>(null)
   const { buckets, max, totals } = useMemo(() => {
     const b = data?.buckets ?? []

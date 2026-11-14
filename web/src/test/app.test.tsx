@@ -122,3 +122,46 @@ describe('command palette', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(`/acme/issues/${target.id}`))
   })
 })
+
+describe('layout', () => {
+  it('has a top bar with the Explore menu and no theme switch', async () => {
+    const user = userEvent.setup()
+    renderApp('/acme/issues')
+    await firstRows()
+    const main = screen.getByRole('navigation', { name: 'Main' })
+    expect(within(main).getByRole('link', { name: 'Issues' })).toHaveAttribute('aria-current', 'page')
+    await user.click(within(main).getByRole('button', { name: /Explore/ }))
+    expect(await screen.findByRole('menuitem', { name: /Performance/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Light theme|Dark theme/)).not.toBeInTheDocument()
+    expect(document.documentElement).toHaveClass('dark')
+  })
+
+  it('shows the issue context panel next to the event', async () => {
+    const issue = getWorld().issues[0]
+    renderApp(`/acme/issues/${issue.id}`)
+    const panel = await screen.findByTestId('issue-context')
+    expect(within(panel).getByRole('button', { name: /Resolve/ })).toBeInTheDocument()
+    expect(within(panel).getByText('Users affected')).toBeInTheDocument()
+    expect(await within(panel).findByRole('link', { name: /^Trace [0-9a-f]{8}/ })).toBeInTheDocument()
+  })
+
+  it('previews the focused issue in the split view on wide screens', async () => {
+    const original = window.matchMedia
+    window.matchMedia = ((q: string) => ({ ...original(q), matches: q.includes('1440') })) as typeof window.matchMedia
+    try {
+      const user = userEvent.setup()
+      renderApp('/acme/issues')
+      const rows = await firstRows()
+      await user.click(screen.getByRole('button', { name: 'Preview' }))
+      fireEvent.keyDown(window, { key: 'j' })
+      fireEvent.keyDown(window, { key: 'j' })
+      const preview = await screen.findByTestId('issue-preview')
+      const id = rows[1].getAttribute('data-issue-id')!
+      const issue = getWorld().issues.find((i) => i.id === id)!
+      expect(await within(preview).findByText(issue.short_id)).toBeInTheDocument()
+      expect(localStorage.getItem('rupta-issue-split')).toBe('1')
+    } finally {
+      window.matchMedia = original
+    }
+  })
+})

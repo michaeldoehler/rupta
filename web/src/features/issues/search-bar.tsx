@@ -2,7 +2,15 @@ import { CornerDownLeft, Search, X } from 'lucide-react'
 import { forwardRef, useDeferredValue, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTagValues } from '@/api/queries'
 import { Kbd } from '@/components/ui/kbd'
-import { applySuggestion, completionContext, dynamicTagFor, suggestKeys, suggestValues, type CompletionContext, type Suggestion } from '@/lib/search/autocomplete'
+import {
+  applySuggestion,
+  completionContext,
+  dynamicTagFor,
+  suggestKeys,
+  suggestValues,
+  type CompletionContext,
+  type Suggestion,
+} from '@/lib/search/autocomplete'
 import { tokenize } from '@/lib/search/parse'
 import { cn } from '@/lib/utils'
 
@@ -53,7 +61,16 @@ function Highlight({ value }: { value: string }) {
 }
 
 export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
-  { org, projects, value, onSubmit, placeholder = 'Search issues: is:unresolved level:error browser:Chrome "text"', className, label = 'Search issues', suggest },
+  {
+    org,
+    projects,
+    value,
+    onSubmit,
+    placeholder = 'Search issues: is:unresolved level:error browser:Chrome "text"',
+    className,
+    label = 'Search issues',
+    suggest,
+  },
   ref,
 ) {
   const inputRef = useRef<HTMLInputElement>(null)

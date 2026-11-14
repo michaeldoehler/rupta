@@ -5,7 +5,11 @@ import { RECORDING } from '@/mocks/fixtures/telemetry'
 import { buildMarkers, clock, countInteractions, extractBreadcrumbs, extractConsole, extractNetwork, recordingDuration, urlAt } from './timeline'
 
 const T0 = 1_700_000_000_000
-const crumb = (at: number, category: string, message = '', data = {}): RecordingEvent => ({ type: 5, timestamp: T0 + at, data: { tag: 'breadcrumb', payload: { timestamp: (T0 + at) / 1000, category, message, data } } })
+const crumb = (at: number, category: string, message = '', data = {}): RecordingEvent => ({
+  type: 5,
+  timestamp: T0 + at,
+  data: { tag: 'breadcrumb', payload: { timestamp: (T0 + at) / 1000, category, message, data } },
+})
 const perf = (at: number, op: string, description: string, dur = 100, data = {}): RecordingEvent => ({
   type: 5,
   timestamp: T0 + at,
@@ -47,7 +51,15 @@ describe('replay timeline', () => {
   })
 
   it('marks console errors when the errors have no times', () => {
-    const withConsoleError = [...events.slice(0, 6), { type: 5, timestamp: T0 + 2200, data: { tag: 'breadcrumb', payload: { timestamp: (T0 + 2200) / 1000, category: 'console', level: 'error', message: 'Checkout failed (502)' } } }, ...events.slice(6)]
+    const withConsoleError = [
+      ...events.slice(0, 6),
+      {
+        type: 5,
+        timestamp: T0 + 2200,
+        data: { tag: 'breadcrumb', payload: { timestamp: (T0 + 2200) / 1000, category: 'console', level: 'error', message: 'Checkout failed (502)' } },
+      },
+      ...events.slice(6),
+    ]
     const markers = buildMarkers(withConsoleError, [{ event_id: 'e1', issue_id: '4', short_id: 'WEB-4', title: 'TypeError', timestamp: 0 }])
     expect(markers.filter((m) => m.kind === 'error').map((m) => [m.offset, m.label])).toEqual([[2200, 'Checkout failed (502)']])
   })
@@ -61,7 +73,9 @@ describe('replay timeline', () => {
     expect(extractBreadcrumbs(events).map((c) => c.category)).toEqual(['ui.click', 'console'])
     expect(extractConsole(events)[0].message).toBe('Checkout failed')
     const net = extractNetwork(events)
-    expect(net).toEqual([{ offset: 1010, timestamp: T0 + 1010, duration: 40, op: 'resource.fetch', method: 'POST', url: 'https://shop.test/api/cart', status: 201, size: 12 }])
+    expect(net).toEqual([
+      { offset: 1010, timestamp: T0 + 1010, duration: 40, op: 'resource.fetch', method: 'POST', url: 'https://shop.test/api/cart', status: 201, size: 12 },
+    ])
     expect(countInteractions(events)).toEqual({ clicks: 1, inputs: 1 })
   })
 
@@ -82,7 +96,15 @@ describe('replay timeline', () => {
   })
 
   it('normalises replay rows with durations in seconds', () => {
-    const r = normReplay({ id: 'r1', project_id: 3, started: '2026-01-01T00:00:00Z', finished: '2026-01-01T00:01:00Z', duration: 60, user_email: 'a@b.c', error_ids: ['x'] })
+    const r = normReplay({
+      id: 'r1',
+      project_id: 3,
+      started: '2026-01-01T00:00:00Z',
+      finished: '2026-01-01T00:01:00Z',
+      duration: 60,
+      user_email: 'a@b.c',
+      error_ids: ['x'],
+    })
     expect(r.duration_ms).toBe(60_000)
     expect(r.user.email).toBe('a@b.c')
     expect(r.count_errors).toBe(1)

@@ -72,7 +72,13 @@ function MetricList({ names, value, onPick }: { names: MetricName[]; value?: str
       <div className="border-b p-2">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a metric" className="h-7 pl-7 text-[13px]" aria-label="Find a metric" />
+          <Input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Find a metric"
+            className="h-7 pl-7 text-[13px]"
+            aria-label="Find a metric"
+          />
         </div>
       </div>
       <ul className="min-h-0 flex-1 overflow-y-auto p-1" role="listbox" aria-label="Metrics">
@@ -81,7 +87,10 @@ function MetricList({ names, value, onPick }: { names: MetricName[]; value?: str
             <button
               type="button"
               onClick={() => onPick(n)}
-              className={cn('flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none', n.name === value && 'bg-accent')}
+              className={cn(
+                'flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                n.name === value && 'bg-accent',
+              )}
             >
               <span className="truncate font-mono text-[12.5px] font-medium">{n.name}</span>
               <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -132,7 +141,9 @@ function AddToDashboard({ org, widget, open, onOpenChange }: { org: string; widg
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add to a dashboard</DialogTitle>
-          <DialogDescription>The widget keeps this metric, aggregation, grouping and chart type; the dashboard sets the time range and projects.</DialogDescription>
+          <DialogDescription>
+            The widget keeps this metric, aggregation, grouping and chart type; the dashboard sets the time range and projects.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <Field label="Widget title">{(p) => <Input {...p} value={title} onChange={(e) => setTitle(e.target.value)} />}</Field>
@@ -153,7 +164,11 @@ function AddToDashboard({ org, widget, open, onOpenChange }: { org: string; widg
               </Select>
             )}
           </Field>
-          {target === 'new' && <Field label="New dashboard title">{(p) => <Input {...p} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. Checkout health" />}</Field>}
+          {target === 'new' && (
+            <Field label="New dashboard title">
+              {(p) => <Input {...p} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. Checkout health" />}
+            </Field>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -186,12 +201,26 @@ export function MetricsPage({ state, onChange }: { state: MetricsState; onChange
       (q.data?.series ?? []).map((s) => {
         const vals = s.data.map(([, v]) => v).filter((v): v is number => v !== null)
         const sum = vals.reduce((a, b) => a + b, 0)
-        return { group: s.group, min: vals.length ? Math.min(...vals) : null, max: vals.length ? Math.max(...vals) : null, avg: vals.length ? sum / vals.length : null, total: sum, last: vals.at(-1) ?? null }
+        return {
+          group: s.group,
+          min: vals.length ? Math.min(...vals) : null,
+          max: vals.length ? Math.max(...vals) : null,
+          avg: vals.length ? sum / vals.length : null,
+          total: sum,
+          last: vals.at(-1) ?? null,
+        }
       }),
     [q.data],
   )
 
-  const widget: Widget = { id: `w${Date.now().toString(36)}`, title: `${OP_LABEL[op]} of ${name ?? ''}${groupBy ? ` by ${groupBy}` : ''}`, kind: 'metric', chart, query: { name, op, group_by: groupBy || undefined }, width: 2 }
+  const widget: Widget = {
+    id: `w${Date.now().toString(36)}`,
+    title: `${OP_LABEL[op]} of ${name ?? ''}${groupBy ? ` by ${groupBy}` : ''}`,
+    kind: 'metric',
+    chart,
+    query: { name, op, group_by: groupBy || undefined },
+    width: 2,
+  }
 
   return (
     <div className="flex h-full min-h-[560px] flex-col">
@@ -201,11 +230,19 @@ export function MetricsPage({ state, onChange }: { state: MetricsState; onChange
       ) : names.isError ? (
         <ErrorState error={names.error} retry={() => names.refetch()} />
       ) : names.data.length === 0 ? (
-        <EmptyState icon={<Sigma />} title="No metrics yet" description="Send counters, gauges, distributions or sets with your SDK's metrics API; they are listed here once received." />
+        <EmptyState
+          icon={<Sigma />}
+          title="No metrics yet"
+          description="Send counters, gauges, distributions or sets with your SDK's metrics API; they are listed here once received."
+        />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <aside className="hidden w-72 shrink-0 border-r lg:block" aria-label="Metric picker">
-            <MetricList names={names.data} value={name} onPick={(n) => onChange({ ...state, name: n.name, op: undefined, group_by: undefined, chart: undefined })} />
+            <MetricList
+              names={names.data}
+              value={name}
+              onPick={(n) => onChange({ ...state, name: n.name, op: undefined, group_by: undefined, chart: undefined })}
+            />
           </aside>
           <div className="min-w-0 flex-1 space-y-3 overflow-y-auto p-3 sm:p-5">
             <div className="flex flex-wrap items-end gap-2" role="toolbar" aria-label="Metric query">
@@ -244,11 +281,24 @@ export function MetricsPage({ state, onChange }: { state: MetricsState; onChange
                 )}
               </Field>
               <Field label="Group by">
-                {(p) => <GroupByInput {...p} value={groupBy} options={['environment', 'release', ...(meta?.attributes ?? [])]} onCommit={(v) => onChange({ ...state, name, group_by: v || undefined })} />}
+                {(p) => (
+                  <GroupByInput
+                    {...p}
+                    value={groupBy}
+                    options={['environment', 'release', ...(meta?.attributes ?? [])]}
+                    onCommit={(v) => onChange({ ...state, name, group_by: v || undefined })}
+                  />
+                )}
               </Field>
               <div className="grid gap-1.5">
                 <span className="text-[13px] leading-none font-medium">Chart</span>
-                <ToggleGroup type="single" value={chart} onValueChange={(v) => v && onChange({ ...state, name, chart: v as ChartType })} aria-label="Chart type" className="h-8">
+                <ToggleGroup
+                  type="single"
+                  value={chart}
+                  onValueChange={(v) => v && onChange({ ...state, name, chart: v as ChartType })}
+                  aria-label="Chart type"
+                  className="h-8"
+                >
                   <ToggleGroupItem value="line" aria-label="Line chart">
                     <LineChart />
                   </ToggleGroupItem>
@@ -287,7 +337,11 @@ export function MetricsPage({ state, onChange }: { state: MetricsState; onChange
               )}
             </Panel>
             {summary.length > 0 && (
-              <Panel title="Series" description={summary.length > MAX_SERIES ? `The chart shows the first ${MAX_SERIES} of ${summary.length} groups.` : undefined} bodyClassName="p-0">
+              <Panel
+                title="Series"
+                description={summary.length > MAX_SERIES ? `The chart shows the first ${MAX_SERIES} of ${summary.length} groups.` : undefined}
+                bodyClassName="p-0"
+              >
                 <div className="overflow-x-auto">
                   <table className="w-full text-[13px]" aria-label="Series summary">
                     <thead className="text-xs text-muted-foreground">
@@ -305,7 +359,11 @@ export function MetricsPage({ state, onChange }: { state: MetricsState; onChange
                         <tr key={s.group || i}>
                           <td className="px-3 py-1.5">
                             <span className="flex items-center gap-2 font-mono text-[12.5px]">
-                              {i < MAX_SERIES ? <span className="size-2 rounded-[2px]" style={{ background: SERIES_COLORS[i] }} /> : <span className="size-2" />}
+                              {i < MAX_SERIES ? (
+                                <span className="size-2 rounded-[2px]" style={{ background: SERIES_COLORS[i] }} />
+                              ) : (
+                                <span className="size-2" />
+                              )}
                               {s.group || name}
                               {i >= MAX_SERIES && <span className="font-sans text-[11px] text-muted-foreground">not charted</span>}
                             </span>

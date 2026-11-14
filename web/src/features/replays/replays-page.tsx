@@ -43,9 +43,18 @@ const REPLAY_KEYS: { key: string; description: string; values?: string[] }[] = [
 
 function suggestReplay(ctx: { mode: 'key' | 'value'; partial: string; key?: string }): Suggestion[] {
   const p = ctx.partial.toLowerCase()
-  if (ctx.mode === 'key') return REPLAY_KEYS.filter((k) => k.key.startsWith(p)).map((k) => ({ kind: 'key', label: k.key, description: k.description, insert: `${k.key}:`, key: k.key }))
+  if (ctx.mode === 'key')
+    return REPLAY_KEYS.filter((k) => k.key.startsWith(p)).map((k) => ({
+      kind: 'key',
+      label: k.key,
+      description: k.description,
+      insert: `${k.key}:`,
+      key: k.key,
+    }))
   const vals = REPLAY_KEYS.find((k) => k.key === ctx.key)?.values ?? []
-  return vals.filter((v) => v.toLowerCase().startsWith(p)).map((v) => ({ kind: 'value', label: v, insert: v.startsWith('>') ? v : quoteValue(v), key: ctx.key }))
+  return vals
+    .filter((v) => v.toLowerCase().startsWith(p))
+    .map((v) => ({ kind: 'value', label: v, insert: v.startsWith('>') ? v : quoteValue(v), key: ctx.key }))
 }
 
 export function DeviceIcon({ device, className }: { device: string | null; className?: string }) {
@@ -74,14 +83,24 @@ export function ReplayRowView({ r, org, focused = false }: { r: ReplayRow; org: 
       </span>
       <span role="gridcell" className="hidden min-w-0 md:block">
         <span className="block truncate font-mono text-[12px]">{path}</span>
-        <span className="text-[11px] text-muted-foreground">{r.urls.length} {r.urls.length === 1 ? 'page' : 'pages'}</span>
+        <span className="text-[11px] text-muted-foreground">
+          {r.urls.length} {r.urls.length === 1 ? 'page' : 'pages'}
+        </span>
       </span>
       <span role="gridcell" className="hidden min-w-0 items-center gap-1.5 text-xs text-muted-foreground md:flex">
         <DeviceIcon device={r.device} />
         <span className="truncate">{r.browser ?? '—'}</span>
       </span>
-      <span role="gridcell" className="text-right tabular md:text-left">{clock(r.duration_ms)}</span>
-      <span role="gridcell" className={cn('flex items-center justify-end gap-1 tabular md:justify-start', r.count_errors ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+      <span role="gridcell" className="text-right tabular md:text-left">
+        {clock(r.duration_ms)}
+      </span>
+      <span
+        role="gridcell"
+        className={cn(
+          'flex items-center justify-end gap-1 tabular md:justify-start',
+          r.count_errors ? 'font-medium text-destructive' : 'text-muted-foreground',
+        )}
+      >
         <TriangleAlert className="size-3.5" aria-label="errors" />
         {r.count_errors}
       </span>
@@ -98,14 +117,22 @@ export function ReplayRowView({ r, org, focused = false }: { r: ReplayRow; org: 
 
 export function ReplayListHeader() {
   return (
-    <div className={cn(COLS, 'sticky top-0 z-10 hidden h-8 border-b bg-background/95 text-[11px] font-medium tracking-wide text-muted-foreground uppercase backdrop-blur md:grid')} role="row">
+    <div
+      className={cn(
+        COLS,
+        'sticky top-0 z-10 hidden h-8 border-b bg-background/95 text-[11px] font-medium tracking-wide text-muted-foreground uppercase backdrop-blur md:grid',
+      )}
+      role="row"
+    >
       <span role="columnheader">User</span>
       <span role="columnheader">Pages</span>
       <span role="columnheader">Browser</span>
       <span role="columnheader">Duration</span>
       <span role="columnheader">Errors</span>
       <span role="columnheader">Clicks</span>
-      <span role="columnheader" className="text-right">Started</span>
+      <span role="columnheader" className="text-right">
+        Started
+      </span>
     </div>
   )
 }
@@ -121,7 +148,9 @@ export function ReplaysPage({ query, sort, onChange }: { query: string; sort: st
     {
       j: () => setFocused((f) => Math.min(rows.length - 1, f + 1)),
       k: () => setFocused((f) => Math.max(0, f - 1)),
-      Enter: () => rows[focused] && void navigate({ to: '/$org/replays/$project/$replayId', params: { org, project: rows[focused].project_id, replayId: rows[focused].replay_id } }),
+      Enter: () =>
+        rows[focused] &&
+        void navigate({ to: '/$org/replays/$project/$replayId', params: { org, project: rows[focused].project_id, replayId: rows[focused].replay_id } }),
     },
     [rows, focused],
   )
@@ -165,7 +194,11 @@ export function ReplaysPage({ query, sort, onChange }: { query: string; sort: st
         <EmptyState
           icon={<Film />}
           title={query ? 'No replays match' : 'No session replays yet'}
-          description={query ? 'Try another search, a longer period or other projects.' : 'Add the replay integration to the browser SDK (replaysSessionSampleRate, replaysOnErrorSampleRate); recordings appear here once sessions end or are flushed.'}
+          description={
+            query
+              ? 'Try another search, a longer period or other projects.'
+              : 'Add the replay integration to the browser SDK (replaysSessionSampleRate, replaysOnErrorSampleRate); recordings appear here once sessions end or are flushed.'
+          }
         />
       ) : (
         <InfiniteVirtualList
@@ -187,9 +220,27 @@ export function ReplaysPage({ query, sort, onChange }: { query: string; sort: st
 
 // ---- replay detail -----------------------------------------------------------
 
-function PanelList<T>({ items, empty, render, activeIndex }: { items: T[]; empty: string; render: (item: T, i: number) => React.ReactNode; activeIndex: number }) {
+function PanelList<T>({
+  items,
+  empty,
+  render,
+  activeIndex,
+}: {
+  items: T[]
+  empty: string
+  render: (item: T, i: number) => React.ReactNode
+  activeIndex: number
+}) {
   if (!items.length) return <p className="p-4 text-center text-xs text-muted-foreground">{empty}</p>
-  return <ul className="divide-y">{items.map((it, i) => <li key={i} className={cn(i === activeIndex && 'bg-row-selected')}>{render(it, i)}</li>)}</ul>
+  return (
+    <ul className="divide-y">
+      {items.map((it, i) => (
+        <li key={i} className={cn(i === activeIndex && 'bg-row-selected')}>
+          {render(it, i)}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 function lastIndexAtOrBefore<T extends { offset: number }>(items: T[], t: number) {
@@ -207,7 +258,11 @@ export function ReplayPage({ project, replayId }: { project: string; replayId: s
   const { org } = useGlobalFilters()
   const { data: projectList } = useProjects(org)
   const meta = useQuery({ queryKey: tk.replay(org, project, replayId), queryFn: () => telemetryApi.replays.get(org, project, replayId) })
-  const rec = useQuery({ queryKey: tk.recording(org, project, replayId), queryFn: ({ signal }) => telemetryApi.replays.recording(org, project, replayId, signal), staleTime: Infinity })
+  const rec = useQuery({
+    queryKey: tk.recording(org, project, replayId),
+    queryFn: ({ signal }) => telemetryApi.replays.recording(org, project, replayId, signal),
+    staleTime: Infinity,
+  })
   const events = rec.data
   const markers = useMemo(() => (events ? buildMarkers(events, meta.data?.errors ?? []) : []), [events, meta.data])
   const crumbs = useMemo(() => (events ? extractBreadcrumbs(events) : []), [events])
@@ -258,7 +313,9 @@ export function ReplayPage({ project, replayId }: { project: string; replayId: s
               <p className="flex flex-wrap items-center gap-x-2 text-[13px] text-muted-foreground">
                 {m.user.email && m.user.name && <span>{m.user.email}</span>}
                 <span>{absolute(m.started, { seconds: true })}</span>
-                <span>· <RelativeTime date={m.started} suffix /></span>
+                <span>
+                  · <RelativeTime date={m.started} suffix />
+                </span>
               </p>
             </div>
             <div className="ml-auto flex flex-wrap items-center gap-1.5">
@@ -293,7 +350,11 @@ export function ReplayPage({ project, replayId }: { project: string; replayId: s
           ) : !events ? (
             <Skeleton className="aspect-video w-full rounded-lg" aria-busy="true" aria-label="Loading recording" />
           ) : events.length < 2 ? (
-            <EmptyState icon={<Film />} title="No recording data" description="The replay has metadata but no recording segments (yet). Segments arrive while the session is active." />
+            <EmptyState
+              icon={<Film />}
+              title="No recording data"
+              description="The replay has metadata but no recording segments (yet). Segments arrive while the session is active."
+            />
           ) : (
             <Suspense fallback={<Skeleton className="aspect-video w-full rounded-lg" aria-busy="true" aria-label="Loading player" />}>
               <ReplayPlayer events={events} markers={markers} onTime={onTime} seek={seek} />
@@ -317,7 +378,9 @@ export function ReplayPage({ project, replayId }: { project: string; replayId: s
         <Tabs defaultValue={m?.count_errors ? 'errors' : 'breadcrumbs'} className="min-w-0 rounded-lg border bg-card">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-2">
             <TabsTrigger value="breadcrumbs">Breadcrumbs</TabsTrigger>
-            <TabsTrigger value="console">Console {consoleItems.length > 0 && <span className="text-muted-foreground tabular">{consoleItems.length}</span>}</TabsTrigger>
+            <TabsTrigger value="console">
+              Console {consoleItems.length > 0 && <span className="text-muted-foreground tabular">{consoleItems.length}</span>}
+            </TabsTrigger>
             <TabsTrigger value="network">Network {network.length > 0 && <span className="text-muted-foreground tabular">{network.length}</span>}</TabsTrigger>
             <TabsTrigger value="errors">Errors {errors.length > 0 && <span className="text-destructive tabular">{errors.length}</span>}</TabsTrigger>
           </TabsList>
@@ -331,7 +394,15 @@ export function ReplayPage({ project, replayId }: { project: string; replayId: s
                 empty="No console messages were recorded."
                 activeIndex={lastIndexAtOrBefore(consoleItems, time)}
                 render={(c) => (
-                  <button type="button" onClick={() => jump(c.offset)} className={cn('flex w-full items-start gap-2 px-3 py-1.5 text-left font-mono text-[12px] hover:bg-row-hover', c.level === 'error' && 'bg-destructive/5 text-destructive', c.level === 'warning' && 'bg-warning-soft/60')}>
+                  <button
+                    type="button"
+                    onClick={() => jump(c.offset)}
+                    className={cn(
+                      'flex w-full items-start gap-2 px-3 py-1.5 text-left font-mono text-[12px] hover:bg-row-hover',
+                      c.level === 'error' && 'bg-destructive/5 text-destructive',
+                      c.level === 'warning' && 'bg-warning-soft/60',
+                    )}
+                  >
                     <span className="w-10 shrink-0 text-[11px] text-muted-foreground tabular">{clock(c.offset)}</span>
                     <span className="w-12 shrink-0 text-[11px] uppercase">{c.level}</span>
                     <span className="min-w-0 flex-1 break-words">{c.message}</span>
@@ -345,13 +416,19 @@ export function ReplayPage({ project, replayId }: { project: string; replayId: s
                 empty="No requests were recorded. Network details need the replay integration's network options."
                 activeIndex={lastIndexAtOrBefore(network, time)}
                 render={(n) => (
-                  <button type="button" onClick={() => jump(n.offset)} className="grid w-full grid-cols-[40px_44px_minmax(0,1fr)_48px_56px] items-center gap-2 px-3 py-1.5 text-left text-[12px] hover:bg-row-hover">
+                  <button
+                    type="button"
+                    onClick={() => jump(n.offset)}
+                    className="grid w-full grid-cols-[40px_44px_minmax(0,1fr)_48px_56px] items-center gap-2 px-3 py-1.5 text-left text-[12px] hover:bg-row-hover"
+                  >
                     <span className="text-[11px] text-muted-foreground tabular">{clock(n.offset)}</span>
                     <span className="font-mono text-[11px] font-medium">{n.method}</span>
                     <span className="truncate font-mono" title={n.url}>
                       {n.url.replace(/^https?:\/\/[^/]+/, '')}
                     </span>
-                    <span className={cn('text-right font-mono tabular', n.status && n.status >= 400 ? 'text-destructive' : 'text-muted-foreground')}>{n.status ?? '—'}</span>
+                    <span className={cn('text-right font-mono tabular', n.status && n.status >= 400 ? 'text-destructive' : 'text-muted-foreground')}>
+                      {n.status ?? '—'}
+                    </span>
                     <span className="text-right text-muted-foreground tabular" title={n.size !== null ? bytes(n.size) : undefined}>
                       {ms(n.duration)}
                     </span>
@@ -366,7 +443,12 @@ export function ReplayPage({ project, replayId }: { project: string; replayId: s
                 activeIndex={-1}
                 render={(e) => (
                   <div className="flex items-center gap-2 px-3 py-2 text-[13px]">
-                    <button type="button" onClick={() => jump(e.offset)} className="w-10 shrink-0 text-left text-[11px] text-muted-foreground tabular hover:text-foreground" aria-label={`Jump to ${clock(e.offset)}`}>
+                    <button
+                      type="button"
+                      onClick={() => jump(e.offset)}
+                      className="w-10 shrink-0 text-left text-[11px] text-muted-foreground tabular hover:text-foreground"
+                      aria-label={`Jump to ${clock(e.offset)}`}
+                    >
                       {clock(e.offset)}
                     </button>
                     <LevelDot level="error" />
@@ -395,7 +477,13 @@ export function IssueReplays({ org, issueId }: { org: string; issueId: string })
   if (q.isPending) return <ListSkeleton rows={4} />
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} />
   if (!q.data.length)
-    return <EmptyState icon={<Film />} title="No replays for this issue" description="Replays appear here when the browser SDK's replay integration recorded a session in which this error happened." />
+    return (
+      <EmptyState
+        icon={<Film />}
+        title="No replays for this issue"
+        description="Replays appear here when the browser SDK's replay integration recorded a session in which this error happened."
+      />
+    )
   return (
     <div>
       <p className="border-b px-4 py-2 text-[13px] text-muted-foreground sm:px-6">

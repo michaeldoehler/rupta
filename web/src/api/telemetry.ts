@@ -155,7 +155,13 @@ function normSample(raw: unknown): TransactionSample {
 
 function normRelatedIssue(raw: unknown): RelatedIssue {
   const o = obj(raw)
-  return { id: String(o.id ?? o.issue_id), short_id: String(o.short_id ?? ''), title: String(o.title ?? ''), level: (str(o.level) ?? 'error') as Level, count: num(o.count) }
+  return {
+    id: String(o.id ?? o.issue_id),
+    short_id: String(o.short_id ?? ''),
+    title: String(o.title ?? ''),
+    level: (str(o.level) ?? 'error') as Level,
+    count: num(o.count),
+  }
 }
 
 const VITALS: VitalName[] = ['lcp', 'fcp', 'cls', 'inp', 'ttfb']
@@ -266,7 +272,15 @@ function normSpanGroup(raw: unknown, groupBy: SpanGroupBy): SpanGroupRow {
   const group = str(o.group)
   const op = str(o.op) ?? (groupBy === 'op' ? group : null)
   const description = str(o.description) ?? (groupBy === 'description' ? group : null)
-  return { group: group ?? (groupBy === 'op' ? op : groupBy === 'description' ? description : str(o.transaction)), op, description, count: num(o.count), p50: num(o.p50), p95: num(o.p95), sum: num(o.sum_duration_ms ?? o.sum ?? o.sum_duration ?? o.total) }
+  return {
+    group: group ?? (groupBy === 'op' ? op : groupBy === 'description' ? description : str(o.transaction)),
+    op,
+    description,
+    count: num(o.count),
+    p50: num(o.p50),
+    p95: num(o.p95),
+    sum: num(o.sum_duration_ms ?? o.sum ?? o.sum_duration ?? o.total),
+  }
 }
 
 export interface SpanSample {
@@ -390,12 +404,21 @@ function normMetricName(raw: unknown): MetricName {
   const o = obj(raw)
   const t = String(o.type ?? 'counter')
   const type: MetricType = t === 'c' ? 'counter' : t === 'g' ? 'gauge' : t === 'd' ? 'distribution' : t === 's' ? 'set' : (t as MetricType)
-  return { name: String(o.name), type, unit: str(o.unit) === 'none' ? null : str(o.unit), last_seen: o.last_seen ? isoOf(o.last_seen) : null, attributes: arr(o.attributes ?? o.attribute_keys).map(String) }
+  return {
+    name: String(o.name),
+    type,
+    unit: str(o.unit) === 'none' ? null : str(o.unit),
+    last_seen: o.last_seen ? isoOf(o.last_seen) : null,
+    attributes: arr(o.attributes ?? o.attribute_keys).map(String),
+  }
 }
 
 function groupLabel(v: unknown): string {
   if (v === null || v === undefined) return ''
-  if (typeof v === 'object') return Object.values(v as Raw).map((x) => (x === null ? '(none)' : String(x))).join(', ')
+  if (typeof v === 'object')
+    return Object.values(v as Raw)
+      .map((x) => (x === null ? '(none)' : String(x)))
+      .join(', ')
   return String(v)
 }
 
@@ -404,7 +427,10 @@ export function normMetricQuery(raw: unknown): MetricQueryResult {
   const list = Array.isArray(raw) ? raw : arr(o.series ?? o.data ?? o.groups)
   // A single bare series: [[ts, v], ...]
   if (list.length && Array.isArray(list[0])) {
-    return { interval_ms: toIntervalMs(o.interval), series: [{ group: '', data: list.map((p) => [toMs((p as unknown[])[0]), numOrNull((p as unknown[])[1])]) }] }
+    return {
+      interval_ms: toIntervalMs(o.interval),
+      series: [{ group: '', data: list.map((p) => [toMs((p as unknown[])[0]), numOrNull((p as unknown[])[1])]) }],
+    }
   }
   const series = list.map((s) => {
     const x = obj(s)
@@ -482,7 +508,13 @@ export function normFlamegraph(raw: unknown): Flamegraph {
   const o = obj(raw)
   const frames: ProfileFrame[] = arr(o.frames).map((f) => {
     const x = obj(f)
-    return { name: String(x.name ?? x.function ?? '<anonymous>'), file: str(x.file ?? x.filename), line: numOrNull(x.line ?? x.lineno), package: str(x.package ?? x.module), is_application: Boolean(x.is_application ?? x.in_app) }
+    return {
+      name: String(x.name ?? x.function ?? '<anonymous>'),
+      file: str(x.file ?? x.filename),
+      line: numOrNull(x.line ?? x.lineno),
+      package: str(x.package ?? x.module),
+      is_application: Boolean(x.is_application ?? x.in_app),
+    }
   })
   const root = normNode(o.root)
   return { frames, root, samples: num(o.samples, root.total_weight), profiles: num(o.profiles, 1) }
@@ -526,7 +558,13 @@ export function normReplay(raw: unknown): ReplayRow {
 
 function normReplayError(raw: unknown): ReplayError {
   const o = obj(raw)
-  return { event_id: String(o.event_id ?? o.id), issue_id: str(o.issue_id), short_id: str(o.short_id), title: String(o.title ?? 'Error'), timestamp: toMs(o.timestamp) }
+  return {
+    event_id: String(o.event_id ?? o.id),
+    issue_id: str(o.issue_id),
+    short_id: str(o.short_id),
+    title: String(o.title ?? 'Error'),
+    timestamp: toMs(o.timestamp),
+  }
 }
 
 export function normReplayDetail(raw: unknown): ReplayDetail {
@@ -536,7 +574,9 @@ export function normReplayDetail(raw: unknown): ReplayDetail {
   const fromIssues = arr(o.issues).flatMap((i) => {
     const x = obj(i)
     const ids = arr(x.event_ids).map(String)
-    return (ids.length ? ids : ['']).slice(0, 1).map((event_id) => ({ event_id, issue_id: str(x.id), short_id: str(x.short_id), title: String(x.title ?? 'Error'), timestamp: toMs(x.timestamp ?? 0) }))
+    return (ids.length ? ids : [''])
+      .slice(0, 1)
+      .map((event_id) => ({ event_id, issue_id: str(x.id), short_id: str(x.short_id), title: String(x.title ?? 'Error'), timestamp: toMs(x.timestamp ?? 0) }))
   })
   return { ...normReplay(raw), errors: o.errors ? arr(o.errors).map(normReplayError) : fromIssues }
 }
@@ -628,7 +668,10 @@ export const telemetryApi = {
     create: (org: string, body: { title: string; description?: string | null; widgets: Widget[] }) =>
       request<unknown>(`/orgs/${e(org)}/dashboards`, { method: 'POST', body: { ...body, widgets: body.widgets.map(widgetBody) } }).then(normDashboard),
     update: (org: string, id: Id, body: Partial<{ title: string; description: string | null; widgets: Widget[] }>) =>
-      request<unknown>(`/orgs/${e(org)}/dashboards/${e(id)}`, { method: 'PATCH', body: body.widgets ? { ...body, widgets: body.widgets.map(widgetBody) } : body }).then(normDashboard),
+      request<unknown>(`/orgs/${e(org)}/dashboards/${e(id)}`, {
+        method: 'PATCH',
+        body: body.widgets ? { ...body, widgets: body.widgets.map(widgetBody) } : body,
+      }).then(normDashboard),
     remove: (org: string, id: Id) => request<void>(`/orgs/${e(org)}/dashboards/${e(id)}`, { method: 'DELETE' }),
   },
   profiles: {
@@ -649,7 +692,10 @@ export const telemetryApi = {
       const events: RecordingEvent[] = []
       let cursor: string | null = null
       for (let i = 0; i < 200; i++) {
-        const body: unknown = await request<unknown>(`/orgs/${e(org)}/replays/${e(project)}/${e(replayId)}/recording-segments`, { query: { cursor: cursor ?? undefined }, signal })
+        const body: unknown = await request<unknown>(`/orgs/${e(org)}/replays/${e(project)}/${e(replayId)}/recording-segments`, {
+          query: { cursor: cursor ?? undefined },
+          signal,
+        })
         events.push(...normRecording(body))
         cursor = Array.isArray(body) ? null : str(obj(body).next_cursor)
         if (!cursor) break

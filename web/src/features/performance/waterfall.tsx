@@ -165,10 +165,18 @@ export function Minimap({ rows, traceStart, traceDuration, view, onView }: Pick<
         <>
           <div className="absolute inset-y-0 left-0 bg-background/70" style={{ width: pct(view.start) }} />
           <div className="absolute inset-y-0 right-0 bg-background/70" style={{ width: `calc(100% - ${pct(view.end)})` }} />
-          <div className="absolute inset-y-0 cursor-grab rounded-sm border-2 border-brand/80 active:cursor-grabbing" style={{ left: pct(view.start), width: `max(4px, calc(${pct(view.end)} - ${pct(view.start)}))` }} />
+          <div
+            className="absolute inset-y-0 cursor-grab rounded-sm border-2 border-brand/80 active:cursor-grabbing"
+            style={{ left: pct(view.start), width: `max(4px, calc(${pct(view.end)} - ${pct(view.start)}))` }}
+          />
         </>
       )}
-      {selecting && <div className="absolute inset-y-0 bg-brand/15 ring-1 ring-brand/50" style={{ left: pct(Math.min(selecting.a, selecting.b)), width: pct(Math.abs(selecting.b - selecting.a)) }} />}
+      {selecting && (
+        <div
+          className="absolute inset-y-0 bg-brand/15 ring-1 ring-brand/50"
+          style={{ left: pct(Math.min(selecting.a, selecting.b)), width: pct(Math.abs(selecting.b - selecting.a)) }}
+        />
+      )}
     </div>
   )
 }
@@ -178,11 +186,17 @@ export function TimeAxis({ view, className }: { view: ViewWindow; className?: st
   const ticks = timeTicks(width, 6)
   return (
     <div className={cn('relative h-full', className)} aria-hidden>
-      {ticks.filter((t) => t / width < 0.94).map((t) => (
-        <span key={t} className="absolute top-0 flex h-full items-center border-l border-border pl-1 text-[10.5px] whitespace-nowrap text-muted-foreground tabular" style={{ left: `${(t / width) * 100}%` }}>
-          {ms(view.start + t)}
-        </span>
-      ))}
+      {ticks
+        .filter((t) => t / width < 0.94)
+        .map((t) => (
+          <span
+            key={t}
+            className="absolute top-0 flex h-full items-center border-l border-border pl-1 text-[10.5px] whitespace-nowrap text-muted-foreground tabular"
+            style={{ left: `${(t / width) * 100}%` }}
+          >
+            {ms(view.start + t)}
+          </span>
+        ))}
     </div>
   )
 }
@@ -235,10 +249,17 @@ const Row = memo(function Row({
       aria-level={row.depth + 1}
       aria-expanded={hasChildren ? !row.collapsed : undefined}
       data-span-id={s.span_id}
-      className={cn('group flex h-7 cursor-default items-stretch border-b border-border/60 text-[12.5px]', selected ? 'bg-row-selected' : matched ? 'bg-brand-soft/60' : 'hover:bg-row-hover')}
+      className={cn(
+        'group flex h-7 cursor-default items-stretch border-b border-border/60 text-[12.5px]',
+        selected ? 'bg-row-selected' : matched ? 'bg-brand-soft/60' : 'hover:bg-row-hover',
+      )}
       onClick={() => onSelect(s.span_id, true)}
     >
-      <div role="gridcell" className="relative flex min-w-0 shrink-0 items-center gap-1 border-r pr-2" style={{ width: leftWidth, paddingLeft: 6 + row.depth * 14 }}>
+      <div
+        role="gridcell"
+        className="relative flex min-w-0 shrink-0 items-center gap-1 border-r pr-2"
+        style={{ width: leftWidth, paddingLeft: 6 + row.depth * 14 }}
+      >
         {Array.from({ length: row.depth }, (_, d) => (
           <span key={d} className="absolute inset-y-0 w-px bg-border" style={{ left: 12 + d * 14 }} aria-hidden />
         ))}
@@ -264,22 +285,40 @@ const Row = memo(function Row({
         <span className={cn('min-w-0 truncate', s.is_segment && 'font-medium')} title={label ?? undefined}>
           {label ?? <span className="text-muted-foreground">no description</span>}
         </span>
-        {s.is_segment && s.project_id && <span className="ml-auto hidden shrink-0 rounded bg-muted px-1 text-[10.5px] text-muted-foreground xl:inline">{projectName(s.project_id)}</span>}
-        {(errors?.length || failed) && <CircleAlert className="size-3.5 shrink-0 text-destructive" aria-label={errors?.length ? `${errors.length} errors` : `status ${s.status}`} />}
+        {s.is_segment && s.project_id && (
+          <span className="ml-auto hidden shrink-0 rounded bg-muted px-1 text-[10.5px] text-muted-foreground xl:inline">{projectName(s.project_id)}</span>
+        )}
+        {(errors?.length || failed) && (
+          <CircleAlert className="size-3.5 shrink-0 text-destructive" aria-label={errors?.length ? `${errors.length} errors` : `status ${s.status}`} />
+        )}
       </div>
       <div role="gridcell" className="relative min-w-0 flex-1 overflow-hidden">
         <div
-          className={cn('absolute top-1/2 h-3.5 -translate-y-1/2 rounded-[3px]', critical === false && 'opacity-25', critical === true && 'ring-2 ring-foreground/60 ring-offset-1 ring-offset-background')}
+          className={cn(
+            'absolute top-1/2 h-3.5 -translate-y-1/2 rounded-[3px]',
+            critical === false && 'opacity-25',
+            critical === true && 'ring-2 ring-foreground/60 ring-offset-1 ring-offset-background',
+          )}
           style={{ left: `${left}%`, width: `max(2px, ${w}%)`, background: failed ? 'var(--destructive)' : color }}
         />
         <span
-          className={cn('pointer-events-none absolute top-1/2 -translate-y-1/2 px-1.5 text-[11px] whitespace-nowrap tabular', labelInside ? 'font-medium text-white' : 'text-muted-foreground')}
-          style={labelRight ? { left: `max(0px, ${left + w}%)` } : labelInside ? { right: `max(2px, ${100 - left - w}%)` } : { right: `max(0px, ${100 - left}%)` }}
+          className={cn(
+            'pointer-events-none absolute top-1/2 -translate-y-1/2 px-1.5 text-[11px] whitespace-nowrap tabular',
+            labelInside ? 'font-medium text-[#171a0d]' : 'text-muted-foreground',
+          )}
+          style={
+            labelRight ? { left: `max(0px, ${left + w}%)` } : labelInside ? { right: `max(2px, ${100 - left - w}%)` } : { right: `max(0px, ${100 - left}%)` }
+          }
         >
           {ms(s.duration_ms)}
         </span>
         {logs?.map((l, i) => (
-          <span key={i} className="absolute top-0.5 h-1.5 w-[3px] rounded-full" style={{ left: `${((l.timestamp - traceStart - view.start) / width) * 100}%`, background: LOG_LEVEL_VAR[l.level as 'info'] ?? 'var(--level-info)' }} title={`${l.level}: ${l.body}`} />
+          <span
+            key={i}
+            className="absolute top-0.5 h-1.5 w-[3px] rounded-full"
+            style={{ left: `${((l.timestamp - traceStart - view.start) / width) * 100}%`, background: LOG_LEVEL_VAR[l.level as 'info'] ?? 'var(--level-info)' }}
+            title={`${l.level}: ${l.body}`}
+          />
         ))}
         {errors?.map((e) => (
           <span
@@ -294,7 +333,22 @@ const Row = memo(function Row({
   )
 })
 
-export function Waterfall({ rows, traceStart, traceDuration, view, onView, selectedId, onSelect, onToggle, critical, matches, errorsBySpan, logsBySpan, projectName, scrollToIndex }: Props) {
+export function Waterfall({
+  rows,
+  traceStart,
+  traceDuration,
+  view,
+  onView,
+  selectedId,
+  onSelect,
+  onToggle,
+  critical,
+  matches,
+  errorsBySpan,
+  logsBySpan,
+  projectName,
+  scrollToIndex,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [leftWidth, setLeftWidth] = useState(() => {
     try {
@@ -368,7 +422,10 @@ export function Waterfall({ rows, traceStart, traceDuration, view, onView, selec
   return (
     <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto" data-testid="waterfall-scroll">
       <div className="sticky top-0 z-10 flex h-7 border-b bg-background/95 backdrop-blur">
-        <div className="relative flex shrink-0 items-center border-r px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase" style={{ width: leftWidth }}>
+        <div
+          className="relative flex shrink-0 items-center border-r px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase"
+          style={{ width: leftWidth }}
+        >
           Span
           <div
             role="separator"
@@ -387,7 +444,13 @@ export function Waterfall({ rows, traceStart, traceDuration, view, onView, selec
           <TimeAxis view={view} />
         </div>
       </div>
-      <div role="treegrid" aria-label="Spans" aria-rowcount={rows.length} className="relative" style={{ height: virtualizer.getTotalSize(), minWidth: leftWidth + 240 }}>
+      <div
+        role="treegrid"
+        aria-label="Spans"
+        aria-rowcount={rows.length}
+        className="relative"
+        style={{ height: virtualizer.getTotalSize(), minWidth: leftWidth + 240 }}
+      >
         {items.map((v) => {
           const row = rows[v.index]
           const id = row.node.span.span_id

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { ArrowRight, Building2, CircleAlert, FolderCog, Hash, Keyboard, LayoutDashboard, Layers, Monitor, Moon, Route as RouteIcon, ScrollText, Sun } from 'lucide-react'
+import { ArrowRight, Building2, CircleAlert, FolderCog, Hash, Keyboard, LayoutDashboard, Layers, Route as RouteIcon, ScrollText } from 'lucide-react'
 import { useDeferredValue, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { errorMessage } from '@/api/client'
@@ -8,10 +8,9 @@ import { api } from '@/api/endpoints'
 import { useProjects, useSession } from '@/api/queries'
 import { LevelDot } from '@/components/common/level'
 import { PlatformIcon } from '@/components/common/platform-icon'
-import { useTheme } from '@/components/theme-provider'
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator, CommandShortcut } from '@/components/ui/command'
 import { Kbd } from '@/components/ui/kbd'
-import { NAV } from './sidebar'
+import { NAV } from './top-bar'
 import { useGlobalFilters } from './use-global-filters'
 
 const SETTINGS_PAGES = [
@@ -36,7 +35,6 @@ export function CommandPalette({ open, onOpenChange, initial = '' }: { open: boo
   const navigate = useNavigate()
   const { data: session } = useSession()
   const { data: projects } = useProjects(org)
-  const { setTheme } = useTheme()
   const [input, setInput] = useState(initial)
   const q = useDeferredValue(input.trim())
 
@@ -82,10 +80,16 @@ export function CommandPalette({ open, onOpenChange, initial = '' }: { open: boo
         )}
         {TRACE_ID_RE.test(q.replace(/-/g, '')) && (
           <CommandGroup heading="Trace">
-            <CommandItem value={`goto-trace ${q}`} onSelect={run(() => void navigate({ to: '/$org/traces/$traceId', params: { org, traceId: q.replace(/-/g, '').toLowerCase() } }))}>
+            <CommandItem
+              value={`goto-trace ${q}`}
+              onSelect={run(() => void navigate({ to: '/$org/traces/$traceId', params: { org, traceId: q.replace(/-/g, '').toLowerCase() } }))}
+            >
               <RouteIcon /> Open trace <span className="font-mono font-medium">{q.slice(0, 12)}…</span>
             </CommandItem>
-            <CommandItem value={`trace-logs ${q}`} onSelect={run(() => void navigate({ to: '/$org/logs', params: { org }, search: { query: `trace:${q.replace(/-/g, '').toLowerCase()}` } }))}>
+            <CommandItem
+              value={`trace-logs ${q}`}
+              onSelect={run(() => void navigate({ to: '/$org/logs', params: { org }, search: { query: `trace:${q.replace(/-/g, '').toLowerCase()}` } }))}
+            >
               <ScrollText /> Logs of this trace
             </CommandItem>
           </CommandGroup>
@@ -123,7 +127,10 @@ export function CommandPalette({ open, onOpenChange, initial = '' }: { open: boo
               <Kbd>D</Kbd>
             </CommandShortcut>
           </CommandItem>
-          <CommandItem value="logs errors only level:error" onSelect={run(() => void navigate({ to: '/$org/logs', params: { org }, search: { query: 'level:[error,fatal]' } }))}>
+          <CommandItem
+            value="logs errors only level:error"
+            onSelect={run(() => void navigate({ to: '/$org/logs', params: { org }, search: { query: 'level:[error,fatal]' } }))}
+          >
             <ScrollText /> Error logs
           </CommandItem>
           <CommandItem
@@ -175,16 +182,7 @@ export function CommandPalette({ open, onOpenChange, initial = '' }: { open: boo
           </CommandGroup>
         )}
         <CommandSeparator />
-        <CommandGroup heading="Preferences">
-          <CommandItem value="theme light" onSelect={run(() => setTheme('light'))}>
-            <Sun /> Light theme
-          </CommandItem>
-          <CommandItem value="theme dark" onSelect={run(() => setTheme('dark'))}>
-            <Moon /> Dark theme
-          </CommandItem>
-          <CommandItem value="theme system" onSelect={run(() => setTheme('system'))}>
-            <Monitor /> System theme
-          </CommandItem>
+        <CommandGroup heading="Help">
           <CommandItem value="keyboard shortcuts help" onSelect={run(() => window.dispatchEvent(new CustomEvent('rupta:shortcuts')))}>
             <Keyboard /> Keyboard shortcuts
             <CommandShortcut>

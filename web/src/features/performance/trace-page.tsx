@@ -28,9 +28,17 @@ function Breakdown({ roots, total }: { roots: SpanNode[]; total: number }) {
   const shown = parts.filter((p) => p.ms / sum >= 0.01).slice(0, 6)
   return (
     <div className="min-w-0 flex-1">
-      <div className="flex h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`Self time by operation: ${shown.map((p) => `${p.category} ${Math.round((p.ms / sum) * 100)}%`).join(', ')}`}>
+      <div
+        className="flex h-2 overflow-hidden rounded-full bg-muted"
+        role="img"
+        aria-label={`Self time by operation: ${shown.map((p) => `${p.category} ${Math.round((p.ms / sum) * 100)}%`).join(', ')}`}
+      >
         {shown.map((p) => (
-          <span key={p.category} className="h-full border-r-2 border-card last:border-r-0" style={{ width: `${(p.ms / sum) * 100}%`, background: opColor(p.category) }} />
+          <span
+            key={p.category}
+            className="h-full border-r-2 border-card last:border-r-0"
+            style={{ width: `${(p.ms / sum) * 100}%`, background: opColor(p.category) }}
+          />
         ))}
       </div>
       <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -104,7 +112,8 @@ export function TracePage({ org, traceId, initialSpan }: { org: string; traceId:
     const t = search.trim().toLowerCase()
     const out = new Set<string>()
     if (!t) return out
-    for (const s of trace?.spans ?? []) if (`${s.op ?? ''} ${s.description ?? ''} ${s.transaction ?? ''} ${s.span_id}`.toLowerCase().includes(t)) out.add(s.span_id)
+    for (const s of trace?.spans ?? [])
+      if (`${s.op ?? ''} ${s.description ?? ''} ${s.transaction ?? ''} ${s.span_id}`.toLowerCase().includes(t)) out.add(s.span_id)
     return out
   }, [search, trace])
 
@@ -126,12 +135,16 @@ export function TracePage({ org, traceId, initialSpan }: { org: string; traceId:
   }, [logsQ.data, spanMap, roots])
 
   const projectName = useCallback((id: string | null) => projects?.find((p) => p.id === id)?.slug ?? null, [projects])
-  const toggle = useCallback((id: string) => setCollapsed((c) => {
-    const next = new Set(c)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    return next
-  }), [])
+  const toggle = useCallback(
+    (id: string) =>
+      setCollapsed((c) => {
+        const next = new Set(c)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      }),
+    [],
+  )
   const select = useCallback((id: string, open = false) => {
     setSelectedId(id)
     if (open) setDrawer(true)
@@ -261,7 +274,12 @@ export function TracePage({ org, traceId, initialSpan }: { org: string; traceId:
                   <dt className="text-[11px] text-muted-foreground uppercase">Logs</dt>
                   <dd className="font-semibold tabular">
                     {trace.logs_count > 0 ? (
-                      <Link to="/$org/logs" params={{ org }} search={(prev: Record<string, unknown>) => ({ ...prev, query: `trace:${traceId}`, period: '90d' as const })} className="text-brand-text hover:underline">
+                      <Link
+                        to="/$org/logs"
+                        params={{ org }}
+                        search={(prev: Record<string, unknown>) => ({ ...prev, query: `trace:${traceId}`, period: '90d' as const })}
+                        className="text-brand-text hover:underline"
+                      >
                         {trace.logs_count}
                       </Link>
                     ) : (
@@ -275,7 +293,12 @@ export function TracePage({ org, traceId, initialSpan }: { org: string; traceId:
               <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-[13px]">
                 <CircleAlert className="size-4 text-destructive" />
                 {trace.errors.slice(0, 3).map((e) => (
-                  <button key={e.event_id} type="button" className="min-w-0 truncate text-left hover:underline" onClick={() => e.span_id && (reveal(e.span_id), setDrawer(true))}>
+                  <button
+                    key={e.event_id}
+                    type="button"
+                    className="min-w-0 truncate text-left hover:underline"
+                    onClick={() => e.span_id && (reveal(e.span_id), setDrawer(true))}
+                  >
                     {e.short_id && <span className="mr-1 font-mono text-xs text-muted-foreground">{e.short_id}</span>}
                     {e.title}
                   </button>
@@ -358,7 +381,11 @@ export function TracePage({ org, traceId, initialSpan }: { org: string; traceId:
           </Button>
           {trace && trace.logs_count > 0 && (
             <Button asChild variant="outline" size="xs" className="ml-1">
-              <Link to="/$org/logs" params={{ org }} search={(prev: Record<string, unknown>) => ({ ...prev, query: `trace:${traceId}`, period: '90d' as const })}>
+              <Link
+                to="/$org/logs"
+                params={{ org }}
+                search={(prev: Record<string, unknown>) => ({ ...prev, query: `trace:${traceId}`, period: '90d' as const })}
+              >
                 <ScrollText /> Logs
               </Link>
             </Button>
@@ -368,7 +395,9 @@ export function TracePage({ org, traceId, initialSpan }: { org: string; traceId:
       {trace && (
         <div className="border-b px-3 py-2 sm:px-5">
           <Minimap rows={rows} traceStart={bounds.start} traceDuration={duration} view={view} onView={(v) => setView(clampView(v, duration))} />
-          <p className="mt-1 hidden text-[11px] text-muted-foreground md:block">Drag on the overview to zoom, ⌘/Ctrl + scroll on the timeline to zoom, Shift + scroll to pan, double-click to reset.</p>
+          <p className="mt-1 hidden text-[11px] text-muted-foreground md:block">
+            Drag on the overview to zoom, ⌘/Ctrl + scroll on the timeline to zoom, Shift + scroll to pan, double-click to reset.
+          </p>
         </div>
       )}
       {!trace ? (

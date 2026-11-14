@@ -170,7 +170,28 @@ export function selfTime(n: SpanNode): number {
 export function opCategory(op: string | null): string {
   if (!op) return 'default'
   const head = op.split('.')[0]
-  if (['db', 'cache', 'http', 'browser', 'resource', 'ui', 'queue', 'function', 'navigation', 'pageload', 'task', 'rpc', 'file', 'serialize', 'template', 'middleware', 'view'].includes(head)) return head
+  if (
+    [
+      'db',
+      'cache',
+      'http',
+      'browser',
+      'resource',
+      'ui',
+      'queue',
+      'function',
+      'navigation',
+      'pageload',
+      'task',
+      'rpc',
+      'file',
+      'serialize',
+      'template',
+      'middleware',
+      'view',
+    ].includes(head)
+  )
+    return head
   return 'default'
 }
 

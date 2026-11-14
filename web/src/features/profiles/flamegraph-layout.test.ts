@@ -83,7 +83,19 @@ describe('layoutFlamegraph', () => {
 
 describe('mock sampled profiles', () => {
   it('merge into a consistent call tree', () => {
-    const p = { profile_id: 'p1', project_id: '3', project_slug: 'api', kind: 'transaction' as const, transaction_name: 'GET /api/products', trace_id: 't', platform: 'python', release: null, environment: 'production', start: 0, duration_ms: 900 }
+    const p = {
+      profile_id: 'p1',
+      project_id: '3',
+      project_slug: 'api',
+      kind: 'transaction' as const,
+      transaction_name: 'GET /api/products',
+      trace_id: 't',
+      platform: 'python',
+      release: null,
+      environment: 'production',
+      start: 0,
+      duration_ms: 900,
+    }
     const raw = sampledProfile(p)
     const tree = normFlamegraph(flamegraphOf([raw]))
     expect(tree.samples).toBe(raw.profile.samples.length)

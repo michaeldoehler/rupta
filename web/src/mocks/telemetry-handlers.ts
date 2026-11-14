@@ -77,7 +77,7 @@ function timeRange(t: Telemetry, url: URL): [number, number] {
 function logOut(l: MockLog): Record<string, unknown> {
   // Typed attributes on the wire, as the server's storage keeps them plain:
   // the API returns plain values.
-  return { ...l, timestamp: new Date(l.timestamp).toISOString(), severity_number: { trace: 1, debug: 5, info: 9, warn: 13, error: 17, fatal: 21 }[l.level] } 
+  return { ...l, timestamp: new Date(l.timestamp).toISOString(), severity_number: { trace: 1, debug: 5, info: 9, warn: 13, error: 17, fatal: 21 }[l.level] }
 }
 
 function filterLogs(t: Telemetry, world: World, org: DbOrg, url: URL): MockLog[] {
@@ -89,11 +89,18 @@ function filterLogs(t: Telemetry, world: World, org: DbOrg, url: URL): MockLog[]
   if (q.trace) {
     // Logs of a trace: the stored ones plus the lines emitted by its spans.
     const trace = buildTrace(t, world, q.trace)
-    base = [...t.logs.filter((l) => l.trace_id === q.trace), ...traceLogs(t, flatSpans(trace.spans), trace.errors.length > 0)].sort((a, b) => b.timestamp - a.timestamp)
+    base = [...t.logs.filter((l) => l.trace_id === q.trace), ...traceLogs(t, flatSpans(trace.spans), trace.errors.length > 0)].sort(
+      (a, b) => b.timestamp - a.timestamp,
+    )
     return base.filter((l) => matchesLog(l as unknown as LogRow, q))
   }
   return base.filter(
-    (l) => projects.has(l.project_id) && (!envs.length || envs.includes(l.environment)) && l.timestamp >= from && l.timestamp <= to && matchesLog(l as unknown as LogRow, q),
+    (l) =>
+      projects.has(l.project_id) &&
+      (!envs.length || envs.includes(l.environment)) &&
+      l.timestamp >= from &&
+      l.timestamp <= to &&
+      matchesLog(l as unknown as LogRow, q),
   )
 }
 
@@ -195,7 +202,8 @@ export function telemetryHandlers(ctx: MockContext) {
       if ('error' in r) return r.error
       const id = p(params, 'traceId').toLowerCase().replace(/-/g, '')
       if (!/^[0-9a-f]{32}$/.test(id)) return err(400, 'invalid', 'trace_id: expected 32 hexadecimal characters.')
-      if (id === '0'.repeat(32)) return err(404, 'not_found', 'No spans or transactions with this trace id. It may have been deleted by the retention policy or not sampled.')
+      if (id === '0'.repeat(32))
+        return err(404, 'not_found', 'No spans or transactions with this trace id. It may have been deleted by the retention policy or not sampled.')
       return json(buildTrace(r.t, r.world, id))
     }),
     http.get(`${BASE}/orgs/:org/spans`, async ({ params, request }) => {
@@ -203,7 +211,8 @@ export function telemetryHandlers(ctx: MockContext) {
       const r = withTel(params)
       if ('error' in r) return r.error
       const url = new URL(request.url)
-      const groupBy = (['description', 'transaction', 'none'].includes(url.searchParams.get('group_by') ?? '') ? url.searchParams.get('group_by') : 'op') as 'op' | 'description' | 'transaction' | 'none'
+      const groupBy = (['description', 'transaction', 'none'].includes(url.searchParams.get('group_by') ?? '') ? url.searchParams.get('group_by') : 'op') as
+        'op' | 'description' | 'transaction' | 'none'
       const period = url.searchParams.get('period') ?? '14d'
       const projects = projectSet(r.world, r.org, url)
       const minutes = periodMs(period) / 60_000
@@ -222,11 +231,26 @@ export function telemetryHandlers(ctx: MockContext) {
       for (const def of TX) {
         if (!projects.has(r.t.projectIds.get(def.project) ?? '') && !def.browser) continue
         for (let i = 0; i < 3; i++) {
-          const trace = buildTrace(r.t, r.world, `${(i + 1).toString(16).padStart(2, '0')}${def.name.length.toString(16).padStart(2, '0')}${'ab'.repeat(14)}`.slice(0, 32))
+          const trace = buildTrace(
+            r.t,
+            r.world,
+            `${(i + 1).toString(16).padStart(2, '0')}${def.name.length.toString(16).padStart(2, '0')}${'ab'.repeat(14)}`.slice(0, 32),
+          )
           for (const s of flatSpans(trace.spans)) {
             if (!projects.has(s.project_id) || !matchSpan(s)) continue
             if (groupBy === 'none') {
-              if (samples.length < 100) samples.push({ span_id: s.span_id, trace_id: s.trace_id, project_id: s.project_id, op: s.op, description: s.description, transaction: s.transaction ?? def.name, status: s.status, duration_ms: s.duration_ms, timestamp: new Date(s.start_timestamp).toISOString() })
+              if (samples.length < 100)
+                samples.push({
+                  span_id: s.span_id,
+                  trace_id: s.trace_id,
+                  project_id: s.project_id,
+                  op: s.op,
+                  description: s.description,
+                  transaction: s.transaction ?? def.name,
+                  status: s.status,
+                  duration_ms: s.duration_ms,
+                  timestamp: new Date(s.start_timestamp).toISOString(),
+                })
               continue
             }
             const key = groupBy === 'op' ? s.op : groupBy === 'transaction' ? def.name : s.description
@@ -243,7 +267,14 @@ export function telemetryHandlers(ctx: MockContext) {
           const d = [...g.durations].sort((a, b) => a - b)
           const count = Math.round(g.weight * minutes)
           const avg = d.reduce((s, x) => s + x, 0) / d.length
-          return { group: g.group, count, p50: Math.round(d[Math.floor(d.length * 0.5)] * 10) / 10, p95: Math.round(d[Math.min(d.length - 1, Math.floor(d.length * 0.95))] * 10) / 10, avg: Math.round(avg * 10) / 10, sum_duration_ms: Math.round(avg * count) }
+          return {
+            group: g.group,
+            count,
+            p50: Math.round(d[Math.floor(d.length * 0.5)] * 10) / 10,
+            p95: Math.round(d[Math.min(d.length - 1, Math.floor(d.length * 0.95))] * 10) / 10,
+            avg: Math.round(avg * 10) / 10,
+            sum_duration_ms: Math.round(avg * count),
+          }
         })
         .sort((a, b) => b.sum_duration_ms - a.sum_duration_ms)
         .slice(0, 100)
@@ -282,7 +313,9 @@ export function telemetryHandlers(ctx: MockContext) {
       for (const l of rows) totals[l.level] = (totals[l.level] ?? 0) + 1
       return json({
         interval: interval / 1000,
-        buckets: [...buckets.entries()].sort((a, b) => a[0] - b[0]).map(([ts, counts]) => ({ ts: Math.floor(ts / 1000), total: Object.values(counts).reduce((s, n) => s + n, 0), counts })),
+        buckets: [...buckets.entries()]
+          .sort((a, b) => a[0] - b[0])
+          .map(([ts, counts]) => ({ ts: Math.floor(ts / 1000), total: Object.values(counts).reduce((s, n) => s + n, 0), counts })),
         totals,
       })
     }),
@@ -354,7 +387,9 @@ export function telemetryHandlers(ctx: MockContext) {
       const def = METRICS.find((m) => m.name === url.searchParams.get('name'))
       if (!def) return err(404, 'not_found', 'Unknown metric.')
       const op = url.searchParams.get('op') ?? (def.type === 'counter' ? 'sum' : 'avg')
-      return json(metricSeries(r.t, def, op, url.searchParams.get('group_by') || null, url.searchParams.get('period') ?? '14d', url.searchParams.get('interval')))
+      return json(
+        metricSeries(r.t, def, op, url.searchParams.get('group_by') || null, url.searchParams.get('period') ?? '14d', url.searchParams.get('interval')),
+      )
     }),
 
     // ---- dashboards ----------------------------------------------------------
@@ -377,9 +412,17 @@ export function telemetryHandlers(ctx: MockContext) {
       if ('error' in r) return r.error
       if (!ctx.canWrite(r.org.id)) return err(403, 'forbidden', 'Viewers cannot change dashboards.')
       const body = (await request.json()) as Partial<Dashboard>
-      if (!body.title?.trim()) return HttpResponse.json({ error: { code: 'validation_failed', message: 'title: must not be empty', details: { field: 'title' } } }, { status: 422 })
+      if (!body.title?.trim())
+        return HttpResponse.json({ error: { code: 'validation_failed', message: 'title: must not be empty', details: { field: 'title' } } }, { status: 422 })
       const now = new Date().toISOString()
-      const d: Dashboard = { id: String(r.t.nextDashboard++), title: body.title.trim(), description: body.description ?? null, widgets: body.widgets ?? [], created_at: now, updated_at: now }
+      const d: Dashboard = {
+        id: String(r.t.nextDashboard++),
+        title: body.title.trim(),
+        description: body.description ?? null,
+        widgets: body.widgets ?? [],
+        created_at: now,
+        updated_at: now,
+      }
       r.t.dashboards.push(d)
       return json(d, 201)
     }),
@@ -410,7 +453,9 @@ export function telemetryHandlers(ctx: MockContext) {
       const tx = url.searchParams.get('transaction')
       const q = (url.searchParams.get('query') ?? '').toLowerCase()
       const [from] = timeRange(r.t, url)
-      const rows = r.t.profiles.filter((x) => projects.has(x.project_id) && (!tx || x.transaction_name === tx) && x.start >= from && (!q || x.transaction_name.toLowerCase().includes(q)))
+      const rows = r.t.profiles.filter(
+        (x) => projects.has(x.project_id) && (!tx || x.transaction_name === tx) && x.start >= from && (!q || x.transaction_name.toLowerCase().includes(q)),
+      )
       const pg = pageOf(rows, url)
       return json({ data: pg.data.map(({ project_slug: _s, ...x }) => ({ ...x, start: new Date(x.start).toISOString() })), next_cursor: pg.next_cursor })
     }),
@@ -458,11 +503,13 @@ export function telemetryHandlers(ctx: MockContext) {
         } else if (tok.key === 'url') rows = rows.filter((x) => x.urls.some((u) => tok.values.some((v) => u.includes(v))))
         else if (tok.key === 'user.email') rows = rows.filter((x) => tok.values.some((v) => x.user.email.includes(v.toLowerCase())))
         else if (tok.key === 'browser') rows = rows.filter((x) => tok.values.some((v) => x.browser.toLowerCase().startsWith(v.toLowerCase())))
-        else if (tok.key === 'count_errors') rows = rows.filter((x) => (tok.op === '>' ? x.issues.length > Number(tok.values[0]) : x.issues.length === Number(tok.values[0])))
+        else if (tok.key === 'count_errors')
+          rows = rows.filter((x) => (tok.op === '>' ? x.issues.length > Number(tok.values[0]) : x.issues.length === Number(tok.values[0])))
       }
       const sort = url.searchParams.get('sort') ?? '-started'
       const key = sort.replace(/^-/, '')
-      const val = (x: MockReplay) => (key === 'duration' ? x.duration_ms : key === 'count_errors' ? x.issues.length : key === 'count_clicks' ? x.count_clicks : x.started)
+      const val = (x: MockReplay) =>
+        key === 'duration' ? x.duration_ms : key === 'count_errors' ? x.issues.length : key === 'count_clicks' ? x.count_clicks : x.started
       rows = [...rows].sort((a, b) => (val(a) - val(b)) * (sort.startsWith('-') ? -1 : 1))
       const pg = pageOf(rows, url)
       return json({ data: pg.data.map((x) => replayOut(r.world, x)), next_cursor: pg.next_cursor })

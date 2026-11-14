@@ -73,20 +73,36 @@ export function DashboardsPage() {
         ) : q.isError ? (
           <ErrorState error={q.error} retry={() => q.refetch()} />
         ) : q.data.length === 0 ? (
-          <EmptyState icon={<LayoutDashboard />} title="No dashboards yet" description="Put metrics, transaction latency, log volume and issues side by side, with one time range for all." action={<Button size="sm" onClick={() => setCreating(true)}><Plus /> New dashboard</Button>} />
+          <EmptyState
+            icon={<LayoutDashboard />}
+            title="No dashboards yet"
+            description="Put metrics, transaction latency, log volume and issues side by side, with one time range for all."
+            action={
+              <Button size="sm" onClick={() => setCreating(true)}>
+                <Plus /> New dashboard
+              </Button>
+            }
+          />
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {q.data.map((d) => (
               <li key={d.id}>
-                <Link to="/$org/dashboards/$dashboardId" params={{ org, dashboardId: d.id }} className="group block h-full rounded-lg border bg-card p-4 transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                <Link
+                  to="/$org/dashboards/$dashboardId"
+                  params={{ org, dashboardId: d.id }}
+                  className="group block h-full rounded-lg border bg-card p-4 transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                >
                   <div className="flex items-start justify-between gap-2">
-                    <h2 className="font-semibold group-hover:text-brand-text">{d.title}</h2>
+                    <h2 className="font-semibold group-hover:text-brand">{d.title}</h2>
                     <ChevronRight className="size-4 text-muted-foreground" />
                   </div>
                   {d.description && <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">{d.description}</p>}
                   <div className="mt-3 grid grid-cols-4 gap-1" aria-hidden>
                     {d.widgets.slice(0, 8).map((w) => (
-                      <span key={w.id} className={cn('h-5 rounded-sm bg-muted', w.width >= 2 && 'col-span-2', w.width >= 3 && 'col-span-3', w.width >= 4 && 'col-span-4')} />
+                      <span
+                        key={w.id}
+                        className={cn('h-5 rounded-sm bg-muted', w.width >= 2 && 'col-span-2', w.width >= 3 && 'col-span-3', w.width >= 4 && 'col-span-4')}
+                      />
                     ))}
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">
@@ -111,7 +127,9 @@ export function DashboardsPage() {
               if (title.trim()) create.mutate()
             }}
           >
-            <Field label="Title">{(p) => <Input {...p} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Checkout health" />}</Field>
+            <Field label="Title">
+              {(p) => <Input {...p} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Checkout health" />}
+            </Field>
             <Field label="Description" optional>
               {(p) => <Textarea {...p} value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />}
             </Field>
@@ -130,7 +148,17 @@ export function DashboardsPage() {
   )
 }
 
-export function WidgetEditor({ open, onOpenChange, initial, onSave }: { open: boolean; onOpenChange: (o: boolean) => void; initial: Widget | null; onSave: (w: Widget) => void }) {
+export function WidgetEditor({
+  open,
+  onOpenChange,
+  initial,
+  onSave,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  initial: Widget | null
+  onSave: (w: Widget) => void
+}) {
   const { org, projects, environments, period } = useGlobalFilters()
   const names = useMetricNames(org, { project: projects, period })
   const [w, setW] = useState<Widget>(initial ?? { id: newId(), title: '', kind: 'metric', chart: 'line', query: {}, width: 2 })
@@ -143,7 +171,13 @@ export function WidgetEditor({ open, onOpenChange, initial, onSave }: { open: bo
   const setQ = (patch: Partial<Widget['query']>) => setW((x) => ({ ...x, query: { ...x.query, ...patch } }))
   const valid = w.kind === 'metric' ? Boolean(w.query.name) : w.kind === 'transactions' ? Boolean(w.query.transaction) : true
   const autoTitle =
-    w.kind === 'metric' ? `${OP_LABEL[w.query.op ?? ops[0]]} of ${w.query.name ?? '…'}${w.query.group_by ? ` by ${w.query.group_by}` : ''}` : w.kind === 'transactions' ? `${w.query.field ?? 'p95'} of ${w.query.transaction ?? '…'}` : w.kind === 'logs' ? `Logs ${w.query.query ?? ''}`.trim() : 'Issues'
+    w.kind === 'metric'
+      ? `${OP_LABEL[w.query.op ?? ops[0]]} of ${w.query.name ?? '…'}${w.query.group_by ? ` by ${w.query.group_by}` : ''}`
+      : w.kind === 'transactions'
+        ? `${w.query.field ?? 'p95'} of ${w.query.transaction ?? '…'}`
+        : w.kind === 'logs'
+          ? `Logs ${w.query.query ?? ''}`.trim()
+          : 'Issues'
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl">
@@ -205,7 +239,16 @@ export function WidgetEditor({ open, onOpenChange, initial, onSave }: { open: bo
                     )}
                   </Field>
                   <Field label="Group by" hint="Attribute, environment or release">
-                    {(p) => <Input {...p} list="group-by-options" className="font-mono" value={w.query.group_by ?? ''} onChange={(e) => setQ({ group_by: e.target.value || undefined })} placeholder="None" />}
+                    {(p) => (
+                      <Input
+                        {...p}
+                        list="group-by-options"
+                        className="font-mono"
+                        value={w.query.group_by ?? ''}
+                        onChange={(e) => setQ({ group_by: e.target.value || undefined })}
+                        placeholder="None"
+                      />
+                    )}
                   </Field>
                   <datalist id="group-by-options">
                     {['environment', 'release', ...(meta?.attributes ?? [])].map((a) => (
@@ -218,7 +261,15 @@ export function WidgetEditor({ open, onOpenChange, initial, onSave }: { open: bo
             {w.kind === 'transactions' && (
               <>
                 <Field label="Transaction" hint="The exact name, as listed on the Performance page.">
-                  {(p) => <Input {...p} className="font-mono" value={w.query.transaction ?? ''} onChange={(e) => setQ({ transaction: e.target.value })} placeholder="POST /api/orders" />}
+                  {(p) => (
+                    <Input
+                      {...p}
+                      className="font-mono"
+                      value={w.query.transaction ?? ''}
+                      onChange={(e) => setQ({ transaction: e.target.value })}
+                      placeholder="POST /api/orders"
+                    />
+                  )}
                 </Field>
                 <Field label="Value">
                   {(p) => (
@@ -255,7 +306,13 @@ export function WidgetEditor({ open, onOpenChange, initial, onSave }: { open: bo
               <Field label="Title">{(p) => <Input {...p} value={w.title} onChange={(e) => set({ title: e.target.value })} placeholder={autoTitle} />}</Field>
               <div className="space-y-1.5">
                 <span className="block text-[13px] font-medium">Width</span>
-                <ToggleGroup type="single" value={String(w.width)} onValueChange={(v) => v && set({ width: Number(v) })} aria-label="Widget width in columns" className="h-8">
+                <ToggleGroup
+                  type="single"
+                  value={String(w.width)}
+                  onValueChange={(v) => v && set({ width: Number(v) })}
+                  aria-label="Widget width in columns"
+                  className="h-8"
+                >
                   {[1, 2, 3, 4].map((n) => (
                     <ToggleGroupItem key={n} value={String(n)} aria-label={`${n} of 4 columns`}>
                       {n}
@@ -267,7 +324,11 @@ export function WidgetEditor({ open, onOpenChange, initial, onSave }: { open: bo
           </div>
           <div className="min-w-0 rounded-lg border bg-card p-3">
             <p className="mb-2 text-[13px] font-semibold">{w.title || autoTitle}</p>
-            {valid ? <WidgetView widget={w} scope={{ org, project: projects, environment: environments, period }} height={220} /> : <div className="flex h-[220px] items-center justify-center text-xs text-muted-foreground">Choose what to show to see a preview</div>}
+            {valid ? (
+              <WidgetView widget={w} scope={{ org, project: projects, environment: environments, period }} height={220} />
+            ) : (
+              <div className="flex h-[220px] items-center justify-center text-xs text-muted-foreground">Choose what to show to see a preview</div>
+            )}
           </div>
         </div>
         <DialogFooter>
@@ -373,7 +434,16 @@ export function DashboardPage({ dashboardId }: { dashboardId: string }) {
         {!d ? (
           <CardsSkeleton count={4} className="md:grid-cols-2" />
         ) : widgets.length === 0 ? (
-          <EmptyState icon={<LayoutDashboard />} title="This dashboard is empty" description="Add metric charts, transaction latency, log volume or an issue list." action={<Button size="sm" onClick={() => setEditing({ open: true, widget: null })}><Plus /> Add widget</Button>} />
+          <EmptyState
+            icon={<LayoutDashboard />}
+            title="This dashboard is empty"
+            description="Add metric charts, transaction latency, log volume or an issue list."
+            action={
+              <Button size="sm" onClick={() => setEditing({ open: true, widget: null })}>
+                <Plus /> Add widget
+              </Button>
+            }
+          />
         ) : (
           <ul className="grid grid-cols-1 gap-3 md:grid-cols-4" aria-label="Widgets">
             {widgets.map((w, i) => (
@@ -393,7 +463,9 @@ export function DashboardPage({ dashboardId }: { dashboardId: string }) {
                       <DropdownMenuItem onSelect={() => setEditing({ open: true, widget: w })}>
                         <Pencil /> Edit
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setWidgets([...widgets.slice(0, i + 1), { ...w, id: newId(), title: `${w.title} (copy)` }, ...widgets.slice(i + 1)])}>
+                      <DropdownMenuItem
+                        onSelect={() => setWidgets([...widgets.slice(0, i + 1), { ...w, id: newId(), title: `${w.title} (copy)` }, ...widgets.slice(i + 1)])}
+                      >
                         <Copy /> Duplicate
                       </DropdownMenuItem>
                       <DropdownMenuItem disabled={i === 0} onSelect={() => move(i, -1)}>

@@ -1,17 +1,39 @@
-// Screenshots of the main screens in both themes, from the mock build.
-//   pnpm screenshots                 -> docs/images (README set)
-//   REVIEW_DIR=/path pnpm screenshots -> also a full review set of every screen
-//   REVIEW_WAVE=2 REVIEW_DIR=/path      -> only the telemetry screens, with an index.md
+// Screenshots of the screens (one dark theme), from the mock build.
+//   pnpm screenshots                  -> docs/images (README set)
+//   REVIEW_DIR=/path pnpm screenshots -> also a review set of every screen, with index.md
+//   REVIEW_WAVE=2 REVIEW_DIR=/path    -> only the telemetry screens
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
 
 const DOCS = fileURLToPath(new URL('../../docs/images/', import.meta.url))
 const REVIEW = process.env.REVIEW_DIR
-const README_SHOTS = new Set(['issues', 'issue-detail', 'stacktrace', 'release-detail', 'project-keys', 'command-palette', 'trace', 'logs', 'flamegraph', 'replay'])
+const README_SHOTS = new Set([
+  'issues',
+  'issue-detail',
+  'stacktrace',
+  'release-detail',
+  'project-keys',
+  'command-palette',
+  'trace',
+  'logs',
+  'flamegraph',
+  'replay',
+])
 const WAVE = process.env.REVIEW_WAVE
 
-type Shot = { n: string; screen: string; state: string; go: (page: Page) => Promise<void>; mobile?: boolean; readme?: string; wave?: 2; note?: string; streaming?: boolean }
+type Shot = {
+  n: string
+  screen: string
+  state: string
+  go: (page: Page) => Promise<void>
+  mobile?: boolean
+  wide?: boolean
+  readme?: string
+  wave?: 2
+  note?: string
+  streaming?: boolean
+}
 
 async function ready(page: Page, streaming = false) {
   // A live tail keeps a request open, so the network never goes idle.
@@ -253,7 +275,11 @@ async function openTrace(page: Page) {
 
 async function openProfile(page: Page) {
   await page.goto('/acme/profiles')
-  await page.getByRole('grid', { name: 'Profiles' }).getByRole('link', { name: /GET \/api\/products$/ }).first().click()
+  await page
+    .getByRole('grid', { name: 'Profiles' })
+    .getByRole('link', { name: /GET \/api\/products$/ })
+    .first()
+    .click()
   await expect(page.getByTestId('flamegraph')).toBeVisible()
 }
 
@@ -264,49 +290,432 @@ async function openReplay(page: Page) {
 }
 
 shots.push(
-  { n: '41', wave: 2, screen: 'performance', state: 'transactions', note: 'Transactions table with throughput, percentiles, failure rate and apdex', go: async (p) => void (await p.goto('/acme/performance'), await expect(p.getByRole('table', { name: 'Transactions' })).toBeVisible()) },
-  { n: '42', wave: 2, screen: 'performance', state: 'empty-search', note: 'No transactions match the search', go: async (p) => void (await p.goto('/acme/performance'), await p.getByLabel('Search transactions').fill('nothing-like-this'), await expect(p.getByText('No transactions match')).toBeVisible()) },
-  { n: '43', wave: 2, screen: 'transaction-summary', state: 'browser-vitals', note: 'Summary of a page load: charts, web vitals against thresholds', go: async (p) => void (await p.goto('/acme/performance/summary?name=%2Fproducts%2F%3Aslug'), await expect(p.getByTestId('vital-lcp')).toBeVisible()) },
-  { n: '44', wave: 2, screen: 'transaction-summary', state: 'histogram-samples', note: 'Duration histogram, related issues and slowest samples of an API endpoint', go: async (p) => void (await p.goto('/acme/performance/summary?name=POST%20%2Fapi%2Forders'), await expect(p.getByRole('table', { name: 'Slowest samples' })).toBeVisible(), await p.getByRole('img', { name: 'Duration histogram' }).scrollIntoViewIfNeeded()) },
-  { n: '45', wave: 2, screen: 'trace', state: 'waterfall', readme: 'trace', note: 'Trace across browser, API and worker with error and log markers', go: openTrace },
-  { n: '46', wave: 2, screen: 'trace', state: 'span-details', note: 'Span details panel with errors, logs, data', go: async (p) => void (await openTrace(p), await p.getByRole('treegrid', { name: 'Spans' }).getByRole('row').nth(3).click(), await expect(p.getByTestId('span-drawer')).toBeVisible()) },
-  { n: '47', wave: 2, screen: 'trace', state: 'critical-path-zoomed', note: 'Critical path highlighted, timeline zoomed with the minimap window', go: async (p) => void (await openTrace(p), await p.getByRole('button', { name: 'Critical path' }).click(), await p.getByRole('button', { name: 'Zoom in' }).click()) },
-  { n: '48', wave: 2, screen: 'trace', state: 'long-trace-collapsed', note: 'A batch job with 1,300 spans, collapsed below the transactions', go: async (p) => void (await p.goto('/acme/performance/summary?name=reindex-search'), await p.getByRole('table', { name: 'Slowest samples' }).getByRole('link').first().click(), await expect(p.getByRole('treegrid', { name: 'Spans' }).getByRole('row').first()).toBeVisible()) },
-  { n: '49', wave: 2, screen: 'trace', state: 'not-found', note: 'A trace id with nothing stored', go: async (p) => void (await p.goto('/acme/traces/00000000000000000000000000000000'), await expect(p.getByText('Not found')).toBeVisible()) },
-  { n: '50', wave: 2, screen: 'span-explorer', state: 'by-operation', note: 'Span explorer grouped by operation', go: async (p) => void (await p.goto('/acme/traces'), await expect(p.getByRole('table', { name: 'Span groups' })).toBeVisible()) },
-  { n: '51', wave: 2, screen: 'span-explorer', state: 'spans', note: 'Individual spans (group_by=none) linking to their traces', go: async (p) => void (await p.goto('/acme/traces?group_by=none&q=op%3Adb.query'), await expect(p.getByRole('table', { name: 'Spans' })).toBeVisible()) },
-  { n: '52', wave: 2, screen: 'logs', state: 'explorer', readme: 'logs', note: 'Logs: level histogram, facets, virtualised table', go: async (p) => void (await p.goto('/acme/logs?period=24h'), await grid(p, 'Log lines')) },
-  { n: '53', wave: 2, screen: 'logs', state: 'autocomplete', note: 'Query bar suggesting attribute keys', go: async (p) => void (await p.goto('/acme/logs?period=24h'), await grid(p, 'Log lines'), await p.getByRole('combobox', { name: 'Search logs' }).click(), await p.getByRole('combobox', { name: 'Search logs' }).pressSequentially('http.'), await expect(p.getByRole('option').first()).toBeVisible()) },
-  { n: '54', wave: 2, screen: 'logs', state: 'expanded-row', note: 'Expanded line with all attributes, trace link and issues of the trace', go: async (p) => void (await p.goto('/acme/logs?period=24h&query=level%3Awarn%20service.name%3Aapi'), await grid(p, 'Log lines'), await p.getByRole('grid', { name: 'Log lines' }).getByRole('row').filter({ has: p.getByRole('link', { name: 'Open trace' }) }).first().click(), await expect(p.getByText('View trace')).toBeVisible()) },
-  { n: '55', wave: 2, streaming: true, screen: 'logs', state: 'live-tail', note: 'Live tail streaming new lines over Server-Sent Events', go: async (p) => void (await p.goto('/acme/logs?period=1h&live=true'), await expect(p.getByRole('status').getByText('Live', { exact: true })).toBeVisible({ timeout: 10_000 }), await p.waitForTimeout(3000)) },
-  { n: '56', wave: 2, screen: 'logs', state: 'empty', note: 'No lines match', go: async (p) => void (await p.goto('/acme/logs?query=%22no%20such%20line%22'), await expect(p.getByText('No log lines match')).toBeVisible()) },
-  { n: '57', wave: 2, screen: 'mobile-logs', state: 'default', mobile: true, note: 'Logs on a phone', go: async (p) => void (await p.goto('/acme/logs?period=24h'), await grid(p, 'Log lines')) },
-  { n: '58', wave: 2, screen: 'metrics', state: 'explorer-grouped', note: 'Metric explorer: p95 by route, area chart, series table', go: async (p) => void (await p.goto('/acme/metrics?name=http.server.duration&op=p95&group_by=route&chart=area'), await expect(p.getByRole('table', { name: 'Series summary' })).toBeVisible()) },
-  { n: '59', wave: 2, screen: 'metrics', state: 'counter-bars', note: 'A counter as bars', go: async (p) => void (await p.goto('/acme/metrics?name=checkout.completed'), await expect(p.getByRole('table', { name: 'Series summary' })).toBeVisible()) },
-  { n: '60', wave: 2, screen: 'dashboards', state: 'list', note: 'Dashboards', go: async (p) => void (await p.goto('/acme/dashboards'), await expect(p.getByRole('link', { name: /Checkout health/ })).toBeVisible()) },
-  { n: '61', wave: 2, screen: 'dashboard', state: 'grid', note: 'Dashboard with metric, transaction, log and issue widgets', go: async (p) => void (await p.goto('/acme/dashboards/1'), await expect(p.getByRole('list', { name: 'Widgets' })).toBeVisible()) },
-  { n: '62', wave: 2, screen: 'dashboard', state: 'widget-editor', note: 'Add widget dialog with live preview', go: async (p) => { await p.goto('/acme/dashboards/2'); await p.getByRole('button', { name: 'Add widget' }).first().click(); await p.getByRole('dialog').getByLabel('Metric').click(); await p.getByRole('option', { name: 'jobs.processed' }).click() } },
-  { n: '63', wave: 2, screen: 'profiles', state: 'list', note: 'Profile list', go: async (p) => void (await p.goto('/acme/profiles'), await grid(p, 'Profiles')) },
-  { n: '64', wave: 2, screen: 'profiles', state: 'by-transaction', note: 'Profiles grouped by transaction', go: async (p) => void (await p.goto('/acme/profiles/transactions'), await expect(p.getByRole('link', { name: /GET \/api\/products/ }).first()).toBeVisible()) },
+  {
+    n: '41',
+    wave: 2,
+    screen: 'performance',
+    state: 'transactions',
+    note: 'Transactions table with throughput, percentiles, failure rate and apdex',
+    go: async (p) => void (await p.goto('/acme/performance'), await expect(p.getByRole('table', { name: 'Transactions' })).toBeVisible()),
+  },
+  {
+    n: '42',
+    wave: 2,
+    screen: 'performance',
+    state: 'empty-search',
+    note: 'No transactions match the search',
+    go: async (p) =>
+      void (
+        await p.goto('/acme/performance'),
+        await p.getByLabel('Search transactions').fill('nothing-like-this'),
+        await expect(p.getByText('No transactions match')).toBeVisible()
+      ),
+  },
+  {
+    n: '43',
+    wave: 2,
+    screen: 'transaction-summary',
+    state: 'browser-vitals',
+    note: 'Summary of a page load: charts, web vitals against thresholds',
+    go: async (p) => void (await p.goto('/acme/performance/summary?name=%2Fproducts%2F%3Aslug'), await expect(p.getByTestId('vital-lcp')).toBeVisible()),
+  },
+  {
+    n: '44',
+    wave: 2,
+    screen: 'transaction-summary',
+    state: 'histogram-samples',
+    note: 'Duration histogram, related issues and slowest samples of an API endpoint',
+    go: async (p) =>
+      void (
+        await p.goto('/acme/performance/summary?name=POST%20%2Fapi%2Forders'),
+        await expect(p.getByRole('table', { name: 'Slowest samples' })).toBeVisible(),
+        await p.getByRole('img', { name: 'Duration histogram' }).scrollIntoViewIfNeeded()
+      ),
+  },
+  {
+    n: '45',
+    wave: 2,
+    screen: 'trace',
+    state: 'waterfall',
+    readme: 'trace',
+    note: 'Trace across browser, API and worker with error and log markers',
+    go: openTrace,
+  },
+  {
+    n: '46',
+    wave: 2,
+    screen: 'trace',
+    state: 'span-details',
+    note: 'Span details panel with errors, logs, data',
+    go: async (p) =>
+      void (
+        await openTrace(p),
+        await p.getByRole('treegrid', { name: 'Spans' }).getByRole('row').nth(3).click(),
+        await expect(p.getByTestId('span-drawer')).toBeVisible()
+      ),
+  },
+  {
+    n: '47',
+    wave: 2,
+    screen: 'trace',
+    state: 'critical-path-zoomed',
+    note: 'Critical path highlighted, timeline zoomed with the minimap window',
+    go: async (p) =>
+      void (await openTrace(p), await p.getByRole('button', { name: 'Critical path' }).click(), await p.getByRole('button', { name: 'Zoom in' }).click()),
+  },
+  {
+    n: '48',
+    wave: 2,
+    screen: 'trace',
+    state: 'long-trace-collapsed',
+    note: 'A batch job with 1,300 spans, collapsed below the transactions',
+    go: async (p) =>
+      void (
+        await p.goto('/acme/performance/summary?name=reindex-search'),
+        await p.getByRole('table', { name: 'Slowest samples' }).getByRole('link').first().click(),
+        await expect(p.getByRole('treegrid', { name: 'Spans' }).getByRole('row').first()).toBeVisible()
+      ),
+  },
+  {
+    n: '49',
+    wave: 2,
+    screen: 'trace',
+    state: 'not-found',
+    note: 'A trace id with nothing stored',
+    go: async (p) => void (await p.goto('/acme/traces/00000000000000000000000000000000'), await expect(p.getByText('Not found')).toBeVisible()),
+  },
+  {
+    n: '50',
+    wave: 2,
+    screen: 'span-explorer',
+    state: 'by-operation',
+    note: 'Span explorer grouped by operation',
+    go: async (p) => void (await p.goto('/acme/traces'), await expect(p.getByRole('table', { name: 'Span groups' })).toBeVisible()),
+  },
+  {
+    n: '51',
+    wave: 2,
+    screen: 'span-explorer',
+    state: 'spans',
+    note: 'Individual spans (group_by=none) linking to their traces',
+    go: async (p) => void (await p.goto('/acme/traces?group_by=none&q=op%3Adb.query'), await expect(p.getByRole('table', { name: 'Spans' })).toBeVisible()),
+  },
+  {
+    n: '52',
+    wave: 2,
+    screen: 'logs',
+    state: 'explorer',
+    readme: 'logs',
+    note: 'Logs: level histogram, facets, virtualised table',
+    go: async (p) => void (await p.goto('/acme/logs?period=24h'), await grid(p, 'Log lines')),
+  },
+  {
+    n: '53',
+    wave: 2,
+    screen: 'logs',
+    state: 'autocomplete',
+    note: 'Query bar suggesting attribute keys',
+    go: async (p) =>
+      void (
+        await p.goto('/acme/logs?period=24h'),
+        await grid(p, 'Log lines'),
+        await p.getByRole('combobox', { name: 'Search logs' }).click(),
+        await p.getByRole('combobox', { name: 'Search logs' }).pressSequentially('http.'),
+        await expect(p.getByRole('option').first()).toBeVisible()
+      ),
+  },
+  {
+    n: '54',
+    wave: 2,
+    screen: 'logs',
+    state: 'expanded-row',
+    note: 'Expanded line with all attributes, trace link and issues of the trace',
+    go: async (p) =>
+      void (
+        await p.goto('/acme/logs?period=24h&query=level%3Awarn%20service.name%3Aapi'),
+        await grid(p, 'Log lines'),
+        await p
+          .getByRole('grid', { name: 'Log lines' })
+          .getByRole('row')
+          .filter({ has: p.getByRole('link', { name: 'Open trace' }) })
+          .first()
+          .click(),
+        await expect(p.getByText('View trace')).toBeVisible()
+      ),
+  },
+  {
+    n: '55',
+    wave: 2,
+    streaming: true,
+    screen: 'logs',
+    state: 'live-tail',
+    note: 'Live tail streaming new lines over Server-Sent Events',
+    go: async (p) =>
+      void (
+        await p.goto('/acme/logs?period=1h&live=true'),
+        await expect(p.getByRole('status').getByText('Live', { exact: true })).toBeVisible({ timeout: 10_000 }),
+        await p.waitForTimeout(3000)
+      ),
+  },
+  {
+    n: '56',
+    wave: 2,
+    screen: 'logs',
+    state: 'empty',
+    note: 'No lines match',
+    go: async (p) => void (await p.goto('/acme/logs?query=%22no%20such%20line%22'), await expect(p.getByText('No log lines match')).toBeVisible()),
+  },
+  {
+    n: '57',
+    wave: 2,
+    screen: 'mobile-logs',
+    state: 'default',
+    mobile: true,
+    note: 'Logs on a phone',
+    go: async (p) => void (await p.goto('/acme/logs?period=24h'), await grid(p, 'Log lines')),
+  },
+  {
+    n: '58',
+    wave: 2,
+    screen: 'metrics',
+    state: 'explorer-grouped',
+    note: 'Metric explorer: p95 by route, area chart, series table',
+    go: async (p) =>
+      void (
+        await p.goto('/acme/metrics?name=http.server.duration&op=p95&group_by=route&chart=area'),
+        await expect(p.getByRole('table', { name: 'Series summary' })).toBeVisible()
+      ),
+  },
+  {
+    n: '59',
+    wave: 2,
+    screen: 'metrics',
+    state: 'counter-bars',
+    note: 'A counter as bars',
+    go: async (p) => void (await p.goto('/acme/metrics?name=checkout.completed'), await expect(p.getByRole('table', { name: 'Series summary' })).toBeVisible()),
+  },
+  {
+    n: '60',
+    wave: 2,
+    screen: 'dashboards',
+    state: 'list',
+    note: 'Dashboards',
+    go: async (p) => void (await p.goto('/acme/dashboards'), await expect(p.getByRole('link', { name: /Checkout health/ })).toBeVisible()),
+  },
+  {
+    n: '61',
+    wave: 2,
+    screen: 'dashboard',
+    state: 'grid',
+    note: 'Dashboard with metric, transaction, log and issue widgets',
+    go: async (p) => void (await p.goto('/acme/dashboards/1'), await expect(p.getByRole('list', { name: 'Widgets' })).toBeVisible()),
+  },
+  {
+    n: '62',
+    wave: 2,
+    screen: 'dashboard',
+    state: 'widget-editor',
+    note: 'Add widget dialog with live preview',
+    go: async (p) => {
+      await p.goto('/acme/dashboards/2')
+      await p.getByRole('button', { name: 'Add widget' }).first().click()
+      await p.getByRole('dialog').getByLabel('Metric').click()
+      await p.getByRole('option', { name: 'jobs.processed' }).click()
+    },
+  },
+  {
+    n: '63',
+    wave: 2,
+    screen: 'profiles',
+    state: 'list',
+    note: 'Profile list',
+    go: async (p) => void (await p.goto('/acme/profiles'), await grid(p, 'Profiles')),
+  },
+  {
+    n: '64',
+    wave: 2,
+    screen: 'profiles',
+    state: 'by-transaction',
+    note: 'Profiles grouped by transaction',
+    go: async (p) =>
+      void (await p.goto('/acme/profiles/transactions'), await expect(p.getByRole('link', { name: /GET \/api\/products/ }).first()).toBeVisible()),
+  },
   { n: '65', wave: 2, screen: 'flamegraph', state: 'profile', readme: 'flamegraph', note: 'Flamegraph of a Python request, call tree', go: openProfile },
-  { n: '66', wave: 2, screen: 'flamegraph', state: 'search-selected', note: 'Search highlighting and frame details', go: async (p) => void (await openProfile(p), await p.getByLabel('Search frames').fill('psycopg'), await p.getByRole('treegrid', { name: 'Call tree' }).getByRole('row').nth(4).click()) },
-  { n: '67', wave: 2, screen: 'flamegraph', state: 'left-heavy-package', note: 'Left-heavy order, coloured by package, functions table', go: async (p) => void (await openProfile(p), await p.getByRole('radio', { name: 'Left heavy' }).click(), await p.getByRole('radio', { name: 'Package' }).click(), await p.getByRole('tab', { name: 'Functions' }).click()) },
-  { n: '68', wave: 2, screen: 'flamegraph', state: 'aggregated', note: 'Aggregated flamegraph of a transaction', go: async (p) => void (await p.goto('/acme/profiles/aggregate?transaction=GET%20%2Fapi%2Fproducts'), await expect(p.getByTestId('flamegraph')).toBeVisible()) },
-  { n: '69', wave: 2, screen: 'replays', state: 'list', note: 'Session replays', go: async (p) => void (await p.goto('/acme/replays'), await grid(p, 'Replays')) },
-  { n: '70', wave: 2, screen: 'mobile-replays', state: 'list', mobile: true, note: 'Replays on a phone', go: async (p) => void (await p.goto('/acme/replays'), await grid(p, 'Replays')) },
-  { n: '71', wave: 2, screen: 'replay', state: 'playing', readme: 'replay', note: 'Player with timeline markers and breadcrumbs (a real rrweb recording)', go: async (p) => void (await openReplay(p), await p.getByTestId('replay-player').getByRole('button', { name: 'Play' }).first().click(), await p.waitForTimeout(5500)) },
-  { n: '72', wave: 2, screen: 'replay', state: 'network-panel', note: 'Network panel; the failed request at 0:15', go: async (p) => void (await openReplay(p), await p.getByRole('tab', { name: /Network/ }).click(), await p.getByRole('tabpanel').getByRole('button').filter({ hasText: '502' }).click(), await p.waitForTimeout(1200)) },
-  { n: '73', wave: 2, screen: 'replay', state: 'console-errors', note: 'Console and errors panels', go: async (p) => void (await openReplay(p), await p.getByRole('tab', { name: /Console/ }).click()) },
-  { n: '74', wave: 2, screen: 'issue-detail', state: 'trace-replay-links', note: 'Issue event linking to its trace and replay', go: async (p) => void (await openIssue(p), await expect(p.getByRole('link', { name: /^Trace [0-9a-f]{8}/ })).toBeVisible()) },
-  { n: '75', wave: 2, screen: 'issue-detail', state: 'replays-tab', note: 'Replays tab of an issue', go: async (p) => { await stream(p, '?sort=freq&query=is%3Aunresolved%20ChunkLoadError'); await p.getByRole('grid', { name: 'Issues' }).getByRole('row').first().locator('[data-issue-link]').click(); await p.getByRole('navigation', { name: 'Issue sections' }).getByRole('link', { name: 'Replays' }).click(); await expect(p.getByText(/sessions? with this error|No replays/)).toBeVisible() } },
-  { n: '76', wave: 2, screen: 'project-settings', state: 'telemetry-data', note: 'Per-type retention, sampling and switches', go: async (p) => void (await p.goto('/acme/settings/projects/web-app/telemetry'), await expect(p.getByRole('switch', { name: 'Accept logs' })).toBeVisible()) },
-  { n: '77', wave: 2, screen: 'navigation', state: 'palette-trace', note: 'Command palette: telemetry pages and opening a trace by id', go: async (p) => void (await stream(p), await p.keyboard.press('ControlOrMeta+k'), await p.getByPlaceholder(/Type a command/).fill('0123456789abcdef0123456789abcdef')) },
-  { n: '78', wave: 2, screen: 'keyboard-help', state: 'telemetry', note: 'Keyboard shortcuts including the telemetry pages', go: async (p) => void (await stream(p), await p.keyboard.press('Shift+?'), await expect(p.getByRole('dialog')).toBeVisible()) },
+  {
+    n: '66',
+    wave: 2,
+    screen: 'flamegraph',
+    state: 'search-selected',
+    note: 'Search highlighting and frame details',
+    go: async (p) =>
+      void (
+        await openProfile(p),
+        await p.getByLabel('Search frames').fill('psycopg'),
+        await p.getByRole('treegrid', { name: 'Call tree' }).getByRole('row').nth(4).click()
+      ),
+  },
+  {
+    n: '67',
+    wave: 2,
+    screen: 'flamegraph',
+    state: 'left-heavy-package',
+    note: 'Left-heavy order, coloured by package, functions table',
+    go: async (p) =>
+      void (
+        await openProfile(p),
+        await p.getByRole('radio', { name: 'Left heavy' }).click(),
+        await p.getByRole('radio', { name: 'Package' }).click(),
+        await p.getByRole('tab', { name: 'Functions' }).click()
+      ),
+  },
+  {
+    n: '68',
+    wave: 2,
+    screen: 'flamegraph',
+    state: 'aggregated',
+    note: 'Aggregated flamegraph of a transaction',
+    go: async (p) =>
+      void (await p.goto('/acme/profiles/aggregate?transaction=GET%20%2Fapi%2Fproducts'), await expect(p.getByTestId('flamegraph')).toBeVisible()),
+  },
+  {
+    n: '69',
+    wave: 2,
+    screen: 'replays',
+    state: 'list',
+    note: 'Session replays',
+    go: async (p) => void (await p.goto('/acme/replays'), await grid(p, 'Replays')),
+  },
+  {
+    n: '70',
+    wave: 2,
+    screen: 'mobile-replays',
+    state: 'list',
+    mobile: true,
+    note: 'Replays on a phone',
+    go: async (p) => void (await p.goto('/acme/replays'), await grid(p, 'Replays')),
+  },
+  {
+    n: '71',
+    wave: 2,
+    screen: 'replay',
+    state: 'playing',
+    readme: 'replay',
+    note: 'Player with timeline markers and breadcrumbs (a real rrweb recording)',
+    go: async (p) =>
+      void (await openReplay(p), await p.getByTestId('replay-player').getByRole('button', { name: 'Play' }).first().click(), await p.waitForTimeout(5500)),
+  },
+  {
+    n: '72',
+    wave: 2,
+    screen: 'replay',
+    state: 'network-panel',
+    note: 'Network panel; the failed request at 0:15',
+    go: async (p) =>
+      void (
+        await openReplay(p),
+        await p.getByRole('tab', { name: /Network/ }).click(),
+        await p.getByRole('tabpanel').getByRole('button').filter({ hasText: '502' }).click(),
+        await p.waitForTimeout(1200)
+      ),
+  },
+  {
+    n: '73',
+    wave: 2,
+    screen: 'replay',
+    state: 'console-errors',
+    note: 'Console and errors panels',
+    go: async (p) => void (await openReplay(p), await p.getByRole('tab', { name: /Console/ }).click()),
+  },
+  {
+    n: '74',
+    wave: 2,
+    screen: 'issue-detail',
+    state: 'trace-replay-links',
+    note: 'Issue event linking to its trace and replay',
+    go: async (p) => void (await openIssue(p), await expect(p.getByRole('link', { name: /^Trace [0-9a-f]{8}/ })).toBeVisible()),
+  },
+  {
+    n: '75',
+    wave: 2,
+    screen: 'issue-detail',
+    state: 'replays-tab',
+    note: 'Replays tab of an issue',
+    go: async (p) => {
+      await stream(p, '?sort=freq&query=is%3Aunresolved%20ChunkLoadError')
+      await p.getByRole('grid', { name: 'Issues' }).getByRole('row').first().locator('[data-issue-link]').click()
+      await p.getByRole('navigation', { name: 'Issue sections' }).getByRole('link', { name: 'Replays' }).click()
+      await expect(p.getByText(/sessions? with this error|No replays/)).toBeVisible()
+    },
+  },
+  {
+    n: '76',
+    wave: 2,
+    screen: 'project-settings',
+    state: 'telemetry-data',
+    note: 'Per-type retention, sampling and switches',
+    go: async (p) =>
+      void (await p.goto('/acme/settings/projects/web-app/telemetry'), await expect(p.getByRole('switch', { name: 'Accept logs' })).toBeVisible()),
+  },
+  {
+    n: '79',
+    screen: 'issues',
+    state: 'split-preview',
+    wide: true,
+    note: 'Issue stream with the preview panel (1920x1080)',
+    go: async (p) => {
+      await stream(p)
+      await p.evaluate(() => localStorage.setItem('rupta-issue-split', '1'))
+      await p.reload()
+      await expect(p.getByRole('grid', { name: 'Issues' }).getByRole('row').first()).toBeVisible()
+      await p.keyboard.press('j')
+      await p.keyboard.press('j')
+      await expect(p.getByTestId('issue-preview').locator('#exception, #message').first()).toBeVisible()
+    },
+  },
+  {
+    n: '80',
+    screen: 'issue-detail',
+    state: 'context-panel-wide',
+    wide: true,
+    note: 'Issue details with the context panel (1920x1080)',
+    go: async (p) => openIssue(p),
+  },
+  {
+    n: '81',
+    screen: 'top-bar',
+    state: 'explore-menu',
+    note: 'Top bar with the Explore menu open',
+    go: async (p) =>
+      void (
+        await stream(p),
+        await p
+          .getByRole('navigation', { name: 'Main' })
+          .getByRole('button', { name: /Explore/ })
+          .click()
+      ),
+  },
+  {
+    n: '77',
+    wave: 2,
+    screen: 'navigation',
+    state: 'palette-trace',
+    note: 'Command palette: telemetry pages and opening a trace by id',
+    go: async (p) =>
+      void (await stream(p), await p.keyboard.press('ControlOrMeta+k'), await p.getByPlaceholder(/Type a command/).fill('0123456789abcdef0123456789abcdef')),
+  },
+  {
+    n: '78',
+    wave: 2,
+    screen: 'keyboard-help',
+    state: 'telemetry',
+    note: 'Keyboard shortcuts including the telemetry pages',
+    go: async (p) => void (await stream(p), await p.keyboard.press('Shift+?'), await expect(p.getByRole('dialog')).toBeVisible()),
+  },
 )
 
-for (const theme of ['light', 'dark'] as const) {
+for (const theme of ['dark'] as const) {
   test(`screenshots (${theme})`, async ({ browser }) => {
-    test.setTimeout(600_000)
+    test.setTimeout(1_800_000)
     mkdirSync(DOCS, { recursive: true })
     if (REVIEW) mkdirSync(REVIEW, { recursive: true })
     for (const s of shots) {
@@ -314,8 +723,8 @@ for (const theme of ['light', 'dark'] as const) {
       if (WAVE === '2' && s.wave !== 2) continue
       const ctx = await browser.newContext({
         colorScheme: theme,
-        deviceScaleFactor: 2,
-        viewport: s.mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+        deviceScaleFactor: s.wide ? 1 : 2,
+        viewport: s.mobile ? { width: 390, height: 844 } : s.wide ? { width: 1920, height: 1080 } : { width: 1440, height: 900 },
         isMobile: s.mobile,
         hasTouch: s.mobile,
       })
@@ -327,18 +736,21 @@ for (const theme of ['light', 'dark'] as const) {
       }
       await s.go(page)
       await ready(page, s.streaming)
-      const name = `${s.n}-${s.screen}-${s.state}-${theme}.png`
+      const name = `${s.n}-${s.screen}-${s.state}.png`
       if (REVIEW) await page.screenshot({ path: `${REVIEW}/${name}` })
-      if (s.readme && README_SHOTS.has(s.readme)) await page.screenshot({ path: `${DOCS}${s.readme}-${theme}.png` })
+      if (s.readme && README_SHOTS.has(s.readme)) await page.screenshot({ path: `${DOCS}${s.readme}.png` })
       await ctx.close()
     }
-    if (REVIEW && WAVE === '2' && theme === 'dark') {
+    if (REVIEW) {
       const rows = shots
-        .filter((s) => s.wave === 2)
-        .map((s) => `| ${s.n} | ${s.screen} | ${s.state} | ${s.note ?? ''} | [light](${s.n}-${s.screen}-${s.state}-light.png) · [dark](${s.n}-${s.screen}-${s.state}-dark.png) |`)
+        .filter((s) => WAVE !== '2' || s.wave === 2)
+        .map((s) => {
+          const size = s.mobile ? '390x844 @2x' : s.wide ? '1920x1080 @1x' : '1440x900 @2x'
+          return `| ${s.n} | ${s.screen} | ${s.state} | ${size} | ${s.note ?? ''} | [${s.n}-${s.screen}-${s.state}.png](${s.n}-${s.screen}-${s.state}.png) |`
+        })
       writeFileSync(
         `${REVIEW}/index.md`,
-        `# rupta telemetry screens (review set)\n\nMock build (\`pnpm build:mock\`), 1440x900 at device scale factor 2; phones 390x844. Files starting with \`real-\` come from a local server filled by \`scripts/sdk-smoke.sh\`.\n\n| # | Screen | State | What it shows | Files |\n| --- | --- | --- | --- | --- |\n${rows.join('\n')}\n`,
+        `# rupta screens (review set, dark theme)\n\nMock build (\`pnpm build:mock\`) unless the file name starts with \`real-\` (a local server filled by \`scripts/sdk-smoke.sh\`).\n\n| # | Screen | State | Size | What it shows | File |\n| --- | --- | --- | --- | --- | --- |\n${rows.join('\n')}\n`,
       )
     }
   })

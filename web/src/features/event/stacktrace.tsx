@@ -94,7 +94,7 @@ function SourceContext({ frame, platform }: { frame: Frame; platform: string }) 
                 <td className="px-3 whitespace-pre">
                   {tokens?.[i]
                     ? tokens[i].map((t, j) => (
-                        <span key={j} style={{ '--shiki-light': t.light, '--shiki-dark': t.dark } as React.CSSProperties}>
+                        <span key={j} style={{ color: t.color }}>
                           {t.content}
                         </span>
                       ))
@@ -202,7 +202,7 @@ function FrameRow({
               </Badge>
             </Tip>
           )}
-          {frame.in_app ? <Badge variant="brand">in app</Badge> : null}
+          {frame.in_app ? <Badge variant="palm">in app</Badge> : null}
           <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100" onClick={(e) => e.stopPropagation()}>
             <CopyButton value={link} label="Copy link to frame" toastLabel="Link copied" />
           </span>
