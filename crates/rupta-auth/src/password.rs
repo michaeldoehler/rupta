@@ -32,9 +32,10 @@ pub fn verify(password: &str, stored: &str) -> bool {
 
 /// Spends the time of a verification without a stored hash, so that a
 /// login for an unknown email takes as long as one with a wrong password.
+/// The dummy hash is of a random password, so nothing can match it.
 pub fn verify_dummy(password: &str) {
     static DUMMY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    let stored = DUMMY.get_or_init(|| hash("dummy password for timing"));
+    let stored = DUMMY.get_or_init(|| hash(&crate::crypto::random_token()));
     let _ = verify(password, stored);
 }
 

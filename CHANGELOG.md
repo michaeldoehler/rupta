@@ -10,6 +10,12 @@ changelog says when and how to migrate.
 
 ### Changed
 
+- The image builds the web app with Node 26 and installs pnpm with npm
+  (Node 25 and later no longer include corepack). Updated base64, zstd,
+  brotli, the Rust 1.99 build image and the GitHub Actions used in CI.
+- The subkeys of `RUPTA_SECRET_KEY` are computed as the first HKDF-Expand
+  block directly; the keys are unchanged (a test pins them). The dummy hash
+  that equalizes login timing for unknown accounts is of a random password.
 - The web interface shows the marks of integrated services (Jira, Linear,
   GitHub, GitLab, PagerDuty, Opsgenie, Zitadel) in the integration and
   channel settings, the tracker pickers, linked tickets, the alert editor

@@ -31,12 +31,11 @@ impl std::fmt::Debug for Keys {
 impl Keys {
     /// Derives the subkeys from the instance secret.
     pub fn derive(secret: &[u8]) -> Keys {
-        let hk = hkdf::Hkdf::<Sha256>::new(Some(b"rupta"), secret);
-        let mut signing = [0u8; 32];
-        let mut encryption = [0u8; 32];
-        hk.expand(b"rupta cookie signing v1", &mut signing).expect("32 bytes is a valid HKDF length");
-        hk.expand(b"rupta secret encryption v1", &mut encryption).expect("32 bytes is a valid HKDF length");
-        Keys { signing, encryption }
+        let (prk, _) = hkdf::Hkdf::<Sha256>::extract(Some(b"rupta"), secret);
+        Keys {
+            signing: expand_block(&prk, b"rupta cookie signing v1"),
+            encryption: expand_block(&prk, b"rupta secret encryption v1"),
+        }
     }
 
     /// Encrypts a secret for storage: base64url(nonce || ciphertext).
@@ -89,6 +88,16 @@ impl Keys {
         }
         URL_SAFE_NO_PAD.decode(body).ok()
     }
+}
+
+/// HKDF-Expand (RFC 5869) for an output of one hash length: the first block
+/// `T(1) = HMAC(PRK, info || 0x01)`. Equal to `Hkdf::expand` with a 32-byte
+/// output, without a pre-filled output buffer.
+fn expand_block(prk: &[u8], info: &[u8]) -> [u8; 32] {
+    let mut m = <HmacSha256 as hmac::KeyInit>::new_from_slice(prk).expect("any key length works");
+    m.update(info);
+    m.update(&[1]);
+    m.finalize().into_bytes().into()
 }
 
 /// Constant-time equality of two byte strings.
@@ -154,6 +163,20 @@ mod tests {
         assert_ne!(enc, keys.encrypt("sso:1", b"client-secret"), "nonces are random");
         let other = Keys::derive(b"another secret that is long enough!!");
         assert!(other.decrypt("sso:1", &enc).is_none());
+    }
+
+    #[test]
+    fn subkeys_match_hkdf_expand() {
+        // Stored secrets and cookies of existing installations depend on
+        // these exact keys.
+        let secret = b"0123456789abcdef0123456789abcdef";
+        let hk = hkdf::Hkdf::<Sha256>::new(Some(b"rupta"), secret);
+        let (mut signing, mut encryption) = ([0u8; 32], [0u8; 32]);
+        hk.expand(b"rupta cookie signing v1", &mut signing).unwrap();
+        hk.expand(b"rupta secret encryption v1", &mut encryption).unwrap();
+        let keys = Keys::derive(secret);
+        assert_eq!(keys.signing, signing);
+        assert_eq!(keys.encryption, encryption);
     }
 
     #[test]
