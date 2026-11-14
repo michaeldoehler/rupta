@@ -68,8 +68,13 @@ impl IssueCache {
 
 /// An event ready to be written.
 pub(crate) struct StoredEvent {
+    /// The row's scalar fields for the writer's aggregates (tags and
+    /// contexts are moved into `values`).
     pub row: EventRow,
-    pub payload: PayloadRow,
+    /// The `events` row as values, built here so the writer only appends.
+    pub values: Vec<rupta_store::squad::Value>,
+    /// The `event_payloads` row as values.
+    pub payload: Vec<rupta_store::squad::Value>,
     pub new_issue: bool,
     pub org_id: i64,
 }
@@ -284,7 +289,7 @@ fn event_item(st: &mut EnvelopeState<'_>, item: &Item, category: Category) {
         user_agent: st.user_agent,
         settings: &st.project.settings,
     };
-    if let Err(reason) = event(st, &raw, &ctx, category) {
+    if let Err(reason) = event(st, raw, &ctx, category) {
         st.event_dropped = Some(reason);
     }
 }
@@ -295,12 +300,12 @@ fn context_name(ev: &Event, key: &str) -> Option<String> {
 
 fn event(
     env: &mut EnvelopeState<'_>,
-    raw: &Value,
+    raw: Value,
     ctx: &normalize::Context<'_>,
     category: Category,
 ) -> Result<(), &'static str> {
     let (conn, project, user_agent) = (env.conn, env.project, env.user_agent);
-    let mut ev = normalize::normalize(raw, ctx);
+    let mut ev = normalize::normalize_owned(raw, ctx);
     if let Some(reason) = crate::filters::filter_reason(&ev, &project.settings.filters, user_agent) {
         env.outcome(category, Outcome::Filtered, reason, 1);
         return Err("filtered");
@@ -352,18 +357,42 @@ fn event(
         sdk: ev.sdk.as_ref().and_then(|s| s.name.clone()),
         server_name: ev.server_name.clone(),
         url: ev.request.as_ref().and_then(|r| r.url.clone()),
-        tags: Value::Object(tags).to_string(),
-        contexts: Value::Object(ev.contexts.clone()).to_string(),
+        tags: Value::Object(tags),
+        contexts: Value::Null,
     };
     let json = serde_json::to_vec(&ev).unwrap_or_default();
-    let data = zstd::bulk::compress(&json, 3).unwrap_or_default();
+    let data = compress(&json);
     let payload =
         PayloadRow { project_id: project.id, event_id, issue_id: Some(issue_id), day: ev.timestamp.date_naive(), data };
     env.inner.metrics.count(category, Outcome::Accepted, 1);
     let key = crate::writer::outcome_key(project.id, env.received, category, "accepted", "");
     env.out.outcomes.push((key, 1));
-    env.out.events.push(StoredEvent { row, payload, new_issue, org_id: project.org_id });
+    let mut values_row = row.clone();
+    values_row.contexts = Value::Object(std::mem::take(&mut ev.contexts));
+    let values = values_row.into_values();
+    let row = EventRow { tags: Value::Null, ..row };
+    env.out.events.push(StoredEvent { row, values, payload: payload.into_values(), new_issue, org_id: project.org_id });
     Ok(())
+}
+
+thread_local! {
+    /// A reusable compression context per worker thread (creating one per
+    /// event costs as much as compressing).
+    static COMPRESSOR: std::cell::RefCell<Option<zstd::bulk::Compressor<'static>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// zstd (level 1) of a payload.
+pub(crate) fn compress(data: &[u8]) -> Vec<u8> {
+    COMPRESSOR.with(|c| {
+        let mut c = c.borrow_mut();
+        if c.is_none() {
+            *c = zstd::bulk::Compressor::new(1).ok();
+        }
+        match c.as_mut() {
+            Some(z) => z.compress(data).unwrap_or_default(),
+            None => zstd::bulk::compress(data, 1).unwrap_or_default(),
+        }
+    })
 }
 
 /// The issue of an event: from the cache, the database, or created.

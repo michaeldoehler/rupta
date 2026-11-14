@@ -4,8 +4,8 @@
 //! signals.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use chrono::{DateTime, Utc};
@@ -104,28 +104,42 @@ struct Batch {
     /// Session counts derived from the session updates (computed once, so
     /// a retried transaction does not count twice).
     session_deltas: Vec<(i64, SessionCount)>,
+    /// `(project_id, event_id)`, `events` row and `event_payloads` row of
+    /// every event, collected once so that a retried transaction reuses them.
+    keys: Vec<(i64, [u8; 16])>,
+    event_values: Vec<Vec<rupta_store::squad::Value>>,
+    payload_values: Vec<Vec<rupta_store::squad::Value>>,
+}
+
+/// State shared by the writer threads.
+#[derive(Default)]
+pub(crate) struct Shared {
+    sessions: Mutex<SessionTracker>,
+    users: Mutex<UserTracker>,
+    /// Feedback stored before its event: linked when the event arrives.
+    unlinked_feedback: Mutex<HashSet<(i64, [u8; 16])>>,
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 struct Writer {
     inner: Arc<Inner>,
     conn: Connection,
-    sessions: SessionTracker,
-    users: UserTracker,
-    /// Feedback stored before its event: linked when the event arrives.
-    unlinked_feedback: HashSet<(i64, [u8; 16])>,
 }
 
+/// One writer thread. Several run side by side, each committing its own
+/// batches; updates of shared rows happen in id order so that concurrent
+/// batches cannot deadlock.
 pub(crate) fn run(inner: Arc<Inner>, rx: crossbeam_channel::Receiver<Processed>) {
     let conn = inner.store.connect();
-    let mut w = Writer {
-        inner: inner.clone(),
-        conn,
-        sessions: SessionTracker::default(),
-        users: UserTracker::default(),
-        unlinked_feedback: HashSet::new(),
-    };
+    let mut w = Writer { inner: inner.clone(), conn };
     let size = inner.config.batch_size.max(1);
     let interval = inner.config.batch_interval;
+    // When everything in flight is collected, wait this long for clients
+    // that are about to send (durability safe acknowledges per batch).
+    let linger = interval.min(std::time::Duration::from_millis(2));
     let mut disconnected = false;
     while !disconnected {
         let mut batch = Batch::default();
@@ -134,18 +148,33 @@ pub(crate) fn run(inner: Arc<Inner>, rx: crossbeam_channel::Receiver<Processed>)
             Ok(p) => {
                 batch.events += p.events.len().max(1);
                 batch.parts.push(p);
+                inner.collected.fetch_add(1, Ordering::AcqRel);
             }
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
             Err(crossbeam_channel::RecvTimeoutError::Disconnected) => disconnected = true,
         }
-        let deadline = Instant::now() + interval;
+        let started = Instant::now();
+        let deadline = started + interval;
         while !disconnected && batch.events < size {
-            match rx.recv_deadline(deadline) {
+            // Everything accepted so far is in this batch: waiting the full
+            // interval would only delay acknowledgements (durability safe).
+            let all_in = !batch.parts.is_empty()
+                && inner.collected.load(Ordering::Acquire) >= inner.in_flight.load(Ordering::Acquire);
+            let until = if all_in { deadline.min(started + linger) } else { deadline };
+            match rx.recv_deadline(until) {
                 Ok(p) => {
                     batch.events += p.events.len().max(1);
                     batch.parts.push(p);
+                    inner.collected.fetch_add(1, Ordering::AcqRel);
                 }
-                Err(crossbeam_channel::RecvTimeoutError::Timeout) => break,
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
+                    if until == deadline || Instant::now() >= deadline {
+                        break;
+                    }
+                    if inner.collected.load(Ordering::Acquire) >= inner.in_flight.load(Ordering::Acquire) {
+                        break;
+                    }
+                }
                 Err(crossbeam_channel::RecvTimeoutError::Disconnected) => disconnected = true,
             }
         }
@@ -153,7 +182,9 @@ pub(crate) fn run(inner: Arc<Inner>, rx: crossbeam_channel::Receiver<Processed>)
         if batch.parts.is_empty() && pending.is_empty() {
             continue;
         }
+        let n = batch.parts.len();
         w.write(batch, pending);
+        inner.collected.fetch_sub(n, Ordering::AcqRel);
     }
 }
 
@@ -185,9 +216,16 @@ impl Writer {
         for p in &mut batch.parts {
             p.events.retain(|e| seen.insert((e.row.project_id, e.row.event_id)));
         }
+        for p in &mut batch.parts {
+            for e in &mut p.events {
+                batch.keys.push((e.row.project_id, e.row.event_id));
+                batch.event_values.push(std::mem::take(&mut e.values));
+                batch.payload_values.push(std::mem::take(&mut e.payload));
+            }
+        }
         for p in &batch.parts {
             for u in &p.sessions {
-                let (total, errored, crashed, abnormal) = self.sessions.apply(u);
+                let (total, errored, crashed, abnormal) = lock(&self.inner.writer_state.sessions).apply(u);
                 batch.session_deltas.push((
                     u.org_id,
                     SessionCount {
@@ -229,6 +267,8 @@ impl Writer {
             }
             Err(e) => {
                 tracing::error!(error = %e, events = batch.events, "writing an ingest batch failed; batch dropped");
+                // Users counted for this batch were not stored: recount from the database.
+                *lock(&self.inner.writer_state.users) = UserTracker::default();
             }
         }
         for p in batch.parts {
@@ -257,6 +297,13 @@ impl Writer {
         for p in &mut batch.parts {
             p.events.retain(|e| !existing.contains(&(e.row.project_id, e.row.event_id)));
         }
+        let keep: Vec<bool> = batch.keys.iter().map(|k| !existing.contains(k)).collect();
+        let mut i = 0;
+        batch.event_values.retain(|_| (keep[i], i += 1).0);
+        let mut i = 0;
+        batch.payload_values.retain(|_| (keep[i], i += 1).0);
+        let mut i = 0;
+        batch.keys.retain(|_| (keep[i], i += 1).0);
         Ok(())
     }
 
@@ -304,12 +351,7 @@ impl Writer {
         signals: &mut Vec<IssueSignal>,
     ) -> Result<()> {
         let inner = self.inner.clone();
-        // Taken out for the duration of the transaction; a failed batch
-        // leaves it empty, so counts are reloaded from the database.
-        let mut users = std::mem::take(&mut self.users);
         let conn = self.conn.transaction()?;
-        let mut payloads = Vec::new();
-        let mut rows = Vec::new();
         let mut transactions = Vec::new();
         let mut issues: HashMap<i64, IssueAgg> = HashMap::new();
         let mut user_hashes: HashMap<i64, Vec<i64>> = HashMap::new();
@@ -317,8 +359,6 @@ impl Writer {
         let mut batch_event_issue: HashMap<(i64, [u8; 16]), i64> = HashMap::new();
         for p in &batch.parts {
             for e in &p.events {
-                payloads.push(e.payload.clone());
-                rows.push(e.row.clone());
                 batch_event_issue.insert((e.row.project_id, e.row.event_id), e.row.issue_id);
                 let a = issues.entry(e.row.issue_id).or_default();
                 a.project_id = e.row.project_id;
@@ -351,13 +391,14 @@ impl Writer {
             }
             transactions.extend(p.transactions.iter().cloned());
         }
-        append_payloads(&conn, &payloads)?;
-        append_events(&conn, &rows)?;
+        append_values(&conn, "event_payloads", &batch.payload_values)?;
+        append_values(&conn, "events", &batch.event_values)?;
         append_transactions(&conn, &transactions)?;
 
         // Issues: counters, regressions, ignore conditions.
         let ids: Vec<i64> = issues.keys().copied().collect();
-        let states = issue_states(&conn, &ids)?;
+        let mut states = issue_states(&conn, &ids)?;
+        states.sort_by_key(|s| s.id);
         let found: HashSet<i64> = states.iter().map(|s| s.id).collect();
         let missing: Vec<i64> = ids.iter().copied().filter(|id| !found.contains(id)).collect();
         if !missing.is_empty() {
@@ -367,7 +408,10 @@ impl Writer {
         for st in &states {
             let a = &issues[&st.id];
             let hashes = user_hashes.get(&st.id).map(Vec::as_slice).unwrap_or(&[]);
-            let users_added = Self::users_added(&mut users, &conn, st.project_id, st.id, a.new, hashes)?;
+            let users_added = {
+                let mut users = lock(&inner.writer_state.users);
+                Self::users_added(&mut users, &conn, st.project_id, st.id, a.new, hashes)?
+            };
             add_issue_counts(
                 &conn,
                 &IssueCounts {
@@ -392,14 +436,14 @@ impl Writer {
                 }
                 "ignored" => {
                     let until_passed = st.ignore_until.is_some_and(|t| now >= t);
-                    let count_reached = st.ignore_count.is_some_and(|c| c - a.count <= 0);
+                    // `ignore_count` is the times_seen value at which the ignore ends
+                    // (times_seen when ignored plus the number of events to wait for).
+                    let count_reached = st.ignore_count.is_some_and(|c| st.times_seen + a.count >= c);
                     if until_passed || count_reached {
                         reopen_issue(&conn, st.id, "ongoing")?;
                         let reason = if until_passed { "ignore_until_passed" } else { "ignore_count_reached" };
                         add_issue_activity(&conn, st.id, "set_unresolved", &json!({"reason": reason}))?;
                         signals.push(IssueSignal::Reappeared { project_id: st.project_id, issue_id: st.id });
-                    } else if st.ignore_count.is_some() {
-                        decrement_ignore_count(&conn, st.id, a.count)?;
                     }
                 }
                 _ => {}
@@ -440,9 +484,14 @@ impl Writer {
                 add_count(c.clone());
             }
         }
-        let counts: Vec<SessionCount> = counts.into_values().collect();
+        let mut counts: Vec<SessionCount> = counts.into_values().collect();
+        counts.sort_by(|a, b| {
+            (a.project_id, &a.release, &a.environment, a.hour).cmp(&(b.project_id, &b.release, &b.environment, b.hour))
+        });
         add_session_counts(&conn, &counts)?;
 
+        let mut releases: Vec<_> = releases.into_iter().collect();
+        releases.sort_by(|a, b| a.0.cmp(&b.0));
         for ((org_id, project_id, version), (first, last, new_issues)) in &releases {
             upsert_release(&conn, *org_id, *project_id, version, *first, *last, *new_issues)?;
         }
@@ -454,7 +503,16 @@ impl Writer {
                 *outcomes.entry(k.clone()).or_default() += n;
             }
         }
-        let outcomes: Vec<(OutcomeKey, i64)> = outcomes.into_iter().collect();
+        let mut outcomes: Vec<(OutcomeKey, i64)> = outcomes.into_iter().collect();
+        outcomes.sort_by(|a, b| {
+            (a.0.project_id, a.0.hour, &a.0.category, &a.0.outcome, &a.0.reason).cmp(&(
+                b.0.project_id,
+                b.0.hour,
+                &b.0.category,
+                &b.0.outcome,
+                &b.0.reason,
+            ))
+        });
         add_outcomes(&conn, &outcomes)?;
 
         // Feedback, linked to the issue of its event when known.
@@ -475,13 +533,17 @@ impl Writer {
             }
         }
         let mut linked = Vec::new();
-        if !self.unlinked_feedback.is_empty() {
-            for (key, issue_id) in &batch_event_issue {
-                if self.unlinked_feedback.contains(key) {
-                    link_feedback(&conn, key.0, key.1, *issue_id)?;
-                    linked.push(*key);
-                }
+        let waiting: Vec<((i64, [u8; 16]), i64)> = {
+            let unlinked = lock(&inner.writer_state.unlinked_feedback);
+            if unlinked.is_empty() {
+                Vec::new()
+            } else {
+                batch_event_issue.iter().filter(|(k, _)| unlinked.contains(*k)).map(|(k, v)| (*k, *v)).collect()
             }
+        };
+        for (key, issue_id) in waiting {
+            link_feedback(&conn, key.0, key.1, issue_id)?;
+            linked.push(key);
         }
 
         for p in &batch.parts {
@@ -493,15 +555,14 @@ impl Writer {
             }
         }
         conn.commit()?;
-        self.users = users;
-
+        let mut waiting = lock(&inner.writer_state.unlinked_feedback);
         for k in linked {
-            self.unlinked_feedback.remove(&k);
+            waiting.remove(&k);
         }
-        if self.unlinked_feedback.len() > 100_000 {
-            self.unlinked_feedback.clear();
+        if waiting.len() > 100_000 {
+            waiting.clear();
         }
-        self.unlinked_feedback.extend(unlinked);
+        waiting.extend(unlinked);
         Ok(())
     }
 

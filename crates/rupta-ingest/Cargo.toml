@@ -33,6 +33,7 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 [dev-dependencies]
 brotli = "8"
 flate2 = "1"
+mimalloc = "0.1.52"
 reqwest = { version = "0.13", default-features = false, features = ["json"] }
 tempfile = "3.27.0"
 tower = { workspace = true, features = ["util"] }

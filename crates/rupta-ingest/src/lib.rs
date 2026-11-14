@@ -59,6 +59,8 @@ pub struct IngestConfig {
     pub max_attachment_bytes: usize,
     /// Proxies whose `X-Forwarded-For` is trusted (addresses or CIDR ranges).
     pub trusted_proxies: Vec<IpNet>,
+    /// Writer threads committing batches side by side.
+    pub writers: usize,
     /// Most events per batch transaction.
     pub batch_size: usize,
     /// Longest time an event waits for its batch.
@@ -81,6 +83,7 @@ impl Default for IngestConfig {
             max_event_bytes: 1 << 20,
             max_attachment_bytes: 100 << 20,
             trusted_proxies: Vec::new(),
+            writers: 1,
             batch_size: 1000,
             batch_interval: Duration::from_millis(50),
             retention_days: 90,
@@ -129,12 +132,16 @@ pub(crate) struct Inner {
     pub closed: AtomicBool,
     /// Envelopes taken by a worker and not yet committed.
     pub in_flight: AtomicUsize,
+    /// Envelopes held in a writer's batch (not yet committed).
+    pub collected: AtomicUsize,
+    pub workers: usize,
     pub threads: Mutex<Vec<std::thread::JoinHandle<()>>>,
     /// Outcomes decided outside the pipeline (rate limits, full queue),
     /// written with the next batch.
     pub pending_outcomes: Mutex<HashMap<OutcomeKey, i64>>,
     pub issues: process::IssueCache,
     pub symbolicator: symbolicate::Symbolicator,
+    pub writer_state: writer::Shared,
 }
 
 impl Inner {
@@ -185,10 +192,13 @@ impl Ingest {
             tx,
             closed: AtomicBool::new(false),
             in_flight: AtomicUsize::new(0),
+            collected: AtomicUsize::new(0),
+            workers,
             threads: Mutex::new(Vec::new()),
             pending_outcomes: Mutex::new(HashMap::new()),
             issues: process::IssueCache::default(),
             symbolicator: symbolicate::Symbolicator::new(config.sourcemap_cache_bytes),
+            writer_state: writer::Shared::default(),
             config: config.clone(),
         });
         let mut threads = Vec::new();
@@ -202,13 +212,15 @@ impl Ingest {
             );
         }
         drop(wtx);
-        let winner = inner.clone();
-        threads.push(
-            std::thread::Builder::new()
-                .name("ingest-writer".into())
-                .spawn(move || writer::run(winner, wrx))
-                .expect("spawning the ingest writer"),
-        );
+        for i in 0..config.writers.max(1) {
+            let (winner, wrx) = (inner.clone(), wrx.clone());
+            threads.push(
+                std::thread::Builder::new()
+                    .name(format!("ingest-writer-{i}"))
+                    .spawn(move || writer::run(winner, wrx))
+                    .expect("spawning an ingest writer"),
+            );
+        }
         *inner.threads.lock().unwrap_or_else(|e| e.into_inner()) = threads;
         Ingest { store, config, inner }
     }
@@ -232,8 +244,9 @@ impl Ingest {
         let inner = self.inner.clone();
         let _ = tokio::task::spawn_blocking(move || {
             let threads = std::mem::take(&mut *inner.threads.lock().unwrap_or_else(|e| e.into_inner()));
-            // One stop message per worker, queued behind everything accepted.
-            for _ in 0..threads.len().saturating_sub(1) {
+            // One stop message per worker, queued behind everything accepted;
+            // the writers stop when the workers are gone.
+            for _ in 0..inner.workers {
                 let _ = inner.tx.send(Msg::Stop);
             }
             for t in threads {

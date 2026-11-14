@@ -73,8 +73,15 @@ pub struct Context<'a> {
 /// Normalizes an event payload. `raw` must be a JSON object; anything else
 /// yields an empty event with an error.
 pub fn normalize(raw: &Value, ctx: &Context<'_>) -> Event {
+    normalize_owned(raw.clone(), ctx)
+}
+
+/// Like [`normalize`], taking the parsed payload by value so that large
+/// free-form parts (extra, contexts, frame variables, ...) are moved
+/// instead of copied.
+pub fn normalize_owned(mut raw: Value, ctx: &Context<'_>) -> Event {
     let mut ev = Event::empty(ctx.event_id.clone(), ctx.project_id, ctx.received);
-    let Some(obj) = raw.as_object() else {
+    let Some(obj) = raw.as_object_mut() else {
         ev.errors.push(ProcessingError::new("invalid_data", Some("event".to_string()), None));
         ev.title = "<invalid event>".into();
         return ev;
@@ -111,14 +118,14 @@ pub fn normalize(raw: &Value, ctx: &Context<'_>) -> Event {
     ev.message = message(obj);
 
     ev.sdk = obj.get("sdk").and_then(Value::as_object).map(sdk);
-    ev.user = obj.get("user").and_then(Value::as_object).map(user).filter(|u| !u.is_empty());
-    ev.request = obj.get("request").and_then(Value::as_object).map(request);
-    ev.contexts = contexts(obj.get("contexts"));
-    ev.exception = exceptions(obj.get("exception"), ctx.settings, &ev.platform);
-    ev.threads = threads(obj.get("threads"), ctx.settings, &ev.platform);
+    ev.user = obj.get_mut("user").and_then(Value::as_object_mut).map(user).filter(|u| !u.is_empty());
+    ev.request = obj.get_mut("request").and_then(Value::as_object_mut).map(request);
+    ev.contexts = contexts(obj.remove("contexts"));
+    ev.exception = exceptions(obj.get_mut("exception"), ctx.settings, &ev.platform);
+    ev.threads = threads(obj.get_mut("threads"), ctx.settings, &ev.platform);
     // A top-level stack trace (message with attached stack trace) is shown
     // as the current thread.
-    if let Some(st) = obj.get("stacktrace").and_then(|v| stacktrace(v, ctx.settings, &ev.platform)) {
+    if let Some(st) = obj.get_mut("stacktrace").and_then(|v| stacktrace(v, ctx.settings, &ev.platform)) {
         let thread = Thread { current: Some(true), crashed: Some(false), stacktrace: Some(st), ..Thread::default() };
         match &mut ev.threads {
             Some(t) if t.values.iter().all(|t| t.stacktrace.is_none()) => t.values.insert(0, thread),
@@ -126,8 +133,8 @@ pub fn normalize(raw: &Value, ctx: &Context<'_>) -> Event {
             None => ev.threads = Some(Values { values: vec![thread] }),
         }
     }
-    ev.breadcrumbs = breadcrumbs(obj.get("breadcrumbs"));
-    ev.extra = object_trimmed(obj.get("extra"));
+    ev.breadcrumbs = breadcrumbs(obj.get_mut("breadcrumbs"));
+    ev.extra = object_trimmed(obj.remove("extra"));
     ev.modules = obj
         .get("modules")
         .and_then(Value::as_object)
@@ -135,8 +142,8 @@ pub fn normalize(raw: &Value, ctx: &Context<'_>) -> Event {
             m.iter().take(1000).map(|(k, v)| (k.clone(), Value::String(scalar_string(v).unwrap_or_default()))).collect()
         })
         .unwrap_or_default();
-    ev.debug_meta = obj.get("debug_meta").filter(|v| v.is_object()).cloned();
-    ev.csp = obj.get("csp").filter(|v| v.is_object()).map(|v| trim(v, 0));
+    ev.debug_meta = obj.remove("debug_meta").filter(|v| v.is_object());
+    ev.csp = obj.remove("csp").filter(|v| v.is_object()).map(|v| trim_owned(v, 0));
 
     // User: IP address from the connection where the SDK asks for it.
     fill_ip(&mut ev, obj, ctx);
@@ -326,7 +333,13 @@ pub fn scalar_string(v: &Value) -> Option<String> {
 }
 
 fn short_str(v: Option<&Value>, max: usize) -> Option<String> {
-    v.and_then(scalar_string).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).map(|s| truncate(&s, max))
+    match v? {
+        Value::String(s) => {
+            let t = s.trim();
+            if t.is_empty() { None } else { Some(truncate(t, max)) }
+        }
+        other => scalar_string(other).filter(|s| !s.is_empty()).map(|s| truncate(&s, max)),
+    }
 }
 
 /// Caps strings, arrays, objects and depth of free-form data.
@@ -343,8 +356,38 @@ pub fn trim(v: &Value, depth: usize) -> Value {
     }
 }
 
-fn object_trimmed(v: Option<&Value>) -> Object {
-    match v.map(|v| trim(v, 0)) {
+/// Caps strings, arrays, objects and depth of free-form data in place.
+pub fn trim_owned(mut v: Value, depth: usize) -> Value {
+    trim_in_place(&mut v, depth);
+    v
+}
+
+fn trim_in_place(v: &mut Value, depth: usize) {
+    match v {
+        Value::String(s) => {
+            if s.len() > MAX_STRING {
+                *s = truncate(s, MAX_STRING);
+            }
+        }
+        Value::Array(a) if depth >= MAX_DEPTH => *v = Value::String(format!("[{} items]", a.len())),
+        Value::Object(o) if depth >= MAX_DEPTH => *v = Value::String(format!("{{{} keys}}", o.len())),
+        Value::Array(a) => {
+            a.truncate(MAX_ITEMS);
+            a.iter_mut().for_each(|x| trim_in_place(x, depth + 1));
+        }
+        Value::Object(o) => {
+            if o.len() > MAX_ITEMS || o.keys().any(|k| k.len() > 256) {
+                *v = trim(v, depth);
+            } else {
+                o.values_mut().for_each(|x| trim_in_place(x, depth + 1));
+            }
+        }
+        _ => {}
+    }
+}
+
+fn object_trimmed(v: Option<Value>) -> Object {
+    match v.map(|v| trim_owned(v, 0)) {
         Some(Value::Object(o)) => o,
         _ => Object::new(),
     }
@@ -463,12 +506,12 @@ fn sdk(o: &Map<String, Value>) -> Sdk {
     }
 }
 
-fn user(o: &Map<String, Value>) -> User {
-    let mut data = match o.get("data").map(|v| trim(v, 1)) {
+fn user(o: &mut Map<String, Value>) -> User {
+    let mut data = match o.remove("data").map(|v| trim_owned(v, 1)) {
         Some(Value::Object(m)) => m,
         _ => Map::new(),
     };
-    for (k, v) in o {
+    for (k, v) in o.iter() {
         if !matches!(k.as_str(), "id" | "email" | "username" | "ip_address" | "name" | "geo" | "data") && !v.is_null() {
             data.insert(k.clone(), trim(v, 1));
         }
@@ -479,7 +522,7 @@ fn user(o: &Map<String, Value>) -> User {
         username: short_str(o.get("username"), 128),
         ip_address: short_str(o.get("ip_address"), 64),
         name: short_str(o.get("name"), 128),
-        geo: o.get("geo").filter(|v| v.is_object()).map(|v| trim(v, 1)),
+        geo: o.remove("geo").filter(|v| v.is_object()).map(|v| trim_owned(v, 1)),
         data: if data.is_empty() { None } else { Some(Value::Object(data)) },
     }
 }
@@ -508,7 +551,7 @@ fn pairs(v: Option<&Value>) -> Vec<(String, String)> {
     }
 }
 
-fn request(o: &Map<String, Value>) -> Request {
+fn request(o: &mut Map<String, Value>) -> Request {
     let query_string = match o.get("query_string") {
         Some(Value::String(s)) => Some(s.trim_start_matches('?').to_string()),
         v @ Some(Value::Object(_) | Value::Array(_)) => {
@@ -538,24 +581,24 @@ fn request(o: &Map<String, Value>) -> Request {
         method: short_str(o.get("method"), 16).map(|m| m.to_ascii_uppercase()),
         headers: pairs(o.get("headers")),
         query_string,
-        data: o.get("data").filter(|v| !v.is_null()).map(|v| trim(v, 1)),
+        data: o.remove("data").filter(|v| !v.is_null()).map(|v| trim_owned(v, 1)),
         cookies,
-        env: o.get("env").filter(|v| v.is_object()).map(|v| trim(v, 1)),
+        env: o.remove("env").filter(|v| v.is_object()).map(|v| trim_owned(v, 1)),
     }
 }
 
-fn contexts(v: Option<&Value>) -> Object {
+fn contexts(v: Option<Value>) -> Object {
     let mut out = Object::new();
     if let Some(Value::Object(o)) = v {
-        for (k, v) in o.iter().take(MAX_ITEMS) {
+        for (k, v) in o.into_iter().take(MAX_ITEMS) {
             if let Value::Object(_) = v {
-                let mut c = trim(v, 1);
+                let mut c = trim_owned(v, 1);
                 if let Value::Object(m) = &mut c
                     && !m.contains_key("type")
                 {
                     m.insert("type".into(), Value::String(k.clone()));
                 }
-                out.insert(truncate(k, 256), c);
+                out.insert(truncate(&k, 256), c);
             }
         }
     }
@@ -574,44 +617,44 @@ fn tags(v: Option<&Value>) -> Vec<(String, String)> {
     out
 }
 
-fn list_of(v: Option<&Value>) -> Option<&Vec<Value>> {
+fn list_of_mut(v: Option<&mut Value>) -> Option<&mut Vec<Value>> {
     match v? {
         Value::Array(a) => Some(a),
-        Value::Object(o) => o.get("values").and_then(Value::as_array),
+        Value::Object(o) => o.get_mut("values").and_then(Value::as_array_mut),
         _ => None,
     }
 }
 
-fn exceptions(v: Option<&Value>, settings: &ProjectSettings, platform: &str) -> Option<Values<Exception>> {
-    let single;
+fn exceptions(v: Option<&mut Value>, settings: &ProjectSettings, platform: &str) -> Option<Values<Exception>> {
+    let mut single;
     let list = match v {
         Some(Value::Object(o)) if !o.contains_key("values") => {
-            single = vec![Value::Object(o.clone())];
-            &single
+            single = vec![Value::Object(std::mem::take(o))];
+            &mut single
         }
-        other => list_of(other)?,
+        other => list_of_mut(other)?,
     };
     let values: Vec<Exception> = list
-        .iter()
-        .filter_map(Value::as_object)
+        .iter_mut()
+        .filter_map(Value::as_object_mut)
         .take(32)
         .map(|e| Exception {
             ty: short_str(e.get("type"), 256),
             value: e.get("value").and_then(scalar_string).map(|s| truncate(&s, MAX_MESSAGE)),
             module: short_str(e.get("module"), 256),
             thread_id: e.get("thread_id").cloned(),
-            mechanism: e.get("mechanism").filter(|m| m.is_object()).map(|m| trim(m, 1)),
-            stacktrace: e.get("stacktrace").and_then(|s| stacktrace(s, settings, platform)),
+            mechanism: e.remove("mechanism").filter(|m| m.is_object()).map(|m| trim_owned(m, 1)),
+            stacktrace: e.get_mut("stacktrace").and_then(|s| stacktrace(s, settings, platform)),
         })
         .filter(|e| e.ty.is_some() || e.value.is_some() || e.stacktrace.is_some())
         .collect();
     if values.is_empty() { None } else { Some(Values { values }) }
 }
 
-fn threads(v: Option<&Value>, settings: &ProjectSettings, platform: &str) -> Option<Values<Thread>> {
-    let values: Vec<Thread> = list_of(v)?
-        .iter()
-        .filter_map(Value::as_object)
+fn threads(v: Option<&mut Value>, settings: &ProjectSettings, platform: &str) -> Option<Values<Thread>> {
+    let values: Vec<Thread> = list_of_mut(v)?
+        .iter_mut()
+        .filter_map(Value::as_object_mut)
         .take(64)
         .map(|t| Thread {
             id: t.get("id").filter(|v| !v.is_null()).cloned(),
@@ -619,17 +662,17 @@ fn threads(v: Option<&Value>, settings: &ProjectSettings, platform: &str) -> Opt
             crashed: t.get("crashed").and_then(Value::as_bool),
             current: t.get("current").and_then(Value::as_bool),
             main: t.get("main").and_then(Value::as_bool),
-            stacktrace: t.get("stacktrace").and_then(|s| stacktrace(s, settings, platform)),
+            stacktrace: t.get_mut("stacktrace").and_then(|s| stacktrace(s, settings, platform)),
         })
         .collect();
     if values.is_empty() { None } else { Some(Values { values }) }
 }
 
 /// A stack trace; `None` without frames.
-pub fn stacktrace(v: &Value, settings: &ProjectSettings, platform: &str) -> Option<Stacktrace> {
-    let frames = v.get("frames")?.as_array()?;
+pub fn stacktrace(v: &mut Value, settings: &ProjectSettings, platform: &str) -> Option<Stacktrace> {
+    let frames = v.get_mut("frames")?.as_array_mut()?;
     let mut out: Vec<Frame> =
-        frames.iter().filter_map(Value::as_object).map(|f| frame(f, settings, platform)).collect();
+        frames.iter_mut().filter_map(Value::as_object_mut).map(|f| frame(f, settings, platform)).collect();
     if out.is_empty() {
         return None;
     }
@@ -639,7 +682,8 @@ pub fn stacktrace(v: &Value, settings: &ProjectSettings, platform: &str) -> Opti
         out.truncate(MAX_FRAMES - keep_tail);
         out.extend(tail);
     }
-    Some(Stacktrace { frames: out, registers: v.get("registers").filter(|r| r.is_object()).cloned() })
+    let registers = v.as_object_mut().and_then(|o| o.remove("registers")).filter(|r| r.is_object());
+    Some(Stacktrace { frames: out, registers })
 }
 
 fn number(v: Option<&Value>) -> Option<u32> {
@@ -656,7 +700,7 @@ fn lines(v: Option<&Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn frame(f: &Map<String, Value>, settings: &ProjectSettings, platform: &str) -> Frame {
+fn frame(f: &mut Map<String, Value>, settings: &ProjectSettings, platform: &str) -> Frame {
     let mut fr = Frame {
         filename: short_str(f.get("filename"), 1024),
         abs_path: short_str(f.get("abs_path"), 2048),
@@ -668,7 +712,7 @@ fn frame(f: &Map<String, Value>, settings: &ProjectSettings, platform: &str) -> 
         context_line: f.get("context_line").and_then(scalar_string).map(|s| truncate(&s, 1024)),
         pre_context: lines(f.get("pre_context")),
         post_context: lines(f.get("post_context")),
-        vars: f.get("vars").filter(|v| v.is_object()).map(|v| trim(v, 2)),
+        vars: f.remove("vars").filter(|v| v.is_object()).map(|v| trim_owned(v, 2)),
         platform: short_str(f.get("platform"), 32),
         package: short_str(f.get("package"), 512),
         instruction_addr: short_str(f.get("instruction_addr"), 32),
@@ -730,20 +774,20 @@ pub fn in_app(fr: &Frame, settings: &ProjectSettings, platform: &str) -> bool {
     !path.is_empty() || fr.module.is_some()
 }
 
-fn breadcrumbs(v: Option<&Value>) -> Option<Values<Breadcrumb>> {
-    let list = list_of(v)?;
+fn breadcrumbs(v: Option<&mut Value>) -> Option<Values<Breadcrumb>> {
+    let list = list_of_mut(v)?;
     let skip = list.len().saturating_sub(MAX_BREADCRUMBS);
     let values: Vec<Breadcrumb> = list
-        .iter()
+        .iter_mut()
         .skip(skip)
-        .filter_map(Value::as_object)
+        .filter_map(Value::as_object_mut)
         .map(|b| Breadcrumb {
             timestamp: b.get("timestamp").and_then(parse_timestamp),
             ty: short_str(b.get("type"), 64),
             category: short_str(b.get("category"), 128),
             level: b.get("level").and_then(Value::as_str).map(|l| normalize_level(l).to_string()),
             message: b.get("message").and_then(scalar_string).map(|s| truncate(&s, MAX_MESSAGE)),
-            data: b.get("data").filter(|d| !d.is_null()).map(|d| trim(d, 2)),
+            data: b.remove("data").filter(|d| !d.is_null()).map(|d| trim_owned(d, 2)),
         })
         .collect();
     if values.is_empty() { None } else { Some(Values { values }) }

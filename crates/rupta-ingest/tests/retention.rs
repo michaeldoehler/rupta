@@ -21,8 +21,8 @@ fn event_row(project_id: i64, issue_id: i64, ts: chrono::DateTime<Utc>, n: u32) 
         received: ts,
         level: Some("error".into()),
         message: Some(format!("message {n}")),
-        tags: "{\"browser\":\"Chrome\"}".into(),
-        contexts: "{}".into(),
+        tags: json!({"browser": "Chrome"}),
+        contexts: json!({}),
         ..EventRow::default()
     }
 }

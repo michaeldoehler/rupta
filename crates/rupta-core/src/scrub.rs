@@ -88,11 +88,12 @@ impl<'a> Scrubber<'a> {
 
     /// True if values under this key must be removed.
     pub fn is_sensitive_key(&self, key: &str) -> bool {
-        let k = key.to_ascii_lowercase();
-        if self.safe.contains(&k) || DEFAULT_SAFE.contains(&k.as_str()) {
+        if self.safe.iter().any(|s| s.eq_ignore_ascii_case(key))
+            || DEFAULT_SAFE.iter().any(|s| s.eq_ignore_ascii_case(key))
+        {
             return false;
         }
-        DEFAULT_FIELDS.iter().any(|f| k.contains(f)) || self.extra.iter().any(|f| k.contains(f.as_str()))
+        DEFAULT_FIELDS.iter().any(|f| contains_ci(key, f)) || self.extra.iter().any(|f| contains_ci(key, f))
     }
 
     /// Replaces sensitive patterns inside a string. Returns `None` if
@@ -109,11 +110,10 @@ impl<'a> Scrubber<'a> {
             out = std::borrow::Cow::Owned(replaced.into_owned());
         }
         if out.len() > 12 {
-            let lower = out.to_ascii_lowercase();
-            if lower.contains("bearer") || lower.contains("basic") || lower.contains("token") {
+            if contains_ci(&out, "bearer") || contains_ci(&out, "basic") || contains_ci(&out, "token") {
                 out = std::borrow::Cow::Owned(BEARER.replace_all(&out, format!("$1 {FILTERED}")).into_owned());
             }
-            if lower.contains("private key") {
+            if contains_ci(&out, "private key") {
                 out = std::borrow::Cow::Owned(PRIVATE_KEY.replace_all(&out, FILTERED).into_owned());
             }
             if out.contains("://") && out.contains('@') {
@@ -281,6 +281,14 @@ impl<'a> Scrubber<'a> {
         }
         self.scrub_pairs(&mut ev.tags);
     }
+}
+
+/// Case-insensitive substring test; `needle` must be lowercase ASCII.
+fn contains_ci(hay: &str, needle: &str) -> bool {
+    let (h, n) = (hay.as_bytes(), needle.as_bytes());
+    n.is_empty()
+        || (h.len() >= n.len()
+            && h.windows(n.len()).any(|w| w.iter().zip(n).all(|(a, b)| a.to_ascii_lowercase() == *b)))
 }
 
 /// Luhn checksum of the digits in `s`.

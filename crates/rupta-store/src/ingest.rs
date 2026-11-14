@@ -105,14 +105,31 @@ pub struct EventRow {
     pub sdk: Option<String>,
     pub server_name: Option<String>,
     pub url: Option<String>,
-    /// JSON object text.
-    pub tags: String,
-    /// JSON object text.
-    pub contexts: String,
+    /// JSON object `{key: value}`.
+    pub tags: serde_json::Value,
+    /// JSON object.
+    pub contexts: serde_json::Value,
 }
 
 impl EventRow {
+    /// The row as values in table column order, for [`append_values`].
+    pub fn into_values(mut self) -> Vec<Value> {
+        let tags = Value::Jsonb(Box::new(std::mem::take(&mut self.tags)));
+        let contexts = Value::Jsonb(Box::new(std::mem::take(&mut self.contexts)));
+        let mut v = self.values_without_json();
+        v.push(tags);
+        v.push(contexts);
+        v
+    }
+
     fn values(&self) -> Vec<Value> {
+        let mut v = self.values_without_json();
+        v.push(Value::Jsonb(Box::new(self.tags.clone())));
+        v.push(Value::Jsonb(Box::new(self.contexts.clone())));
+        v
+    }
+
+    fn values_without_json(&self) -> Vec<Value> {
         vec![
             Value::Int8(self.project_id),
             Value::Int8(self.issue_id),
@@ -139,8 +156,6 @@ impl EventRow {
             text(&self.sdk),
             text(&self.server_name),
             text(&self.url),
-            Value::Text(self.tags.clone()),
-            Value::Text(self.contexts.clone()),
         ]
     }
 }
@@ -151,6 +166,15 @@ pub fn append_events(conn: &Connection, rows: &[EventRow]) -> Result<u64> {
     }
     let values: Vec<Vec<Value>> = rows.iter().map(EventRow::values).collect();
     Ok(conn.append("events", &values)?)
+}
+
+/// Appends rows already converted to values (see [`EventRow::into_values`]
+/// and [`PayloadRow::into_values`]).
+pub fn append_values(conn: &Connection, table: &str, rows: &[Vec<Value>]) -> Result<u64> {
+    if rows.is_empty() {
+        return Ok(0);
+    }
+    Ok(conn.append(table, rows)?)
 }
 
 /// A compressed normalized event.
@@ -164,24 +188,23 @@ pub struct PayloadRow {
     pub data: Vec<u8>,
 }
 
+impl PayloadRow {
+    /// The row as values in table column order, for [`append_values`].
+    pub fn into_values(self) -> Vec<Value> {
+        vec![
+            Value::Int8(self.project_id),
+            Value::Uuid(self.event_id),
+            opt_i64(self.issue_id),
+            date(self.day),
+            Value::Bytea(self.data),
+        ]
+    }
+}
+
 /// Inserts payloads; fails with a unique violation if one exists already.
 pub fn append_payloads(conn: &Connection, rows: &[PayloadRow]) -> Result<u64> {
-    if rows.is_empty() {
-        return Ok(0);
-    }
-    let values: Vec<Vec<Value>> = rows
-        .iter()
-        .map(|r| {
-            vec![
-                Value::Int8(r.project_id),
-                Value::Uuid(r.event_id),
-                opt_i64(r.issue_id),
-                date(r.day),
-                Value::Bytea(r.data.clone()),
-            ]
-        })
-        .collect();
-    Ok(conn.append("event_payloads", &values)?)
+    let values: Vec<Vec<Value>> = rows.iter().cloned().map(PayloadRow::into_values).collect();
+    append_values(conn, "event_payloads", &values)
 }
 
 /// The ids among `ids` that already have a payload.
@@ -219,11 +242,13 @@ pub struct IssueState {
     pub resolved_at: Option<DateTime<Utc>>,
     pub resolved_in_release: Option<String>,
     pub ignore_until: Option<DateTime<Utc>>,
+    /// Absolute threshold: the ignore ends when `times_seen` reaches it.
     pub ignore_count: Option<i64>,
+    pub times_seen: i64,
 }
 
 const ISSUE_STATE_COLUMNS: &str =
-    "id, project_id, status, substatus, resolved_at, resolved_in_release, ignore_until, ignore_count";
+    "id, project_id, status, substatus, resolved_at, resolved_in_release, ignore_until, ignore_count, times_seen";
 
 fn issue_state(r: &squad::Row) -> IssueState {
     IssueState {
@@ -235,6 +260,7 @@ fn issue_state(r: &squad::Row) -> IssueState {
         resolved_in_release: r.get(5),
         ignore_until: r.get(6),
         ignore_count: r.get(7),
+        times_seen: r.get(8),
     }
 }
 
@@ -343,12 +369,6 @@ pub fn reopen_issue(conn: &Connection, id: i64, substatus: &str) -> Result<()> {
          WHERE id = $1",
         &[&id, &substatus],
     )?;
-    Ok(())
-}
-
-/// Counts down an ignore-until-count condition by `n` events.
-pub fn decrement_ignore_count(conn: &Connection, id: i64, n: i64) -> Result<()> {
-    conn.execute("UPDATE issues SET ignore_count = ignore_count - $2 WHERE id = $1", &[&id, &n])?;
     Ok(())
 }
 
@@ -843,8 +863,8 @@ mod tests {
                 timestamp: now,
                 received: now,
                 user_hash: Some(5),
-                tags: "{}".into(),
-                contexts: "{}".into(),
+                tags: serde_json::json!({}),
+                contexts: serde_json::json!({}),
                 ..Default::default()
             }],
         )

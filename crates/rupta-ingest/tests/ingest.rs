@@ -425,17 +425,17 @@ async fn resolved_issue_regresses_and_ignore_count_runs_out() {
     h.flush().await;
     assert_eq!(h.count("SELECT count(*) FROM issues WHERE status = 'resolved'"), 1);
 
-    // Ignored until 2 more events.
+    // Ignored until 2 more events: an absolute times_seen threshold.
     h.store
         .connect()
         .execute(
-            "UPDATE issues SET status = 'ignored', substatus = 'archived_until_condition_met', ignore_count = 2",
+            "UPDATE issues SET status = 'ignored', substatus = 'archived_until_condition_met', ignore_count = times_seen + 2",
             &[],
         )
         .unwrap();
     h.envelope(event_envelope(&error_event(&new_id(), "boom"))).await;
     h.flush().await;
-    assert_eq!(h.count("SELECT ignore_count FROM issues"), 1);
+    assert_eq!(h.count("SELECT count(*) FROM issues WHERE status = 'ignored'"), 1);
     h.envelope(event_envelope(&error_event(&new_id(), "boom"))).await;
     h.flush().await;
     let r = h.store.connect().query_one("SELECT status, substatus FROM issues", &[]).unwrap();
