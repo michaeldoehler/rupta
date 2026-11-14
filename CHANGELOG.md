@@ -8,6 +8,15 @@ changelog says when and how to migrate.
 
 ## [Unreleased]
 
+### Documentation
+
+- Name the compatibility explicitly: rupta implements the ingestion
+  protocol of the Sentry SDKs and the source map upload commands of
+  `sentry-cli`. `docs/sdk-compatibility.md` has a compatibility matrix per
+  SDK and data type (tested, expected to work, accepted but not stored, not
+  supported) and a list of what is not supported; README, source map
+  upload and comparison say the same, with a trademark note.
+
 ## [0.1.0] - 2026-11-14
 
 The first release.

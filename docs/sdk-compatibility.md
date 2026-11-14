@@ -1,12 +1,140 @@
-# SDK compatibility
+# SDK compatibility: Sentry SDKs and sentry-cli
 
-rupta accepts events from the official open-source SDKs without changes
-to the SDKs: point their DSN at rupta (`http(s)://<public key>@<host>/<project id>`)
-and they send to the endpoints below. This page lists what each part of
-the protocol does in rupta, what is stored, what is acknowledged and
-dropped, and the limits.
+rupta implements the ingestion protocol of the **Sentry SDKs**: the
+open-source client libraries that Sentry publishes for each platform, such
+as `@sentry/browser`, `@sentry/node`, `@sentry/react` and `@sentry/nextjs`
+for JavaScript, `sentry/sentry`, `sentry/sentry-laravel` and
+`sentry/sentry-symfony` for PHP, `sentry-sdk` for Python, and the SDKs for
+Go, Java, .NET, Ruby, Rust and the mobile platforms. It also implements
+the source map and release commands of **`sentry-cli`**
+([source map upload](sourcemap-upload.md)).
 
-## Tested SDKs
+rupta has no SDK of its own. You install the Sentry SDK for your platform,
+unchanged, and give it a DSN of a rupta project
+(`http(s)://<public key>@<host>/<project id>`); the SDK then sends to the
+endpoints [below](#endpoints).
+
+> Sentry is a trademark of Functional Software, Inc. rupta is an
+> independent project and is not affiliated with or endorsed by Sentry.
+
+This page lists, per SDK and data type, what was tested and what is
+expected to work, what each part of the protocol does in rupta, what is
+stored, what is acknowledged and dropped, and the limits.
+
+## Switching an existing application
+
+An application that already reports to Sentry (sentry.io or a self-hosted
+Sentry) switches to rupta by changing its DSN:
+
+1. Create a project in rupta (*Settings → Projects → New project*) and copy
+   the DSN from its *Client keys* page.
+2. Replace the DSN in the application's configuration, for example the
+   `SENTRY_DSN` environment variable, `SENTRY_LARAVEL_DSN` in Laravel, or
+   the `dsn` option of `Sentry.init` / `sentry_sdk.init`.
+3. Redeploy. The SDK, its options (`release`, `environment`, sample rates,
+   `beforeSend`, integrations) and your instrumentation code stay as they
+   are.
+
+Build pipelines that upload source maps with `sentry-cli` or a bundler
+plugin change `SENTRY_URL` to rupta's URL and `SENTRY_AUTH_TOKEN` to a
+rupta token; organization and project slugs are rupta's
+([source map upload](sourcemap-upload.md)). Data already stored in Sentry
+is not migrated: rupta starts with an empty history.
+
+## Compatibility matrix
+
+Levels:
+
+- **tested**: tested end to end. The SDK sent the data to a running rupta
+  server in the [smoke test](#smoke-test), and the stored result was
+  checked; the captured envelopes are replayed in the test suite.
+- **expected**: expected to work. The SDK sends the same envelope item
+  types as a tested SDK, which rupta handles the same way regardless of
+  the SDK, but this SDK was not tested. Only where the SDK offers the
+  feature.
+- **accepted, not stored**: rupta answers `200` as the SDK expects and
+  counts the item as `dropped_unsupported`, but does not store it.
+- **not supported**: does not work with rupta.
+- **–**: the SDK does not send this kind of data.
+
+| Data type | Browser JavaScript | Node.js | PHP | Python | Frameworks built on these SDKs | Other server SDKs | Mobile and native SDKs |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Errors and messages | tested | tested | tested | tested | expected | expected | expected ¹ |
+| Transactions and spans (tracing) | tested | tested | tested | tested | expected | expected | expected |
+| Logs | tested | tested | tested | tested | expected | expected | expected |
+| Metrics (`trace_metric`) | tested | tested | tested | tested | expected | expected | expected |
+| Profiles | tested ² | tested ³ | expected ⁴ | tested ⁵ | expected | expected | expected ¹ |
+| Session replay | tested | – | – | – | expected (browser side) | – | accepted, not stored ⁶ |
+| Sessions (release health) | tested | tested | – | tested | expected | expected | expected |
+| Attachments | expected | tested | tested | tested | expected | expected | expected ⁷ |
+| User feedback | tested | tested | expected | expected | expected | expected | expected |
+| Cron check-ins | – | tested | tested | tested | expected | expected | – |
+| Native crash reports (minidumps) | – | – | – | – | – | – | not supported ⁷ |
+
+Columns:
+
+- **Browser JavaScript**: `@sentry/browser` 11.12.0 in headless Chromium.
+- **Node.js**: `@sentry/node` and `@sentry/profiling-node` 11.12.0.
+- **PHP**: `sentry/sentry` 4.37.0.
+- **Python**: `sentry-sdk` 2.75.0.
+- **Frameworks built on these SDKs**: `@sentry/react`, `@sentry/vue`,
+  `@sentry/angular`, `@sentry/svelte`, `@sentry/nextjs`,
+  `@sentry/nuxt`, `@sentry/sveltekit` and other JavaScript framework
+  packages; `sentry/sentry-laravel` and `sentry/sentry-symfony`; the
+  Django, Flask, FastAPI and Celery integrations of `sentry-sdk`. They
+  wrap a tested SDK and send the same envelopes, but were not tested
+  themselves.
+- **Other server SDKs**: Go (`sentry-go`), Java and Spring Boot, .NET and
+  ASP.NET Core, Ruby and Rails, Rust (`sentry` crate), Elixir and others.
+  Not tested.
+- **Mobile and native SDKs**: Android, Apple (Cocoa), React Native,
+  Flutter, Unity, Unreal and Native (C/C++). Not tested.
+
+Notes:
+
+1. Stack traces from native code and from obfuscated or minified mobile
+   builds are stored as sent: rupta has no native symbolication (dSYM,
+   PDB, ELF debug files), no ProGuard/R8 mapping and no Hermes source
+   maps. Frames that the SDK already resolved (most JVM, .NET, Python,
+   Ruby, PHP and Node frames) are readable.
+2. With `browserProfilingIntegration`; the page must be served with
+   `Document-Policy: js-profiling` ([profiling](profiling.md)).
+3. Continuous profiling with `@sentry/profiling-node`.
+4. Needs the `excimer` extension, which was not installed on the test
+   machine. The profile format is the same as Python's transaction
+   profiles and is covered by a unit test.
+5. Transaction profiles (`profiles_sample_rate`) and continuous profiles
+   (`profile_session_sample_rate`).
+6. Mobile session replay (`replay_video` items) is acknowledged but not
+   stored and cannot be played.
+7. A minidump that the SDK sends as an attachment of an event is stored
+   and can be downloaded from the event, but it is not processed: no stack
+   trace is extracted from it. Crash uploads to the minidump endpoint
+   (`/api/<project id>/minidump/`, used by Crashpad, Breakpad and
+   Electron's crash reporter) and Unreal crash reports answer `404`.
+
+### Not supported
+
+- Native crash processing and native debug symbols (see notes 1 and 7);
+  `sentry-cli debug-files`.
+- Mobile session replay (`replay_video`).
+- Source maps for profile frames: minified JavaScript frames in
+  flamegraphs stay minified.
+- The OpenTelemetry endpoints (`/api/<project id>/otlp/...`,
+  `/api/<project id>/integration/otlp/...`): use a Sentry SDK, or send
+  `otel_log` envelope items. `otel_span` items are accepted, not stored.
+- Span links and span events.
+- Commits, repositories and suspect commits (`sentry-cli releases
+  set-commits`), and the other `sentry-cli` commands listed as not
+  supported in [source map upload](sourcemap-upload.md#commands-that-work).
+- Sentry's web API under `/api/0/` beyond the requests `sentry-cli` makes
+  for releases, deploys and source maps. Tools that read issues or events
+  through that API (dashboards, chat bots, editor plugins) do not work
+  with rupta; use rupta's [REST API](api.md) instead.
+- `metric_meta` items (code locations of the deprecated metrics format):
+  accepted, not stored.
+
+## Tested SDK details
 
 The SDK smoke test (`scripts/sdk-smoke.sh`, see [below](#smoke-test)) runs
 example programs with these packages; the envelopes they sent are kept as
@@ -25,10 +153,9 @@ telemetry_fixtures` and, through the API, by `cargo test -p rupta-api
 | Python | `sentry-sdk` | 2.75.0 | exception, message, breadcrumbs, user, tags, attachment, cron check-in, transaction, sessions, logs (`sentry_sdk.logger`), metrics (`sentry_sdk.metrics`), transaction profiles (`profiles_sample_rate`) and continuous profiles (`profile_session_sample_rate`, `profile_lifecycle="trace"`) |
 | hand-written | `statsd` and `metric_buckets` envelopes | — | the deprecated metric formats, which no current SDK sends |
 
-Other SDKs that speak the envelope protocol (Go, Java, .NET, Ruby, Rust,
-mobile) use the same endpoints and item types and are expected to work,
-but are not tested. Native crash reports (minidumps) are stored as
-attachments but not processed.
+Newer SDK versions are expected to keep working as long as they speak the
+same envelope protocol; the smoke test installs the latest versions by
+default and is the way to check a new release.
 
 ## Endpoints
 
@@ -36,10 +163,11 @@ attachments but not processed.
 | --- | --- | --- |
 | `POST /api/{project_id}/envelope/` | envelope | What current SDKs use. Browser SDKs send it as `text/plain` to avoid a CORS preflight. |
 | `POST /api/{project_id}/store/` | one event as JSON | Legacy endpoint. Also accepts base64-encoded zlib JSON from very old SDKs. |
-| `POST /api/{project_id}/security/` | CSP report | `{"csp-report": {...}}` (`report-uri`) or the Reporting API list (`report-to`). Each `csp-violation` becomes an event of type `csp`; other report types are acknowledged and counted as `dropped_unsupported`. `sentry_environment` and `sentry_release` query parameters set environment and release. |
-| `OPTIONS` on all three | — | CORS preflight. |
+| `POST /api/{project_id}/security/`, `POST /api/{project_id}/csp-report/` | CSP report | `{"csp-report": {...}}` (`report-uri`) or the Reporting API list (`report-to`). Each `csp-violation` becomes an event of type `csp`; other report types are acknowledged and counted as `dropped_unsupported`. `sentry_environment` and `sentry_release` query parameters set environment and release. |
+| `OPTIONS` on all of them | — | CORS preflight. |
 
-The paths work with and without the trailing slash.
+The paths work with and without the trailing slash, except
+`csp-report/`, which needs it.
 
 ### Authentication
 
@@ -71,7 +199,7 @@ Preflight requests are answered for allowed origins.
 | `400` | Malformed envelope or JSON, invalid compressed data, bad project id. |
 | `401` | No key, or an unknown key. |
 | `403` | Disabled key, key of another project, origin not allowed. |
-| `413` | Body over `RUPTA_MAX_ENVELOPE_BYTES` (default 20 MiB) or over 100 MiB decompressed. |
+| `413` | Body over `RUPTA_MAX_ENVELOPE_MB` (default 20 MiB) or over `RUPTA_MAX_DECOMPRESSED_MB` (default 100 MiB) after decompression. |
 | `415` | Unsupported `Content-Encoding`. |
 | `429` | Rate limit or full ingest queue, with `Retry-After` and `X-Sentry-Rate-Limits` (see [ingestion](ingestion.md#rate-limits-and-backpressure)). |
 | `503` | Shutting down; with durability `safe`, the batch could not be written. |
@@ -86,7 +214,7 @@ Error bodies are `{"detail": "..."}`, and the message is repeated in
 
 | Item type | What rupta does | Stored in |
 | --- | --- | --- |
-| `event` | Normalized, filtered, symbolicated (JavaScript), scrubbed, grouped into an issue. | `events` (one row for search and counts), `event_payloads` (the full normalized event, zstd-compressed JSON), `issues` |
+| `event`, `security` | Normalized, filtered, symbolicated (JavaScript), scrubbed, grouped into an issue. | `events` (one row for search and counts), `event_payloads` (the full normalized event, zstd-compressed JSON), `issues` |
 | `transaction` | Name, operation, status, duration, trace and span ids, release, environment, tags, measurements (web vitals as columns), profile links; the root span and every span in `spans`. See [performance](performance.md). | `transactions`, `spans` |
 | `span` | Streamed spans (current JavaScript SDKs send transactions this way, as a `{"items": [...]}` container). Every span is stored; segment (root) spans also as transactions. | `spans`, `transactions` |
 | `attachment` | Bytes go to the object store under `attachments/{project_id}/{day}/{event_id}/{id}`; linked to the envelope's event. Dropped with the event if the event is filtered or invalid. | `attachments`, object store |
@@ -181,8 +309,8 @@ one they are invalid.
 
 | Limit | Default | Setting |
 | --- | --- | --- |
-| Request body | 20 MiB | `RUPTA_MAX_ENVELOPE_BYTES` |
-| Decompressed body | 100 MiB | — |
+| Request body | 20 MiB | `RUPTA_MAX_ENVELOPE_MB` |
+| Decompressed body | 100 MiB | `RUPTA_MAX_DECOMPRESSED_MB` |
 | One event or transaction (JSON) | 1 MiB; larger ones are dropped as `invalid` (`too_large`) | — |
 | One attachment | 100 MiB | — |
 | Items per envelope | 1,000 | — |

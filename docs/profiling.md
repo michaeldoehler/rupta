@@ -1,6 +1,6 @@
 # Profiling
 
-rupta stores the sampled profiles that the official open-source SDKs send
+rupta stores the sampled profiles that the Sentry SDKs send
 and shows them as flamegraphs, for one profile or merged over the recent
 profiles of a transaction.
 

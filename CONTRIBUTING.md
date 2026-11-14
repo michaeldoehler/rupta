@@ -48,7 +48,7 @@ scripts/sdk-smoke.sh        # real SDKs against a local server
 
 - **A test that fails without it.** Protocol changes need a fixture captured
   from a real SDK.
-- **Compatibility.** Events sent by the official open-source SDKs must keep
+- **Compatibility.** Events sent by the Sentry SDKs must keep
   working. Changes to stored data come with a new numbered migration in
   `crates/rupta-store/migrations`; released migrations are never edited.
 - **Documentation** in `docs/` for every user-visible change, and an entry

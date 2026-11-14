@@ -1,6 +1,6 @@
 # Metrics
 
-rupta stores the metrics the official open-source SDKs send
+rupta stores the metrics the Sentry SDKs send
 (`Sentry.metrics.count/gauge/distribution` in JavaScript,
 `sentry_sdk.metrics.*` in Python, `\Sentry\traceMetrics()` in PHP) and the
 older statsd-style metric formats, aggregates them over time and shows

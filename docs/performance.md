@@ -1,6 +1,6 @@
 # Performance: transactions, traces and spans
 
-rupta stores the transactions and spans that the official open-source SDKs
+rupta stores the transactions and spans that the Sentry SDKs
 send when tracing is enabled (`tracesSampleRate`, `traces_sample_rate`) and
 answers questions about them: which transactions are slow or failing, what
 happened inside one request (the trace), and which operations take the

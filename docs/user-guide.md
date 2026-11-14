@@ -152,7 +152,7 @@ Below are tabs:
   adoption, session counts and the last deploy. A release's page charts
   sessions and crashes, lists the issues that first appeared in it and its
   deploys. Crash-free users count the distinct users of sessions that carry
-  a distinct id (`did`), which the official SDKs send when a user is set.
+  a distinct id (`did`), which the Sentry SDKs send when a user is set.
 - **Crons** shows each monitor's schedule in words and a timeline of recent
   check-ins (ok, failed, missed, timed out). A monitor's page has the
   check-in history, success rate and average duration, and can disable the
@@ -354,7 +354,7 @@ the server lists the replay's issues without times.
 - **API tokens** are shown once when created. Choose scopes and an
   expiry.
 - **Projects:** each project has general settings, client keys (DSN) with
-  setup instructions for the official open-source SDKs on 14 platforms,
+  setup instructions for the Sentry SDKs on 14 platforms,
   inbound filters, data scrubbing, allowed origins and the CSP report URI,
   rate limit and retention, source maps with the upload CLI commands, and
   **Telemetry data**: per type (traces, logs, metrics, profiles, replays)
