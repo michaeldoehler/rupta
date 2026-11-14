@@ -22,20 +22,20 @@ uuid.workspace = true
 http.workspace = true
 bytes = "1"
 flate2 = "1"
-brotli = "8"
-zstd = "0.13"
+brotli = "9"
+zstd = "0.14"
 sourcemap = "9.3"
 zip = { version = "9.5", default-features = false, features = ["deflate-flate2"] }
 crossbeam-channel = "0.5"
 ipnet = "2"
-base64 = "0.22"
+base64 = "0.23"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
-brotli = "8"
+brotli = "9"
 flate2 = "1"
 mimalloc = "0.1.52"
 reqwest = { version = "0.13", default-features = false, features = ["json"] }
 tempfile = "3.27.0"
 tower = { workspace = true, features = ["util"] }
-zstd = "0.13"
+zstd = "0.14"
