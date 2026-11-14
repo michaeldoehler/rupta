@@ -143,3 +143,10 @@ jobs:
           docker logs rupta
           test "$status" = healthy
           curl -fsS http://localhost:8080/readyz
+
+  compose:
+    name: Compose stack with Garage (restore from the bucket)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/compose-e2e.sh
