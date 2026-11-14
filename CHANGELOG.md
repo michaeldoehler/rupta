@@ -10,6 +10,11 @@ changelog says when and how to migrate.
 
 ### Changed
 
+- The web interface shows the marks of integrated services (Jira, Linear,
+  GitHub, GitLab, PagerDuty, Opsgenie, Zitadel) in the integration and
+  channel settings, the tracker pickers, linked tickets, the alert editor
+  and the activity feed. Trackers and channels are chosen from tiles.
+  Ticket activity entries now name the integration with server data.
 - `compose.yaml` passes every configuration variable from `.env`; previously
   settings such as `RUPTA_TRUSTED_PROXIES` had no effect without editing the
   file. `deploy/stack.yml` creates the bootstrap administrator from the
