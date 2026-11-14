@@ -10,6 +10,36 @@ changelog says when and how to migrate.
 
 ### Added
 
+- Issue tracker integrations for Jira Cloud (REST v3), Jira Data Center
+  and Server (REST v2), Linear (GraphQL), GitHub Issues and GitLab Issues
+  (REST v4): `/api/v1/orgs/{org}/integrations` with connection test and
+  target lists, per-project defaults, and issue links
+  (`/api/v1/issues/{id}/links`) that create a ticket with a generated
+  description or link an existing one. Verified webhooks at
+  `/api/integrations/{kind}/{id}/webhook` keep links current and, when
+  enabled per project, resolve and unresolve issues; resolving,
+  unresolving and regressions comment on and transition linked tickets.
+  Tokens and webhook secrets are stored encrypted and never returned.
+  See docs/integrations.md.
+- `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS` allows integrations on
+  internal addresses (Jira Data Center, self-managed GitLab); by default
+  they are refused.
+- Alert rule action `create_ticket` (once per issue and integration).
+- Notification channels `pagerduty` (Events API v2, the issue id as dedup
+  key) and `opsgenie` (Alert API v2, US or EU); their incidents are
+  resolved when the issue is resolved.
+- `/metrics`: request count and latency histogram per route template and
+  status class, error events and new issues per project (capped by
+  `RUPTA_METRICS_PROJECT_LABELS`, default 50), issues by status, readiness,
+  alert notifications per channel kind and result, integration calls,
+  webhooks and sync results, database size, cache hit ratio, object store
+  positions, and process metrics. Existing metric names are unchanged.
+- `deploy/prometheus` (scrape configuration and alert rules with promtool
+  tests), `deploy/grafana` (dashboard and provisioning) and
+  `compose.monitoring.yaml`. See docs/monitoring.md.
+- `GET /api/v1/orgs/{org}/annotations`: releases, deploys and new-issue
+  spikes as JSON annotations for Grafana.
+
 - `GET /api/v1/orgs/{org}/issues/by-short-id/{short_id}` finds an issue by
   its short id (`WEB-APP-31`), case-insensitively.
 - Resolving an issue "in the next release" (`resolved_in: next_release`
@@ -46,6 +76,16 @@ changelog says when and how to migrate.
   crashed_users]`.
 - Migration 4000 adds columns to `issues` and the `session_users` table;
   it is applied automatically at start.
+- Migration 5000 adds the tables `integrations`,
+  `project_integration_defaults`, `issue_links`, `integration_deliveries`
+  and `channel_incidents`; it is applied automatically at start.
+- `/metrics` answers with `Content-Type: text/plain; version=0.0.4;
+  charset=utf-8`, every family has a `# HELP` line, the storage gauges
+  `rupta_storage_fenced` and `rupta_storage_unshipped_lsn` are also
+  present (as 0) without an object store, and the metrics token is
+  compared in constant time.
+- The permission `manage_integrations` (admins; token scopes `org:write`,
+  `org:admin`) guards integration settings.
 
 ## [0.1.0]
 

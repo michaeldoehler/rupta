@@ -7490,7 +7490,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Machine-readable code: `not_found`, `unauthorized`, `forbidden`,\n`csrf_failed`, `validation_failed`, `bad_request`, `conflict`,\n`rate_limited`, `payload_too_large`, `sso_required`,\n`unsupported`, `internal`."
+            "description": "Machine-readable code: `not_found`, `unauthorized`, `forbidden`,\n`csrf_failed`, `validation_failed`, `bad_request`, `conflict`,\n`rate_limited`, `payload_too_large`, `sso_required`,\n`unsupported`, `delivery_failed`, `integration_error`, `internal`."
           },
           "details": {
             "type": "object"
