@@ -160,11 +160,22 @@ session start: `total`, `errored`, `crashed`, `abnormal`.
 - Aggregated `sessions` items add their counts directly (`errored` of the
   item plus `crashed` and `abnormal` go to `errored`).
 
+Distinct users: a session's `did` (distinct id; for aggregated
+`sessions` items, the `did` of each aggregate) is hashed and written to
+`session_users` once per user, project, release, environment and hour of
+the session start, and once more when the user's session crashes (for
+aggregates: when the aggregate has `crashed` > 0). Crash-free users =
+1 − distinct crashed users / distinct users, counted with
+`count(DISTINCT)` over these rows. Sessions without a `did` count for
+sessions, not for users. Which users were written is kept in memory (up to
+500,000 entries, then cleared); a duplicate row after a restart or a
+cleared set only costs storage, since users are counted distinct.
+
 Simplifications: which transitions of a session were counted is kept in
 memory (the last 250,000 to 500,000 sessions). After a restart, an update
 for a session started before the restart can count its error or crash
-again, and its `init` was counted before. Distinct users (`did`) are not
-counted. Sessions need a release; without one they are invalid.
+again, and its `init` was counted before. Sessions need a release; without
+one they are invalid.
 
 ## Limits
 
