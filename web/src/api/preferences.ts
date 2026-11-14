@@ -1,7 +1,9 @@
 import type { UserPreferences } from './types'
 
-// The server stores name, email and avatar only. Display preferences
-// (timezone, clock) and notification choices are kept per browser.
+// A copy of the user's preferences in this browser. The server stores them
+// with the account (see `profile` in endpoints.ts); this copy holds deploy
+// notifications, which the server does not store, and is the fallback for
+// servers without preferences.
 const KEY = 'rupta-preferences'
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
