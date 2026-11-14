@@ -8,6 +8,7 @@ pub mod bootstrap;
 pub mod compat;
 pub mod error;
 pub mod extract;
+pub mod integrations;
 pub mod mail;
 pub mod maintenance;
 pub mod notify;
@@ -44,6 +45,8 @@ pub use state::{ApiConfig, ApiMetrics, ApiState};
         (name = "issues", description = "Issues, events, tags, activity"),
         (name = "releases", description = "Releases and release health"),
         (name = "alerts", description = "Alert rules and notification channels"),
+        (name = "integrations", description = "Issue tracker integrations, project defaults and tracker webhooks"),
+        (name = "annotations", description = "Releases, deploys and new-issue spikes as time annotations (Grafana)"),
         (name = "monitors", description = "Cron monitors"),
         (name = "performance", description = "Transactions, traces and spans"),
         (name = "logs", description = "Structured logs and the live tail"),

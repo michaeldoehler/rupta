@@ -1,8 +1,10 @@
 //! Shared state of the API handlers.
 
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::net::IpAddr;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use rupta_auth::crypto::Keys;
 use rupta_auth::oidc::{OidcClient, OidcSettings};
@@ -39,6 +41,10 @@ pub struct ApiConfig {
     /// The SSO connection test may fetch issuers on loopback, link-local
     /// and private addresses (`RUPTA_SSO_ALLOW_PRIVATE_ISSUERS`).
     pub sso_allow_private_issuers: bool,
+    /// Issue trackers and paging services may be reached on loopback,
+    /// link-local and private addresses
+    /// (`RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS`).
+    pub integrations_allow_private_hosts: bool,
 }
 
 impl ApiConfig {
@@ -56,6 +62,7 @@ impl ApiConfig {
             trusted_proxies: Vec::new(),
             max_body_bytes: 1 << 20,
             sso_allow_private_issuers: false,
+            integrations_allow_private_hosts: false,
         }
     }
 }
@@ -72,11 +79,51 @@ pub struct ApiMetrics {
     pub notifications_sent: AtomicU64,
     pub notification_failures: AtomicU64,
     pub artifact_bundles: AtomicU64,
+    /// Counters with labels: `(family, labels) -> value`.
+    labeled: Mutex<BTreeMap<SeriesKey, u64>>,
 }
+
+/// A labeled series: family name and label pairs.
+type SeriesKey = (&'static str, Vec<(&'static str, String)>);
+
+/// Counter families with labels, rendered even before their first sample.
+pub const LABELED_COUNTERS: &[(&str, &str)] = &[
+    ("rupta_alert_notifications_total", "Alert notifications by channel kind and result (success, failure)."),
+    (
+        "rupta_integration_requests_total",
+        "Calls to issue trackers by kind, operation and result (success or the failure reason).",
+    ),
+    ("rupta_integration_webhooks_total", "Incoming tracker webhooks by kind and result."),
+    (
+        "rupta_integration_sync_total",
+        "Status synchronisation between issues and tickets by kind, direction and result.",
+    ),
+];
 
 impl ApiMetrics {
     pub fn inc(counter: &AtomicU64) {
         counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Adds one to a labeled counter of [`LABELED_COUNTERS`].
+    pub fn count(&self, family: &'static str, labels: &[(&'static str, &str)]) {
+        self.add(family, labels, 1);
+    }
+
+    /// Adds `n` to a labeled counter of [`LABELED_COUNTERS`].
+    pub fn add(&self, family: &'static str, labels: &[(&'static str, &str)], n: u64) {
+        debug_assert!(LABELED_COUNTERS.iter().any(|(f, _)| *f == family), "{family} is not declared");
+        if n == 0 {
+            return;
+        }
+        let key = (family, labels.iter().map(|(k, v)| (*k, v.to_string())).collect());
+        *self.labeled.lock().unwrap_or_else(|e| e.into_inner()).entry(key).or_default() += n;
+    }
+
+    /// The value of a labeled counter (tests).
+    pub fn get(&self, family: &'static str, labels: &[(&'static str, &str)]) -> u64 {
+        let key = (family, labels.iter().map(|(k, v)| (*k, v.to_string())).collect());
+        self.labeled.lock().unwrap_or_else(|e| e.into_inner()).get(&key).copied().unwrap_or(0)
     }
 
     /// Prometheus text format.
@@ -98,8 +145,24 @@ impl ApiMetrics {
                 v.load(Ordering::Relaxed)
             ));
         }
+        let labeled = self.labeled.lock().unwrap_or_else(|e| e.into_inner());
+        for (family, help) in LABELED_COUNTERS {
+            let _ = write!(out, "# HELP {family} {help}\n# TYPE {family} counter\n");
+            for ((f, labels), v) in labeled.iter() {
+                if f != family {
+                    continue;
+                }
+                let l: Vec<String> = labels.iter().map(|(k, v)| format!("{k}=\"{}\"", escape_label(v))).collect();
+                let _ = writeln!(out, "{family}{{{}}} {v}", l.join(","));
+            }
+        }
         out
     }
+}
+
+/// Escapes a label value for the Prometheus text format.
+pub fn escape_label(v: &str) -> String {
+    v.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
 }
 
 /// Everything the API handlers need.
@@ -114,6 +177,10 @@ pub struct ApiState {
     pub metrics: Arc<ApiMetrics>,
     /// For notifications (webhooks, Slack, Teams).
     pub http: reqwest::Client,
+    /// For issue trackers and paging services (SSRF guard, retries).
+    pub outbound: crate::integrations::http::Outbound,
+    /// Tickets being created by alert rules (issue, integration).
+    pub ticket_in_flight: Arc<crate::integrations::sync::InFlight>,
     trusted_proxies: Arc<Vec<(IpAddr, u8)>>,
 }
 
@@ -142,6 +209,8 @@ impl ApiState {
             .expect("HTTP client");
         ApiState {
             store,
+            outbound: crate::integrations::http::Outbound::new(config.integrations_allow_private_hosts),
+            ticket_in_flight: Arc::default(),
             keys: Keys::derive(&config.secret_key),
             config: Arc::new(config),
             oidc: OidcClient::new(),

@@ -9,6 +9,70 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/integrations/{kind}/{integration_id}/webhook": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Receives a tracker's webhook. Verified with the integration's webhook\nsecret (see docs/integrations.md); unknown integrations and failed\nverification answer 401. Redeliveries (same delivery id) answer 200\nwithout effect.",
+        "operationId": "webhook",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "integration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The tracker's webhook payload, as the tracker sends it",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "`{\"ok\": true, \"duplicate\": false, \"updated_links\": n, \"changed_issues\": n}`"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/api/v1/attachments/{id}/download": {
       "get": {
         "tags": [
@@ -753,6 +817,184 @@
         }
       }
     },
+    "/api/v1/issues/{id}/links": {
+      "get": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Tickets linked to an issue.",
+        "operationId": "list_links",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IssueLink"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Creates a ticket for the issue or links an existing one.",
+        "operationId": "create_link",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueLink"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "already linked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "the tracker failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/issues/{id}/links/{link_id}": {
+      "delete": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Unlinks a ticket (the ticket stays in the tracker).",
+        "operationId": "delete_link",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {}
+        }
+      }
+    },
+    "/api/v1/issues/{id}/links/{link_id}/refresh": {
+      "post": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Fetches the ticket again from the tracker.",
+        "operationId": "refresh_link",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueLink"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "the tracker failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/issues/{id}/replays": {
       "get": {
         "tags": [
@@ -941,6 +1183,36 @@
         }
       }
     },
+    "/api/v1/issues/{id}/ticket-draft": {
+      "get": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "The ticket title and description rupta would generate for the issue.",
+        "operationId": "ticket_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketDraftView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orgs": {
       "get": {
         "tags": [
@@ -1091,6 +1363,84 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Org"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/annotations": {
+      "get": {
+        "tags": [
+          "annotations"
+        ],
+        "summary": "Releases, deploys and new-issue spikes of an organization in a time\nrange, newest first.",
+        "operationId": "annotations",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Start: Unix milliseconds (Grafana's `${__from}`), Unix seconds or\nRFC 3339. Default: 24 hours before `to`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "End, same forms. Default: now. At most 90 days after `from`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project slugs or ids, comma-separated. Default: all projects.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`release`, `deploy`, `new_issues`, comma-separated. Default: all.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Annotation"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -1679,6 +2029,297 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/integrations": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Issue tracker integrations of an organization. Members can list them\n(to link tickets); secrets are never returned.",
+        "operationId": "list_integrations",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Integration"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Connects an issue tracker. The credentials are checked against the\ntracker first unless `validate` is false. Admins only.",
+        "operationId": "create_integration",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationWithSecret"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "invalid settings or refused credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/integrations/{id}": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "One integration.",
+        "operationId": "get_integration",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Deletes an integration with its project defaults and issue links\n(the tickets stay in the tracker). Admins only.",
+        "operationId": "delete_integration",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {}
+        }
+      },
+      "patch": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Changes an integration. Leave out `token` and `webhook_secret` to keep\nthem. Changed settings or a new token are checked against the tracker\nunless `validate` is false. Admins only.",
+        "operationId": "update_integration",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationWithSecret"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/integrations/{id}/targets": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Where tickets can be created: Jira projects with issue types, Linear\nteams with states, labels and projects, GitHub repositories, GitLab\nprojects. Fetched live from the tracker; members only.",
+        "operationId": "integration_targets",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Target"
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "the tracker failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/integrations/{id}/test": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Checks the stored credentials against the tracker. Admins only.",
+        "operationId": "test_integration",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResult"
                 }
               }
             }
@@ -4977,6 +5618,139 @@
         }
       }
     },
+    "/api/v1/projects/{org}/{project}/integrations": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "The integration defaults of a project.",
+        "operationId": "list_project_integrations",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectIntegration"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{org}/{project}/integrations/{integration_id}": {
+      "put": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Sets how a project uses an integration (creates or replaces).",
+        "operationId": "put_project_integration",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "integration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectIntegrationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectIntegration"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Removes a project's defaults for an integration (links stay).",
+        "operationId": "delete_project_integration",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "integration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {}
+        }
+      }
+    },
     "/api/v1/projects/{org}/{project}/keys": {
       "get": {
         "tags": [
@@ -5779,6 +6553,39 @@
           }
         }
       },
+      "Account": {
+        "type": "object",
+        "description": "Who the credentials belong to.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The tracker's id of the account (Jira account id or user name,\nLinear user id, GitHub or GitLab login)."
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "AccountRef": {
+        "type": "object",
+        "description": "Who the stored credentials belong to, as the tracker reported at the\nlast successful check.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "Activity": {
         "type": "object",
         "required": [
@@ -5841,7 +6648,7 @@
             "items": {
               "type": "object"
             },
-            "description": "`{type: channel, channel_id}`, `{type: email, user_ids, team_ids}`."
+            "description": "`{type: channel, channel_id}`, `{type: email, user_ids, team_ids}`,\n`{type: create_ticket, integration_id, target?, issue_type?,\nproject?, labels?}` (once per issue; target and the rest default to\nthe project's defaults for the integration)."
           },
           "conditions": {
             "type": "array",
@@ -5948,6 +6755,62 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "Annotation": {
+        "type": "object",
+        "description": "A time annotation.",
+        "required": [
+          "time",
+          "kind",
+          "title",
+          "text",
+          "tags"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`release`, `deploy` or `new_issues`."
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Project slug for project-specific annotations (spikes)."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "text": {
+            "type": "string"
+          },
+          "time": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix milliseconds."
+          },
+          "time_end": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "End of a region (deploys with a start time), Unix milliseconds."
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Link into rupta."
           }
         }
       },
@@ -6209,6 +7072,14 @@
           }
         }
       },
+      "Category": {
+        "type": "string",
+        "description": "`open` or `done`: what rupta makes of a tracker status.",
+        "enum": [
+          "open",
+          "done"
+        ]
+      },
       "Channel": {
         "type": "object",
         "required": [
@@ -6221,7 +7092,7 @@
         "properties": {
           "config": {
             "type": "object",
-            "description": "email: `{to: [..]}`; slack and teams: `{webhook_url}`; webhook:\n`{url, has_secret}` (the secret is write-only)."
+            "description": "email: `{to: [..]}`; slack and teams: `{webhook_url}`; webhook:\n`{url, has_secret}` (the secret is write-only); pagerduty:\n`{region, api_url, has_secret}` (the routing key is write-only);\nopsgenie: `{region, api_url, has_secret}` (the API key is write-only)."
           },
           "created_at": {
             "type": "string",
@@ -6232,7 +7103,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "`email`, `slack`, `webhook` or `teams`."
+            "description": "`email`, `slack`, `webhook`, `teams`, `pagerduty` or `opsgenie`."
           },
           "name": {
             "type": "string"
@@ -6247,7 +7118,7 @@
               "object",
               "null"
             ],
-            "description": "email: `{to: [\"a@b.c\"]}`; slack and teams: `{webhook_url}`;\nwebhook: `{url, secret?}`."
+            "description": "email: `{to: [\"a@b.c\"]}`; slack and teams: `{webhook_url}`;\nwebhook: `{url, secret?}`; pagerduty: `{routing_key, region?: us|eu,\napi_url?}`; opsgenie: `{api_key, region?: us|eu, api_url?}`."
           },
           "kind": {
             "type": [
@@ -6299,6 +7170,22 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "Choice": {
+        "type": "object",
+        "description": "An id and a name.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -6971,6 +7858,194 @@
           }
         }
       },
+      "Integration": {
+        "type": "object",
+        "description": "A connection to an issue tracker.",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "enabled",
+          "config",
+          "has_webhook_secret",
+          "webhook_url",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "account": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AccountRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "config": {
+            "type": "object",
+            "description": "Non-secret settings: `base_url`, `email` (Jira Cloud),\n`resolve_transition`/`reopen_transition` (Jira),\n`resolve_state`/`reopen_state` (Linear)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "has_webhook_secret": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind",
+            "description": "`jira_cloud`, `jira_server`, `linear`, `github` or `gitlab`."
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The last failed call or check, cleared by the next success."
+          },
+          "last_error_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "token_hint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The token, masked: `****` and its last four characters."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "webhook_url": {
+            "type": "string",
+            "description": "Where the tracker sends webhooks."
+          }
+        }
+      },
+      "IntegrationBody": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Replaces the non-secret settings (see `Integration.config`)."
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rotate_webhook_secret": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Generates a new webhook secret, returned once."
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "API token, API key or personal access token. Write-only."
+          },
+          "validate": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Check the credentials against the tracker before saving (default\ntrue)."
+          },
+          "webhook_secret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The webhook secret. Write-only. For Linear, the signing secret\nLinear shows for the webhook; for the others rupta generates one at\ncreation when none is given."
+          }
+        }
+      },
+      "IntegrationRef": {
+        "type": "object",
+        "description": "A short reference to an integration.",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationWithSecret": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Integration"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "webhook_secret": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Set only when rupta generated a webhook secret in this request."
+              }
+            }
+          }
+        ],
+        "description": "An integration, with the webhook secret when rupta generated one in\nthis request (shown once)."
+      },
       "Invite": {
         "type": "object",
         "required": [
@@ -7252,6 +8327,82 @@
           }
         }
       },
+      "IssueLink": {
+        "type": "object",
+        "description": "A ticket linked to an issue.",
+        "required": [
+          "id",
+          "issue_id",
+          "integration",
+          "external_id",
+          "external_key",
+          "url",
+          "status_category",
+          "created_at"
+        ],
+        "properties": {
+          "assignee": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "external_id": {
+            "type": "string",
+            "description": "The tracker's stable id (Jira issue id, Linear UUID, `owner/repo#17`, `group/project#17`)."
+          },
+          "external_key": {
+            "type": "string",
+            "description": "`PROJ-123`, `ENG-42`, `#17`."
+          },
+          "id": {
+            "type": "string"
+          },
+          "integration": {
+            "$ref": "#/components/schemas/IntegrationRef"
+          },
+          "issue_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tracker's status name (`In Progress`, `closed`, …), `deleted`\nwhen the ticket was deleted."
+          },
+          "status_category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "synced_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When rupta last learned the ticket's state."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "IssueMetadata": {
         "type": "object",
         "properties": {
@@ -7451,6 +8602,85 @@
             ],
             "format": "int32",
             "description": "Events per minute for this key; `null` = unlimited."
+          }
+        }
+      },
+      "Kind": {
+        "type": "string",
+        "description": "The kinds of trackers.",
+        "enum": [
+          "jira_cloud",
+          "jira_server",
+          "linear",
+          "github",
+          "gitlab"
+        ]
+      },
+      "LinkBody": {
+        "type": "object",
+        "required": [
+          "integration_id"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "With `create`: replaces the generated description (plain text or\nMarkdown; a link back to the issue is added)."
+          },
+          "integration_id": {
+            "type": "string"
+          },
+          "issue_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "labels": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`create` a new ticket (default) or `link` an existing one."
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Linear project id."
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "With `link`: a key (`PROJ-123`, `ENG-42`, `owner/repo#17`, `#17`\nwith a default target) or the ticket's URL."
+          },
+          "target": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "With `create`: where (defaults to the project's defaults)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "With `create`: replaces the generated title."
           }
         }
       },
@@ -9471,6 +10701,126 @@
           }
         }
       },
+      "ProjectIntegration": {
+        "type": "object",
+        "description": "How a project uses an integration.",
+        "required": [
+          "integration",
+          "target",
+          "labels",
+          "incoming_sync",
+          "outgoing_transition",
+          "outgoing_comment",
+          "updated_at"
+        ],
+        "properties": {
+          "incoming_sync": {
+            "type": "boolean",
+            "description": "Tracker → rupta: resolve the issue when the ticket is done, unresolve when it is reopened."
+          },
+          "integration": {
+            "$ref": "#/components/schemas/IntegrationRef"
+          },
+          "issue_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Jira issue type (id or name)."
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outgoing_comment": {
+            "type": "boolean",
+            "description": "rupta → tracker: comment on resolve, unresolve and regression."
+          },
+          "outgoing_transition": {
+            "type": "boolean",
+            "description": "rupta → tracker: move the ticket to done/open when the issue is resolved/unresolved."
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Linear project id."
+          },
+          "target": {
+            "type": "string",
+            "description": "Jira project key, Linear team id, GitHub `owner/repo`, GitLab project path."
+          },
+          "target_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProjectIntegrationBody": {
+        "type": "object",
+        "required": [
+          "target"
+        ],
+        "properties": {
+          "incoming_sync": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "issue_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "labels": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "outgoing_comment": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "outgoing_transition": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "type": "string"
+          },
+          "target_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ProjectKey": {
         "type": "object",
         "required": [
@@ -10709,6 +12059,26 @@
           }
         }
       },
+      "StateChoice": {
+        "type": "object",
+        "description": "A workflow state (Linear).",
+        "required": [
+          "id",
+          "name",
+          "category"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "TagSummary": {
         "type": "object",
         "required": [
@@ -10752,6 +12122,62 @@
           },
           "value": {
             "type": "string"
+          }
+        }
+      },
+      "Target": {
+        "type": "object",
+        "description": "Where tickets can be created: a Jira project, a Linear team, a GitHub\nrepository or a GitLab project.",
+        "required": [
+          "id",
+          "name",
+          "issue_types",
+          "projects",
+          "labels",
+          "states"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Use as `target`: Jira project key, Linear team id, GitHub\n`owner/repo`, GitLab project path."
+          },
+          "issue_types": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Choice"
+            },
+            "description": "Jira issue types (no sub-tasks)."
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Jira project key, Linear team key."
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Choice"
+            },
+            "description": "Linear labels of the team (and workspace labels)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Choice"
+            },
+            "description": "Linear projects of the team."
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StateChoice"
+            },
+            "description": "Linear workflow states of the team."
           }
         }
       },
@@ -10824,6 +12250,42 @@
           }
         }
       },
+      "TestResult": {
+        "type": "object",
+        "description": "The result of a connection test.",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "account": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Account"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What went wrong, in plain words."
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`network`, `blocked_host`, `unauthorized`, `not_found`,\n`rate_limited`, `error_response` or `invalid`."
+          }
+        }
+      },
       "ThreadInfo": {
         "type": "object",
         "required": [
@@ -10843,6 +12305,23 @@
           "samples": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "TicketDraftView": {
+        "type": "object",
+        "description": "The generated ticket for an issue, to prefill the create dialog.",
+        "required": [
+          "title",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Markdown (Jira receives the same content as ADF or wiki markup)."
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -11461,6 +12940,14 @@
     {
       "name": "alerts",
       "description": "Alert rules and notification channels"
+    },
+    {
+      "name": "integrations",
+      "description": "Issue tracker integrations, project defaults and tracker webhooks"
+    },
+    {
+      "name": "annotations",
+      "description": "Releases, deploys and new-issue spikes as time annotations (Grafana)"
     },
     {
       "name": "monitors",

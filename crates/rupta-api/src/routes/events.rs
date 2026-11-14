@@ -368,7 +368,7 @@ pub struct TagSummary {
 }
 
 /// (key, value, count) for every tag of an issue's events.
-fn tag_counts(
+pub(crate) fn tag_counts(
     c: &Connection,
     project: i64,
     issue: i64,

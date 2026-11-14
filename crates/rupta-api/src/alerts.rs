@@ -55,8 +55,11 @@ pub fn spawn(state: ApiState, mut rx: Receiver<IssueSignal>) -> JoinHandle<()> {
 /// A rule that fired, with its deliveries.
 struct Firing {
     notification: Notification,
-    channels: Vec<(String, Value)>,
+    /// (channel id, kind, decrypted configuration)
+    channels: Vec<(i64, String, Value)>,
     emails: Vec<String>,
+    /// `create_ticket` actions.
+    tickets: Vec<Value>,
 }
 
 const LEVELS: &[&str] = &["debug", "info", "warning", "error", "fatal"];
@@ -196,6 +199,7 @@ fn evaluate(state: &ApiState, c: &Connection, signal: &IssueSignal) -> ApiResult
         txn.commit()?;
 
         let mut channels = Vec::new();
+        let mut tickets = Vec::new();
         let mut user_ids: Vec<i64> = Vec::new();
         let mut team_ids: Vec<i64> = Vec::new();
         let id_of = |v: &Value| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok()));
@@ -208,9 +212,10 @@ fn evaluate(state: &ApiState, c: &Connection, signal: &IssueSignal) -> ApiResult
                             &[&cid, &org_id],
                         )?
                     {
-                        channels.push((ch.get::<String>(0), sending_config(state, org_id, &ch.get::<Value>(1))));
+                        channels.push((cid, ch.get::<String>(0), sending_config(state, org_id, &ch.get::<Value>(1))));
                     }
                 }
+                Some("create_ticket") => tickets.push(a.clone()),
                 Some("email") => {
                     user_ids
                         .extend(a.get("user_ids").and_then(Value::as_array).into_iter().flatten().filter_map(id_of));
@@ -247,6 +252,7 @@ fn evaluate(state: &ApiState, c: &Connection, signal: &IssueSignal) -> ApiResult
             },
             channels,
             emails,
+            tickets,
         });
     }
     Ok(out)
@@ -254,6 +260,18 @@ fn evaluate(state: &ApiState, c: &Connection, signal: &IssueSignal) -> ApiResult
 
 /// Evaluates and delivers the notifications for one signal.
 pub async fn handle(state: &ApiState, signal: &IssueSignal) -> ApiResult<()> {
+    if let IssueSignal::Regressed { issue_id, .. } = signal {
+        // Linked tickets hear about regressions whether or not a rule fires.
+        crate::integrations::sync::status_changed(
+            state,
+            vec![crate::integrations::sync::StatusChange {
+                issue_id: *issue_id,
+                change: crate::integrations::sync::Change::Regressed,
+                actor: None,
+                source_integration: None,
+            }],
+        );
+    }
     let st = state.clone();
     let sig = signal.clone();
     let firings = state.db(move |c| evaluate(&st, c, &sig)).await?;
@@ -261,17 +279,28 @@ pub async fn handle(state: &ApiState, signal: &IssueSignal) -> ApiResult<()> {
         ApiMetrics::inc(&state.metrics.alerts_fired);
         let n = &f.notification;
         tracing::info!(rule = n.rule_name, issue = n.issue_id, trigger = n.trigger, "alert fired");
-        for (kind, config) in &f.channels {
-            record(state, kind, notify::send_channel(state, kind, config, n).await);
+        for (channel_id, kind, config) in &f.channels {
+            let r = notify::send_channel(state, kind, config, n).await;
+            if r.is_ok() && notify::opens_incidents(kind) {
+                notify::record_incident(state, signal.issue_id(), *channel_id).await;
+            }
+            record(state, kind, r);
         }
         if !f.emails.is_empty() {
             record(state, "email", notify::send_email(state, &f.emails, n).await);
+        }
+        for action in &f.tickets {
+            if let Err(e) = crate::integrations::sync::alert_create_ticket(state, signal.issue_id(), action).await {
+                tracing::warn!(error = %e, issue = n.issue_id, rule = n.rule_name, "the create_ticket action failed");
+            }
         }
     }
     Ok(())
 }
 
 fn record(state: &ApiState, kind: &str, result: Result<(), String>) {
+    let label = if result.is_ok() { "success" } else { "failure" };
+    state.metrics.count("rupta_alert_notifications_total", &[("channel", kind), ("result", label)]);
     match result {
         Ok(()) => ApiMetrics::inc(&state.metrics.notifications_sent),
         Err(e) => {
