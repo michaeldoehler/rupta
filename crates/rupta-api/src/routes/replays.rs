@@ -322,7 +322,11 @@ async fn recording_segments(
             format!("],\"next_cursor\":{}}}", serde_json::to_string(&next_cursor).unwrap_or_else(|_| "null".into()));
         let _ = send(tail.into_bytes());
     });
-    let stream = futures_util::stream::unfold(rx, |mut rx| async move { rx.recv().await.map(|item| (item, rx)) });
+    // Fused: the compression layer polls the body once more after its end,
+    // which a bare `unfold` answers with a panic.
+    let stream = futures_util::StreamExt::fuse(futures_util::stream::unfold(rx, |mut rx| async move {
+        rx.recv().await.map(|item| (item, rx))
+    }));
     let mut resp = Body::from_stream(stream).into_response();
     resp.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
     Ok(resp)

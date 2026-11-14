@@ -356,6 +356,7 @@ async fn stream(
         started: std::time::Instant::now(),
         first: true,
     };
+    // Fused like every streamed body: layers may poll once more after the end.
     let s = futures_util::stream::unfold(tail, |mut t| async move {
         if t.first {
             t.first = false;
@@ -415,7 +416,7 @@ async fn stream(
             return Some((Ok(Event::default().event("logs").data(data)), t));
         }
     });
-    Ok(Sse::new(s).keep_alive(KeepAlive::new().interval(StdDuration::from_secs(15))))
+    Ok(Sse::new(futures_util::StreamExt::fuse(s)).keep_alive(KeepAlive::new().interval(StdDuration::from_secs(15))))
 }
 
 #[cfg(test)]
