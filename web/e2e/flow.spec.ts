@@ -68,7 +68,7 @@ test('setup, sign out and in, triage an issue, read its details and change setti
   expect(title.length).toBeGreaterThan(0)
 
   // Settings: DSN and single sign-on.
-  await page.getByRole('link', { name: 'Settings' }).first().click()
+  await page.getByRole('banner', { name: 'Top bar' }).getByRole('link', { name: 'Settings' }).click()
   await page.getByRole('link', { name: 'web-app' }).click()
   await page.getByRole('link', { name: 'Client keys & SDK' }).click()
   await expect(page.getByText(/https:\/\/[0-9a-f]+@rupta\.acme\.dev\/1/).first()).toBeVisible()
@@ -81,18 +81,27 @@ test('setup, sign out and in, triage an issue, read its details and change setti
   await expect(page.getByText('Connection works')).toBeVisible()
 })
 
-test('command palette, shortcuts help and theme toggle', async ({ page }) => {
+test('command palette, shortcuts help and the top bar', async ({ page }) => {
   await page.goto('/acme/issues')
   await expect(page.getByRole('grid', { name: 'Issues' }).getByRole('row').first()).toBeVisible()
   await page.keyboard.press('Shift+?')
   await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toBeHidden()
-  await page.keyboard.press('ControlOrMeta+k')
-  await page.getByPlaceholder(/Type a command/).fill('dark')
-  await page.getByRole('option', { name: 'Dark theme' }).click()
+  // One dark theme: no switch anywhere.
   await expect(page.locator('html')).toHaveClass(/dark/)
-  await expect(page.getByRole('dialog')).toBeHidden()
+  await page.keyboard.press('ControlOrMeta+k')
+  await page.getByPlaceholder(/Type a command/).fill('theme')
+  await expect(page.getByRole('option', { name: /theme/i })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  // The Explore menu in the top bar reaches the telemetry pages.
+  await page
+    .getByRole('navigation', { name: 'Main' })
+    .getByRole('button', { name: /Explore/ })
+    .click()
+  await page.getByRole('menuitem', { name: /Logs/ }).click()
+  await expect(page).toHaveURL(/\/acme\/logs/)
+  await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: /Logs/ })).toHaveAttribute('aria-current', 'page')
   await page.keyboard.press('ControlOrMeta+k')
   await page.getByPlaceholder(/Type a command/).fill('releases')
   await page.keyboard.press('Enter')

@@ -15,7 +15,7 @@ export function StatusBadge({ issue, className }: { issue: Pick<Issue, 'status' 
   const map: Record<string, [string, string]> = {
     resolved: ['Resolved', 'bg-success-soft text-success'],
     ignored: ['Ignored', 'bg-muted text-muted-foreground'],
-    new: ['New', 'bg-brand-soft text-brand-text'],
+    new: ['New', 'bg-palm-soft text-palm-text'],
     regressed: ['Regressed', 'bg-destructive/12 text-destructive'],
     escalating: ['Escalating', 'bg-warning-soft text-warning'],
   }
@@ -29,7 +29,7 @@ export function StatusBadge({ issue, className }: { issue: Pick<Issue, 'status' 
   )
 }
 
-export const ROW_HEIGHT = 60
+export const ROW_HEIGHT = 52
 
 interface RowProps {
   issue: Issue
@@ -41,10 +41,23 @@ interface RowProps {
   onAssign: (issue: Issue, a: Assignee | null) => void
   statsPeriod: string
   rowIndex?: number
+  /** Split view: narrower row; a plain click previews instead of opening. */
+  previewing?: boolean
 }
 
 /** One dense row in the issue stream. Memoised: the list re-renders often. */
-export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, onToggle, onFocus, onAssign, statsPeriod, rowIndex }: RowProps) {
+export const IssueRow = memo(function IssueRow({
+  issue,
+  org,
+  selected,
+  focused,
+  onToggle,
+  onFocus,
+  onAssign,
+  statsPeriod,
+  rowIndex,
+  previewing = false,
+}: RowProps) {
   const t = issue.metadata.type
   const value = issue.metadata.value
   const done = issue.status !== 'unresolved'
@@ -59,7 +72,7 @@ export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, 
       className={cn(
         'group/row relative flex h-full items-center gap-3 border-b pr-3 pl-0 transition-colors hover:bg-row-hover sm:pr-4',
         selected && 'bg-row-selected hover:bg-row-selected',
-        focused && 'shadow-[inset_2px_0_0_var(--brand)]',
+        focused && 'bg-row-hover shadow-[inset_2px_0_0_var(--brand)]',
         done && 'opacity-60',
       )}
       onMouseDown={() => onFocus(issue.id)}
@@ -81,6 +94,11 @@ export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, 
           params={{ org, issueId: issue.id }}
           className="block min-w-0 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           data-issue-link
+          onClick={(e) => {
+            if (!previewing || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+            e.preventDefault()
+            onFocus(issue.id)
+          }}
         >
           <div className="flex min-w-0 items-baseline gap-1.5 text-[13.5px] leading-5">
             {issue.is_bookmarked && <Bookmark className="size-3 shrink-0 self-center fill-brand text-brand" aria-label="Bookmarked" />}
@@ -98,13 +116,13 @@ export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, 
             <span className="shrink-0 font-mono text-[11.5px] font-medium text-foreground/70">{issue.short_id}</span>
             <StatusBadge issue={issue} />
             {issue.culprit && <span className="hidden min-w-0 truncate md:inline">{issue.culprit}</span>}
-            <span className="ml-auto hidden shrink-0 items-center gap-1 sm:flex lg:hidden">
+            <span className={cn('ml-auto hidden shrink-0 items-center gap-1 sm:flex', !previewing && 'lg:hidden')}>
               <RelativeTime plain date={issue.last_seen} />
             </span>
           </div>
         </Link>
       </div>
-      <div role="gridcell" className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground lg:block">
+      <div role="gridcell" className={cn('hidden w-24 shrink-0 text-right text-xs text-muted-foreground lg:block', previewing && 'lg:hidden')}>
         <div>
           <RelativeTime plain date={issue.last_seen} suffix />
         </div>
@@ -112,7 +130,7 @@ export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, 
           <RelativeTime plain date={issue.first_seen} /> old
         </div>
       </div>
-      <div role="gridcell" className="hidden w-[100px] shrink-0 md:block">
+      <div role="gridcell" className={cn('hidden w-[100px] shrink-0 md:block', previewing && 'md:hidden')}>
         <Sparkline
           data={issue.stats}
           width={100}

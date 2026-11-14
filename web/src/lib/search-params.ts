@@ -1,10 +1,13 @@
 import * as z from 'zod/mini'
 
-export const PERIODS = ['24h', '7d', '14d', '30d', '90d'] as const
+export const PERIODS = ['1h', '24h', '7d', '14d', '30d', '90d'] as const
+/** The issue pages offer these; the hour is for logs and traces. */
+export const ISSUE_PERIODS = ['24h', '7d', '14d', '30d', '90d'] as const
 export type Period = (typeof PERIODS)[number]
 export const DEFAULT_PERIOD: Period = '14d'
 
 export const PERIOD_LABEL: Record<Period, string> = {
+  '1h': 'Last hour',
   '24h': 'Last 24 hours',
   '7d': 'Last 7 days',
   '14d': 'Last 14 days',

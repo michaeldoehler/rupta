@@ -244,6 +244,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                   <SelectItem value="first_seen">A new issue is created</SelectItem>
                   <SelectItem value="regression">A resolved issue comes back</SelectItem>
                   <SelectItem value="reappeared">An ignored issue reappears</SelectItem>
+                  <SelectItem value="escalating">An issue starts escalating</SelectItem>
                   <SelectItem value="event_frequency">An issue is seen more than…</SelectItem>
                   <SelectItem value="user_frequency">An issue affects more than…</SelectItem>
                 </SelectContent>

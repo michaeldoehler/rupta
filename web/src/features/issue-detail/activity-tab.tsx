@@ -49,6 +49,8 @@ function describe(a: Activity): { icon: React.ReactNode; text: React.ReactNode }
       }
     case 'set_escalating':
       return { icon: <TrendingUp className="text-warning" />, text: 'Escalating: event volume rose sharply' }
+    case 'set_ongoing':
+      return { icon: <CircleDot />, text: 'Ongoing: no longer new or escalating' }
     case 'assigned':
       return { icon: <UserPlus />, text: <>assigned this issue to {assignee?.name ?? 'someone'}</> }
     case 'unassigned':

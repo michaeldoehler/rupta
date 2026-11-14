@@ -22,6 +22,7 @@ import type {
 import { parseQuery, parseRelative, type FilterToken } from '@/lib/search/parse'
 import { Rng } from './rng'
 import { buildEvent, eventIds, eventSummary } from './fixtures/events'
+import { telemetryHandlers } from './telemetry-handlers'
 import { createWorld, DAY, HOUR, iso, issueSeries, type DbIssue, type DbOrg, type DbProject, type World } from './fixtures/world'
 
 const BASE = '/api/v1'
@@ -154,12 +155,16 @@ function assigneeOut(a: DbIssue['assignee']): Assignee | null {
   return t ? { type: 'team', id: t.id, name: `#${t.slug}` } : null
 }
 
-const PERIOD_MS: Record<string, number> = { '24h': DAY, '7d': 7 * DAY, '14d': 14 * DAY, '30d': 30 * DAY, '90d': 90 * DAY }
+const PERIOD_MS: Record<string, number> = { '1h': HOUR, '24h': DAY, '7d': 7 * DAY, '14d': 14 * DAY, '30d': 30 * DAY, '90d': 90 * DAY }
 
 /** Sparkline like the server: hourly up to 48 hours, daily beyond. */
 function periodSeries(i: DbIssue, period: string) {
   const ms = PERIOD_MS[period] ?? DAY
-  return ms <= 2 * DAY ? issueSeries(i, world.now, Math.round(ms / HOUR), HOUR) : issueSeries(i, world.now, Math.round(ms / DAY), DAY)
+  return ms < DAY
+    ? issueSeries(i, world.now, 12, ms / 12)
+    : ms <= 2 * DAY
+      ? issueSeries(i, world.now, Math.round(ms / HOUR), HOUR)
+      : issueSeries(i, world.now, Math.round(ms / DAY), DAY)
 }
 
 function issueOut(i: DbIssue, period = '24h'): Issue {
@@ -385,10 +390,12 @@ function applyIssueUpdate(i: DbIssue, body: IssueUpdate) {
     i.status = body.status
     if (body.status === 'resolved') {
       i.substatus = null
-      if (body.resolved_in_next_release) i.resolved_in_release = 'next'
+      // The server's body says `resolved_in: "next_release"`.
+      const next = body.resolved_in_next_release || (body as { resolved_in?: string }).resolved_in === 'next_release'
+      if (next) i.resolved_in_release = 'next'
       else if (body.resolved_in_release) i.resolved_in_release = body.resolved_in_release
-      add(body.resolved_in_release || body.resolved_in_next_release ? 'set_resolved_in_release' : 'set_resolved', {
-        version: body.resolved_in_release ?? (body.resolved_in_next_release ? 'the next release' : null),
+      add(body.resolved_in_release || next ? 'set_resolved_in_release' : 'set_resolved', {
+        version: body.resolved_in_release ?? null,
       })
     } else if (body.status === 'ignored') {
       i.substatus = body.ignore_duration || body.ignore_count ? 'archived_until_condition_met' : (body.substatus ?? 'archived_until_escalating')
@@ -488,7 +495,9 @@ function releaseOut(r: World['releases'][number], projectFilter: string[]) {
       errored_sessions: Math.round(r.sessions * 0.01),
       abnormal_sessions: 0,
       crash_free_sessions: r.crash_free_sessions,
-      crash_free_users: null,
+      crash_free_users: r.crash_free_users,
+      total_users: r.users,
+      crashed_users: Math.round(r.users * (1 - r.crash_free_users / 100)),
       adoption: r.adoption,
     },
     last_deploy: last ? { ...last, date_started: last.date_started ? iso(last.date_started) : null, date_finished: iso(last.date_finished) } : null,
@@ -557,10 +566,22 @@ function findIssue(id: string) {
   return world.issues.find((i) => i.id === id)
 }
 
+/** Preferences in the server's shape (`clock`, `timezone: null` for the browser's zone). */
+function serverPrefs(u: World['users'][number]) {
+  const p = u.preferences
+  const { deploys: _local, ...notifications } = p.notifications ?? {}
+  return {
+    timezone: !p.timezone || p.timezone === 'browser' ? null : p.timezone,
+    clock: p.clock_24h === false ? '12h' : '24h',
+    theme: p.theme ?? 'system',
+    notifications,
+  }
+}
+
 function userProfile(u: World['users'][number]): UserProfile {
   return {
     ...publicUser(u),
-    preferences: u.preferences,
+    preferences: serverPrefs(u) as unknown as UserProfile['preferences'],
     created_at: u.created_at,
     last_login_at: u.last_login_at,
     has_password: true,
@@ -672,14 +693,30 @@ export const handlers = [
   }),
   http.patch(`${BASE}/user`, async ({ request }) => {
     const u = currentUser()!
-    const body = (await request.json()) as { name?: string; avatar_url?: string | null; current_password?: string; new_password?: string }
+    const body = (await request.json()) as {
+      name?: string
+      avatar_url?: string | null
+      current_password?: string
+      new_password?: string
+      preferences?: { timezone?: string | null; clock?: '24h' | '12h'; theme?: 'system' | 'light' | 'dark'; notifications?: Record<string, unknown> }
+    }
+    if (body.preferences) {
+      const p = body.preferences
+      u.preferences = {
+        ...u.preferences,
+        ...(p.timezone !== undefined ? { timezone: p.timezone ?? 'browser' } : {}),
+        ...(p.clock ? { clock_24h: p.clock === '24h' } : {}),
+        ...(p.theme ? { theme: p.theme } : {}),
+        notifications: { ...u.preferences.notifications, ...(p.notifications as object) },
+      }
+    }
     if (body.new_password !== undefined) {
       if (body.current_password !== u.password) return err(403, 'forbidden', 'The current password is incorrect.', { field: 'current_password' })
       if (body.new_password.length < 10) return err(422, 'validation_failed', 'new_password: use at least 10 characters', { field: 'new_password' })
       u.password = body.new_password
     }
     if (body.name !== undefined) u.name = body.name
-    return json(publicUser(u) as unknown as JsonBodyType)
+    return json(userProfile(u) as unknown as JsonBodyType)
   }),
   http.get(`${BASE}/scopes`, () =>
     json(
@@ -1511,5 +1548,14 @@ export const handlers = [
       sessions: [...byDay.entries()].sort((a, b) => a[0] - b[0]).map(([t, [n, c]]) => [t, n, c]),
     }
     return json(out as unknown as JsonBodyType)
+  }),
+  ...telemetryHandlers({
+    world: () => world,
+    wait,
+    withOrg: (params) => withOrg(params as Params),
+    canWrite: (orgId) => {
+      const role = roleIn(orgId)
+      return role !== null && role !== 'viewer'
+    },
   }),
 ]

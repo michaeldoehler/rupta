@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { compact, percent, thousands } from '@/lib/format'
 import { formatFilter } from '@/lib/search/parse'
 
-const BAR_COLORS = ['bg-chart-1', 'bg-chart-2', 'bg-chart-3', 'bg-chart-4', 'bg-chart-5']
+const BAR_COLORS = ['bg-palm', 'bg-series-2', 'bg-series-3', 'bg-series-4', 'bg-subtle-foreground']
 
 export function DistributionBar({ tag }: { tag: TagDistribution }) {
   const total = Math.max(1, tag.total_values)
@@ -35,7 +35,7 @@ function TagCard({ tag, org, issueId }: { tag: TagDistribution; org: string; iss
         <Link
           to="/$org/issues/$issueId/tags/$tagKey"
           params={{ org, issueId, tagKey: tag.key }}
-          className="group flex items-center gap-1 font-mono text-[13px] font-semibold hover:text-brand-text"
+          className="group flex items-center gap-1 font-mono text-[13px] font-semibold hover:text-brand"
         >
           {tag.key}
           <ChevronRight className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" />

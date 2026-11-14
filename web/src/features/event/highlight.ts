@@ -61,19 +61,34 @@ export function detectLang(filename: string | null | undefined, platform?: strin
   return platform ? (byPlatform[platform] ?? null) : null
 }
 
+/** Syntax colours in the rupta palette: lime, palm, sand and coral on charcoal. */
+const LIME_HAZE = {
+  name: 'lime-haze',
+  type: 'dark' as const,
+  colors: { 'editor.background': '#12140d', 'editor.foreground': '#dfe5d2' },
+  settings: [
+    { settings: { foreground: '#dfe5d2' } },
+    { scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: '#7c8471', fontStyle: 'italic' } },
+    { scope: ['keyword', 'storage', 'storage.type', 'storage.modifier', 'keyword.control', 'keyword.operator.new'], settings: { foreground: '#caf534' } },
+    { scope: ['string', 'string.quoted', 'string.template', 'punctuation.definition.string'], settings: { foreground: '#a5c172' } },
+    { scope: ['constant.numeric', 'constant.language', 'constant.character', 'support.constant'], settings: { foreground: '#f0a77c' } },
+    { scope: ['entity.name.function', 'support.function', 'meta.function-call entity.name.function'], settings: { foreground: '#e6d9a8' } },
+    { scope: ['entity.name.type', 'entity.name.class', 'support.class', 'support.type', 'entity.other.inherited-class'], settings: { foreground: '#9fd0c4' } },
+    { scope: ['variable.parameter', 'variable.language', 'variable.other.readwrite.instance'], settings: { foreground: '#f0a77c' } },
+    { scope: ['entity.name.tag', 'entity.other.attribute-name'], settings: { foreground: '#caf534' } },
+    { scope: ['punctuation', 'meta.brace', 'keyword.operator'], settings: { foreground: '#a9b09a' } },
+    { scope: ['invalid'], settings: { foreground: '#ee6a58' } },
+  ],
+}
+
 let highlighterPromise: Promise<HighlighterCore> | null = null
 const loaded = new Set<Lang>()
 
 async function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
     highlighterPromise = (async () => {
-      const [{ createHighlighterCore }, { createJavaScriptRegexEngine }, light, dark] = await Promise.all([
-        import('shiki/core'),
-        import('shiki/engine/javascript'),
-        import('shiki/dist/themes/github-light.mjs'),
-        import('shiki/dist/themes/github-dark.mjs'),
-      ])
-      return createHighlighterCore({ themes: [light.default, dark.default], langs: [], engine: createJavaScriptRegexEngine({ forgiving: true }) })
+      const [{ createHighlighterCore }, { createJavaScriptRegexEngine }] = await Promise.all([import('shiki/core'), import('shiki/engine/javascript')])
+      return createHighlighterCore({ themes: [LIME_HAZE], langs: [], engine: createJavaScriptRegexEngine({ forgiving: true }) })
     })()
   }
   return highlighterPromise
@@ -81,8 +96,7 @@ async function getHighlighter(): Promise<HighlighterCore> {
 
 export interface Token {
   content: string
-  light?: string
-  dark?: string
+  color?: string
 }
 
 export async function highlightLines(lines: string[], lang: Lang): Promise<Token[][]> {
@@ -94,8 +108,8 @@ export async function highlightLines(lines: string[], lang: Lang): Promise<Token
   }
   // PHP snippets lack the opening tag; the grammar needs it.
   const prefix = lang === 'php' && !lines.some((l) => l.includes('<?php')) ? '<?php\n' : ''
-  const result = hl.codeToTokensWithThemes(prefix + lines.join('\n'), { lang, themes: { light: 'github-light', dark: 'github-dark' } })
-  const out = result.map((line) => line.map((t) => ({ content: t.content, light: t.variants.light?.color, dark: t.variants.dark?.color })))
+  const result = hl.codeToTokens(prefix + lines.join('\n'), { lang, theme: 'lime-haze' }).tokens
+  const out = result.map((line) => line.map((t) => ({ content: t.content, color: t.color })))
   return prefix ? out.slice(1) : out
 }
 

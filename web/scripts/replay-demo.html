@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme Outfitters</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #1f2328; background: #faf8f5; }
+      header { display: flex; align-items: center; gap: 24px; padding: 14px 32px; background: #fff; border-bottom: 1px solid #e7e2da; position: sticky; top: 0; }
+      header .brand { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; color: #b8431c; }
+      header nav { display: flex; gap: 4px; }
+      header nav a { padding: 6px 12px; border-radius: 6px; color: #444; text-decoration: none; cursor: pointer; }
+      header nav a.active { background: #f3ede6; color: #111; font-weight: 600; }
+      header .cart { margin-left: auto; padding: 6px 12px; border: 1px solid #e0d9cf; border-radius: 999px; background: #fff; cursor: pointer; }
+      main { max-width: 1040px; margin: 0 auto; padding: 32px; }
+      .hero { padding: 48px; border-radius: 16px; background: linear-gradient(120deg, #2b2118, #6b3a1f); color: #fff; }
+      .hero h1 { margin: 0 0 8px; font-size: 36px; letter-spacing: -0.03em; }
+      .hero p { margin: 0 0 20px; opacity: 0.85; max-width: 480px; }
+      .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; border: 1px solid transparent; background: #c2491d; color: #fff; font-weight: 600; cursor: pointer; font-size: 14px; }
+      .btn.secondary { background: #fff; color: #222; border-color: #ddd5ca; }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 24px; }
+      .card { background: #fff; border: 1px solid #ebe5dc; border-radius: 12px; overflow: hidden; }
+      .card .img { height: 150px; }
+      .card .body { padding: 14px 16px 16px; }
+      .card h3 { margin: 0; font-size: 15px; }
+      .card .price { color: #6b6258; margin: 2px 0 12px; }
+      .row { display: flex; gap: 32px; align-items: flex-start; }
+      .panel { flex: 1; background: #fff; border: 1px solid #ebe5dc; border-radius: 12px; padding: 20px; }
+      .line { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f0ebe4; }
+      label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+      input { width: 100%; padding: 9px 11px; border: 1px solid #d9d1c6; border-radius: 8px; font: inherit; }
+      .toast { position: fixed; right: 24px; bottom: 24px; padding: 12px 16px; border-radius: 10px; background: #2a1d17; color: #fff; box-shadow: 0 8px 30px rgba(0,0,0,.2); }
+      .toast.error { background: #a32a14; }
+      .muted { color: #776d62; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="brand">Acme Outfitters</span>
+      <nav>
+        <a data-to="/" class="nav-home">Home</a>
+        <a data-to="/products" class="nav-products">Products</a>
+        <a data-to="/journal" class="nav-journal">Journal</a>
+      </nav>
+      <button class="cart" data-to="/cart">Cart (<span id="count">0</span>)</button>
+    </header>
+    <main id="app"></main>
+    <script>
+      // A tiny shop. Instrumentation below mirrors what the browser SDK's
+      // replay integration records as custom events: breadcrumbs for
+      // clicks, navigations and console calls, performance spans for
+      // navigations and fetches.
+      const products = [
+        ['Trail Jacket', 189, '#7a4b2a'], ['Merino Base Layer', 79, '#3d5a4c'], ['Summit Pack 32L', 149, '#2f3e5c'],
+        ['Camp Mug', 18, '#a8572b'], ['Down Vest', 129, '#5c4a3d'], ['Hiking Socks (3 pairs)', 29, '#6d6a3c'],
+      ]
+      const cart = []
+      const now = () => Date.now() / 1000
+      let emitting = false
+      const emit = (tag, payload) => {
+        if (emitting || !window.__recording) return
+        emitting = true
+        try { window.rrweb.record.addCustomEvent(tag, payload) } finally { emitting = false }
+      }
+      const crumb = (category, message, data, level) => emit('breadcrumb', { timestamp: now(), type: 'default', category, message, level: level || 'info', data: data || {} })
+      const consoleOrig = { log: console.log, warn: console.warn, error: console.error }
+      for (const level of ['log', 'warn', 'error']) {
+        console[level] = (...args) => {
+          crumb('console', args.map(String).join(' '), { arguments: args.map(String), logger: 'console' }, level === 'log' ? 'log' : level === 'warn' ? 'warning' : 'error')
+          consoleOrig[level](...args)
+        }
+      }
+      const origFetch = window.fetch.bind(window)
+      window.fetch = async (url, opts = {}) => {
+        const start = now()
+        const res = await origFetch(url, opts)
+        const text = await res.clone().text()
+        emit('performanceSpan', {
+          op: 'resource.fetch', description: new URL(url, location.href).href, startTimestamp: start, endTimestamp: now(),
+          data: { method: opts.method || 'GET', statusCode: res.status, request: { size: opts.body ? opts.body.length : undefined }, response: { size: text.length } },
+        })
+        return res
+      }
+      document.addEventListener('click', (e) => {
+        const el = e.target.closest('button, a, input')
+        if (!el) return
+        const sel = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className ? '.' + String(el.className).trim().split(/\s+/).join('.') : '')
+        crumb('ui.click', `${sel}${el.textContent && el.tagName !== 'INPUT' ? ` "${el.textContent.trim().slice(0, 40)}"` : ''}`)
+      }, true)
+
+      function go(path, replace) {
+        const from = location.pathname
+        const start = now()
+        if (replace) history.replaceState(null, '', path)
+        else history.pushState(null, '', path)
+        render()
+        crumb('navigation', '', { from, to: path })
+        emit('performanceSpan', { op: 'navigation.push', description: location.href, startTimestamp: start, endTimestamp: now(), data: { previous: from } })
+      }
+      document.addEventListener('click', (e) => {
+        const el = e.target.closest('[data-to]')
+        if (el) { e.preventDefault(); go(el.dataset.to) }
+      })
+      window.addEventListener('popstate', render)
+
+      function toast(text, error) {
+        const t = document.createElement('div')
+        t.className = 'toast' + (error ? ' error' : '')
+        t.textContent = text
+        document.body.appendChild(t)
+        setTimeout(() => t.remove(), 3500)
+      }
+
+      async function addToCart(i) {
+        cart.push(products[i])
+        document.getElementById('count').textContent = cart.length
+        await fetch('/api/cart', { method: 'POST', body: JSON.stringify({ sku: i }) })
+        toast(`${products[i][0]} added to your cart`)
+      }
+
+      async function placeOrder() {
+        const res = await fetch('/api/orders', { method: 'POST', body: JSON.stringify({ items: cart.length }) })
+        if (!res.ok) {
+          console.error('Checkout failed: payment provider timed out (502)')
+          toast('Payment failed. Please try again.', true)
+          document.getElementById('retry').style.display = 'inline-flex'
+          return
+        }
+        go('/order/confirmed')
+      }
+
+      function render() {
+        const app = document.getElementById('app')
+        const path = location.pathname
+        document.querySelectorAll('header nav a').forEach((a) => a.classList.toggle('active', a.dataset.to === path))
+        if (path === '/') {
+          app.innerHTML = `<section class="hero"><h1>Gear for the long way round</h1><p>Durable layers, packs and camp essentials, tested on the trails of the Alps.</p><button class="btn shop-now" data-to="/products">Shop the collection</button></section>
+          <h2 style="margin-top:36px">Popular this week</h2><div class="grid">${products.slice(0, 3).map(card).join('')}</div>`
+        } else if (path === '/products') {
+          app.innerHTML = `<h1>All products</h1><p class="muted">Free shipping on orders over €100.</p><div class="grid">${products.map(card).join('')}</div>`
+        } else if (path === '/journal') {
+          app.innerHTML = `<h1>Journal</h1><p class="muted">Stories from the trail.</p>`
+        } else if (path === '/cart') {
+          const total = cart.reduce((s, p) => s + p[1], 0)
+          app.innerHTML = `<h1>Your cart</h1><div class="row"><div class="panel">${cart.map((p) => `<div class="line"><span>${p[0]}</span><span>€${p[1]}</span></div>`).join('') || '<p class="muted">Your cart is empty.</p>'}
+            <div class="line" style="border:0;font-weight:700"><span>Total</span><span>€${total}</span></div></div>
+            <div class="panel"><h3 style="margin:0">Checkout</h3><label for="email">Email</label><input id="email" type="email" placeholder="you@example.com" />
+            <label for="card">Card number</label><input id="card" type="password" autocomplete="off" placeholder="1234 5678 9012 3456" />
+            <div style="margin-top:18px;display:flex;gap:8px"><button class="btn place-order">Place order</button><button class="btn secondary" id="retry" style="display:none">Try again</button></div></div></div>`
+          app.querySelector('.place-order').onclick = placeOrder
+          app.querySelector('#retry').onclick = placeOrder
+        } else if (path === '/order/confirmed') {
+          app.innerHTML = `<section class="panel"><h1>Thank you!</h1><p>Your order <b>#A-10482</b> is confirmed. We sent a receipt to your email.</p><button class="btn secondary" data-to="/">Continue shopping</button></section>`
+        }
+        app.querySelectorAll('.add-to-cart').forEach((b) => (b.onclick = () => addToCart(Number(b.dataset.i))))
+      }
+      const card = (p, i) => `<div class="card"><div class="img" style="background:linear-gradient(135deg, ${p[2]}, #e9dccb)"></div><div class="body"><h3>${p[0]}</h3><div class="price">€${p[1]}</div><button class="btn secondary add-to-cart" data-i="${products.indexOf(p)}">Add to cart</button></div></div>`
+      render()
+    </script>
+  </body>
+</html>

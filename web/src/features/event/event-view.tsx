@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ChevronRight, FileText, Image, Link2, MessageSquareText, Paperclip, TriangleAlert } from 'lucide-react'
+import { ChevronRight, FileText, Film, Image, Link2, MessageSquareText, Paperclip, Route as RouteIcon, TriangleAlert } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { api } from '@/api/endpoints'
 import { qk } from '@/api/queries'
@@ -103,6 +103,42 @@ function Highlights({ event, org }: { event: RuptaEvent; org: string }) {
   )
 }
 
+/** Links from the event to its trace and session replay. */
+function Related({ event, org }: { event: RuptaEvent; org: string }) {
+  const trace = (event.trace_id ?? (event.contexts?.trace?.trace_id as string | undefined)) || null
+  const span = (event.span_id ?? (event.contexts?.trace?.span_id as string | undefined)) || undefined
+  const replay = (event.replay_id ?? (event.contexts?.replay?.replay_id as string | undefined)) || null
+  if (!trace && !replay) return null
+  return (
+    <div className="mt-3 flex flex-wrap gap-2" aria-label="Related telemetry">
+      {trace && (
+        <Link
+          to="/$org/traces/$traceId"
+          params={{ org, traceId: trace }}
+          search={span ? { span } : {}}
+          className="inline-flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-[13px] hover:bg-row-hover"
+        >
+          <RouteIcon className="size-4 text-muted-foreground" />
+          <span>Trace</span>
+          <span className="font-mono text-xs text-muted-foreground">{trace.slice(0, 8)}</span>
+          <ChevronRight className="size-3.5 text-muted-foreground" />
+        </Link>
+      )}
+      {replay && (
+        <Link
+          to="/$org/replays/$project/$replayId"
+          params={{ org, project: String(event.project_id), replayId: replay }}
+          className="inline-flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-[13px] hover:bg-row-hover"
+        >
+          <Film className="size-4 text-muted-foreground" />
+          <span>Session replay</span>
+          <ChevronRight className="size-3.5 text-muted-foreground" />
+        </Link>
+      )}
+    </div>
+  )
+}
+
 function TagChips({ tags, org }: { tags: [string, string][]; org: string }) {
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -161,7 +197,8 @@ const ERROR_TEXT: Record<string, string> = {
   past_timestamp: 'The event timestamp was too far in the past and was adjusted.',
 }
 
-export function EventView({ event, issue, org }: { event: RuptaEvent; issue: Issue | IssueDetail; org: string }) {
+/** `related`: show the trace and replay links (the issue page shows them in its context panel). */
+export function EventView({ event, issue, org, related = true }: { event: RuptaEvent; issue: Issue | IssueDetail; org: string; related?: boolean }) {
   const [opts, setOpts] = useState<StacktraceOptions>({ inAppOnly: true, newestFirst: true, view: 'symbolicated', expandAll: false })
   const values = event.exception?.values ?? []
   const ordered = opts.newestFirst ? [...values].reverse() : values
@@ -189,6 +226,7 @@ export function EventView({ event, issue, org }: { event: RuptaEvent; issue: Iss
 
       <EventSection id="highlights" title="Highlights">
         <Highlights event={event} org={org} />
+        {related && <Related event={event} org={org} />}
         {event.errors && event.errors.length > 0 && (
           <div className="mt-3 flex gap-2.5 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-[13px]" role="note">
             <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />

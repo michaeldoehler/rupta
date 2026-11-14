@@ -148,6 +148,7 @@ export interface SsoTestResult {
   message: string
   issuer?: string
   authorization_endpoint?: string
+  problems?: string[]
 }
 
 export type TokenScope = string
@@ -207,6 +208,9 @@ export interface ProjectSettings {
   scrubbing: Scrubbing
   in_app_include: string[]
   in_app_exclude: string[]
+  retention?: Partial<{ logs: number; spans: number; metrics: number; profiles: number; replays: number }>
+  sampling?: Partial<{ transactions: number; spans: number; logs: number }>
+  data_types?: Partial<{ traces: boolean; logs: boolean; metrics: boolean; profiles: boolean; replays: boolean }>
   [key: string]: unknown
 }
 
@@ -302,6 +306,8 @@ export interface IssueUpdate {
   ignore_duration?: number
   ignore_count?: number
   ignore_user_count?: number
+  /** Minutes over which `ignore_user_count` users are counted (default: since ignoring). */
+  ignore_user_window?: number
   resolved_in_release?: string
   resolved_in_next_release?: boolean
   is_bookmarked?: boolean
@@ -320,7 +326,7 @@ export interface IssueQueryParams {
 }
 
 export type IssueSort = 'last_seen' | 'first_seen' | 'freq' | 'users' | 'priority'
-export type StatsPeriod = '24h' | '7d' | '14d' | '30d' | '90d'
+export type StatsPeriod = '1h' | '24h' | '7d' | '14d' | '30d' | '90d'
 
 export interface TagValue {
   value: string
@@ -516,6 +522,10 @@ export interface RuptaEvent {
   errors: { type: string; name?: string; value?: unknown }[] | null
   previous_event_id: string | null
   next_event_id: string | null
+  /** Trace and session replay the event belongs to (also in contexts). */
+  trace_id?: string | null
+  span_id?: string | null
+  replay_id?: string | null
 }
 
 export interface EventSummary {
@@ -617,6 +627,7 @@ export type AlertCondition =
   | { type: 'reappeared' }
   | { type: 'event_frequency'; count: number; interval: string }
   | { type: 'user_frequency'; count: number; interval: string }
+  | { type: 'escalating' }
 
 export type AlertFilter =
   { type: 'level'; match: 'eq' | 'gte'; level: Level } | { type: 'tag'; key: string; value: string } | { type: 'environment'; value: string }
