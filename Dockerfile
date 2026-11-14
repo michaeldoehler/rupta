@@ -17,7 +17,7 @@ RUN pnpm build
 
 # 2. Server. clang is needed by the embedded database (its SQL parser is
 #    compiled from C).
-FROM rust:1.89.0-slim-bookworm AS server
+FROM rust:1.99.1-slim-bookworm AS server
 RUN apt-get update \
     && apt-get install -y --no-install-recommends clang libclang-dev git pkg-config \
     && rm -rf /var/lib/apt/lists/*
