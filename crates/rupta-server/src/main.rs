@@ -84,6 +84,7 @@ async fn serve(config: Config) -> Result<()> {
             .map_err(|e| anyhow::anyhow!(e))?;
     }
     let alerts = rupta_api::alerts::spawn(api_state.clone(), ingest.subscribe());
+    let maintenance = rupta_api::maintenance::spawn(api_state.clone());
     let app =
         Arc::new(App { config: config.clone(), store: store.clone(), ingest: ingest.clone(), api: api_state.clone() });
 
@@ -109,6 +110,7 @@ async fn serve(config: Config) -> Result<()> {
         tracing::warn!("ingest did not drain within RUPTA_SHUTDOWN_TIMEOUT_SECS");
     }
     alerts.abort();
+    maintenance.abort();
     drop(app);
     // Closing the database uploads anything not yet in the object store.
     tokio::task::spawn_blocking(move || drop(store)).await?;

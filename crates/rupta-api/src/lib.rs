@@ -9,6 +9,7 @@ pub mod compat;
 pub mod error;
 pub mod extract;
 pub mod mail;
+pub mod maintenance;
 pub mod notify;
 pub mod routes;
 pub mod sql;

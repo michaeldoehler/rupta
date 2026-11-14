@@ -498,3 +498,20 @@ async fn bootstrap_from_environment_runs_once() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn maintenance_removes_expired_sessions_and_invitations() {
+    let app = TestApp::new();
+    let org = app.org("acme");
+    let (uid, who) = app.user("a@example.com");
+    let past = Utc::now() - Duration::hours(1);
+    let conn = app.conn();
+    conn.execute("UPDATE web_sessions SET expires_at = $1", &[&past]).unwrap();
+    conn.execute(
+        "INSERT INTO invitations (org_id, email, role, token_hash, invited_by, expires_at) VALUES ($1, 'x@example.com', 'member', 'h', $2, $3)",
+        &[&org, &uid, &past],
+    )
+    .unwrap();
+    assert_eq!(rupta_api::maintenance::run_once(&app.state).await.unwrap(), 2);
+    assert_eq!(app.get("/api/v1/auth/session", &who).await.status, StatusCode::UNAUTHORIZED);
+}
