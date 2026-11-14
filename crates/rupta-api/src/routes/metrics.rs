@@ -180,7 +180,10 @@ async fn metric_query(
             let meta = if s.projects.is_empty() {
                 None
             } else {
-                c.query_opt(&format!("SELECT type, unit FROM metrics WHERE {base} LIMIT 1"), &params.refs())?
+                // Grouped rather than `LIMIT 1`: aggregations run in the column engine.
+                c.query(&format!("SELECT type, unit, count(*) FROM metrics WHERE {base} GROUP BY type, unit"), &params.refs())?
+                    .iter()
+                    .max_by_key(|r| r.get::<i64>(2))
                     .map(|r| (r.get::<String>(0), r.get::<Option<String>>(1)))
             };
             let ty = meta.as_ref().map(|m| m.0.clone());

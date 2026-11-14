@@ -262,8 +262,9 @@ async fn logs_histogram_and_live_tail() {
         }
     };
     read_until("event: ready", &mut text).await;
-    let logs = json!({"items": [{"timestamp": 1_794_650_000.0, "level": "fatal", "body": "tail me"},
-                                {"timestamp": 1_794_650_000.0, "level": "info", "body": "not me"}]});
+    let now = chrono::Utc::now().timestamp() as f64;
+    let logs = json!({"items": [{"timestamp": now, "level": "fatal", "body": "tail me"},
+                                {"timestamp": now, "level": "info", "body": "not me"}]});
     let env =
         rupta_ingest::envelope::serialize(&json!({}), &[(json!({"type": "log"}), serde_json::to_vec(&logs).unwrap())]);
     let mut req = Request::builder()

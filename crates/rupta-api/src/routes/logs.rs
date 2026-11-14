@@ -107,6 +107,9 @@ pub struct LogPage {
     pub next_cursor: Option<String>,
 }
 
+/// Windows (minutes) a page of logs is looked for in before the whole range.
+const PAGE_WINDOWS: [i64; 5] = [5, 60, 6 * 60, 24 * 60, 7 * 24 * 60];
+
 fn base_filter(s: &Resolved, query: &str, params: &mut Params) -> ApiResult<String> {
     Ok(format!("{} AND ({})", s.filter(params, "", "timestamp"), compile_filter(query, &LOG_FILTER, params)?))
 }
@@ -139,19 +142,40 @@ async fn list_logs(
             if s.projects.is_empty() {
                 return Ok(Vec::new());
             }
-            let mut params = Params::new();
-            let mut sql = format!("SELECT {LOG_COLUMNS} FROM logs WHERE {}", base_filter(&s, &query, &mut params)?);
-            if let Some((micros, id)) = &cursor {
-                let ts =
-                    DateTime::from_timestamp_micros(*micros).ok_or_else(|| ApiError::bad_request("invalid cursor"))?;
-                let id = uuid::Uuid::try_parse(id).map_err(|_| ApiError::bad_request("invalid cursor"))?;
-                let (t, i) = (params.bind(ts), params.bind(*id.as_bytes()));
-                let cmp = if asc { ">" } else { "<" };
-                sql.push_str(&format!(" AND (timestamp {cmp} {t} OR (timestamp = {t} AND id {cmp} {i}))"));
+            let cursor = match &cursor {
+                Some((micros, id)) => Some((
+                    DateTime::from_timestamp_micros(*micros).ok_or_else(|| ApiError::bad_request("invalid cursor"))?,
+                    *uuid::Uuid::try_parse(id).map_err(|_| ApiError::bad_request("invalid cursor"))?.as_bytes(),
+                )),
+                None => None,
+            };
+            // Sorting the whole range is slow on large tables; look at a
+            // growing window next to the cursor (or the range end) until it
+            // holds a full page.
+            let (lo, hi) = match (asc, cursor) {
+                (false, Some((t, _))) => (s.start, t.min(s.end) + Duration::microseconds(1)),
+                (true, Some((t, _))) => (t.max(s.start), s.end),
+                _ => (s.start, s.end),
+            };
+            let mut rows = Vec::new();
+            for width in PAGE_WINDOWS.iter().map(|m| Duration::minutes(*m)).chain(std::iter::once(hi - lo)) {
+                let mut w = s.clone();
+                (w.start, w.end) = if asc { (lo, (lo + width).min(hi)) } else { ((hi - width).max(lo), hi) };
+                let mut params = Params::new();
+                let mut sql = format!("SELECT {LOG_COLUMNS} FROM logs WHERE {}", base_filter(&w, &query, &mut params)?);
+                if let Some((ts, id)) = cursor {
+                    let (t, i) = (params.bind(ts), params.bind(id));
+                    let cmp = if asc { ">" } else { "<" };
+                    sql.push_str(&format!(" AND (timestamp {cmp} {t} OR (timestamp = {t} AND id {cmp} {i}))"));
+                }
+                let dir = if asc { "ASC" } else { "DESC" };
+                sql.push_str(&format!(" ORDER BY timestamp {dir}, id {dir} LIMIT {}", limit + 1));
+                rows = c.query(&sql, &params.refs())?;
+                if rows.len() as i64 > limit || width >= hi - lo {
+                    break;
+                }
             }
-            let dir = if asc { "ASC" } else { "DESC" };
-            sql.push_str(&format!(" ORDER BY timestamp {dir}, id {dir} LIMIT {}", limit + 1));
-            Ok(c.query(&sql, &params.refs())?.iter().map(record).collect::<Vec<_>>())
+            Ok(rows.iter().map(record).collect::<Vec<_>>())
         })
         .await?;
     let mut data = rows;
@@ -244,6 +268,9 @@ pub const TAIL_POLL: StdDuration = StdDuration::from_secs(1);
 pub const TAIL_OVERLAP_SECS: i64 = 10;
 /// Most records sent per poll; more are skipped (a `lagging` event says how many).
 pub const TAIL_MAX_PER_POLL: i64 = 500;
+/// The live tail shows records whose timestamp is at most this much
+/// older than the time they were received.
+pub const TAIL_MAX_AGE: Duration = Duration::hours(1);
 /// A live tail ends after this long; clients reconnect.
 pub const TAIL_MAX_DURATION: StdDuration = StdDuration::from_secs(30 * 60);
 
@@ -273,9 +300,10 @@ fn poll_tail(c: &Connection, t: &Tail) -> ApiResult<(Vec<Row>, i64)> {
     if s.projects.is_empty() {
         return Ok((Vec::new(), 0));
     }
-    // The record time can be anything; select by received time.
-    s.start = DateTime::<Utc>::UNIX_EPOCH;
-    s.end = Utc::now() + Duration::days(1);
+    // Select by received time; records whose own timestamp is more than
+    // TAIL_MAX_AGE older than that are not shown (this keeps the scan small).
+    s.start = t.since - Duration::seconds(TAIL_OVERLAP_SECS) - TAIL_MAX_AGE;
+    s.end = Utc::now() + Duration::hours(1);
     let mut params = Params::new();
     let base = base_filter(&s, &t.query, &mut params)?;
     let from = params.bind(t.since - Duration::seconds(TAIL_OVERLAP_SECS));
