@@ -125,7 +125,7 @@ Without Garage, for a quick look:
 ```sh
 docker run -d -p 8080:8080 -v rupta-data:/data \
   -e RUPTA_SECRET_KEY=$(openssl rand -hex 32) \
-  ghcr.io/michaeldoehler/rupta:0.1.0
+  ghcr.io/michaeldoehler/rupta:0.1.1
 ```
 
 The first visitor then creates the administrator account in the setup

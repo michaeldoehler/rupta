@@ -6,9 +6,10 @@ uses [semantic versioning](https://semver.org/). Before 1.0, minor versions
 may change the API, the configuration and the storage format; the
 changelog says when and how to migrate.
 
-## [0.1.0] - 2026-11-14
+## [0.1.1] - 2026-11-14
 
-The first release.
+The first published release. The `v0.1.0` tag was not published: its
+container image build failed, so no release and no image exist for it.
 
 ### Added
 

@@ -2709,7 +2709,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -2755,7 +2755,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-auth"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -2784,7 +2784,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "regex",
@@ -2796,7 +2796,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-ingest"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -2827,7 +2827,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-server"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "axum",
@@ -2852,7 +2852,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-store"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "serde",
