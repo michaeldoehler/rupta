@@ -20,6 +20,11 @@ changelog says when and how to migrate.
   first error, with `curl` and SDK examples for JavaScript, Node.js, PHP,
   Laravel, Python and Django, moving an existing application, and source
   map upload. `docs/README.md`: a documentation index with a reading order.
+- Deployment and configuration say which variables `compose.yaml` passes
+  to rupta and how to add others; the Swarm section explains the first
+  login. Operations: issues last seen before the retention cutoff are
+  deleted (the chapter said they stay), telemetry retention, and more
+  troubleshooting entries.
 
 ## [0.1.0] - 2026-11-14
 

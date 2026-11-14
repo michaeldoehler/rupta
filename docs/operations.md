@@ -73,14 +73,20 @@ changelog says when, and how to migrate.
 ## Data retention
 
 Events, attachments and statistics older than `RUPTA_RETENTION_DAYS`
-(default 90, or a project's shorter setting) are deleted by a daily job.
-Issues stay, with their counts, until they are deleted.
+(default 90, or a project's own setting) are deleted by a daily job, and
+so are issues last seen before that cutoff, with their activity.
+Transactions and spans, logs, metrics, profiles and replays have their own
+retention per project (30 days by default, metrics 90). See
+[ingestion](ingestion.md#retention).
 
 ## Troubleshooting
 
 | Symptom | Check |
 | --- | --- |
 | SDK events don't arrive | Is the DSN's host the `RUPTA_PUBLIC_URL`? Does the project's key exist and is it active? Browser SDKs: is the page's origin in the project's allowed origins? Look for 4xx in the rupta log. |
+| Events from a script or short job don't arrive | The process exited before the SDK sent. Call `flush` (`Sentry.flush(2000)`, `sentry_sdk.flush()`, `\Sentry\flush()`) before exiting. |
+| Events from another container don't arrive | `localhost` in the DSN means the application's own container. Use a host name the application can reach, and set `RUPTA_PUBLIC_URL` to it so new DSNs carry it. |
+| Wrong client IP addresses on events | Behind a reverse proxy, set `RUPTA_TRUSTED_PROXIES` to the proxy's address or network (with Compose, see [which variables reach rupta](deployment.md#docker-compose-single-host)). |
 | `429` responses | Project or key rate limits, or the ingest queue is full (see metrics). |
 | Login loops behind a proxy | `RUPTA_PUBLIC_URL` must be the external URL; with `https://` cookies are `Secure` and need TLS at the proxy. |
 | SSO error "invalid redirect" | The redirect URI at the provider must be exactly `<RUPTA_PUBLIC_URL>/auth/sso/oidc/callback`. |

@@ -2,7 +2,9 @@
 
 rupta is one process with one container image. It needs a volume for its
 working copy and, for durability, an S3-compatible bucket. This chapter
-covers Docker Compose, Docker Swarm, the bucket, TLS and sizing.
+covers Docker Compose, Docker Swarm, the bucket, TLS and sizing. For a
+first try on your own machine, [getting started](getting-started.md) is
+shorter.
 
 ## Docker Compose (single host)
 
@@ -16,9 +18,31 @@ docker compose up -d
 docker compose logs -f rupta
 ```
 
-`generate-env.sh` prints the administrator's password. Open the public URL,
-log in, create a project and copy its DSN into your application's SDK
-configuration (see [SDK compatibility](sdk-compatibility.md)).
+`generate-env.sh` prints the password of the administrator
+`admin@example.com`. Open the public URL, log in, create a project
+(*Settings → All projects → New project*) and copy its DSN into your
+application's Sentry SDK configuration (see [getting started](getting-started.md#send-errors-from-your-application)
+and [SDK compatibility](sdk-compatibility.md)).
+
+**Which variables reach rupta.** `compose.yaml` passes a fixed list of
+variables from `.env` to the `rupta` service: `RUPTA_PUBLIC_URL`,
+`RUPTA_SECRET_KEY`, `RUPTA_ADMIN_EMAIL`, `RUPTA_ADMIN_PASSWORD`, the bucket
+settings, `RUPTA_REMOTE_SYNC`, `RUPTA_OIDC_ISSUER`,
+`RUPTA_OIDC_CLIENT_ID`, `RUPTA_OIDC_CLIENT_SECRET`, `RUPTA_OIDC_NAME`,
+`RUPTA_OIDC_ROLE_MAPPING`, `RUPTA_SMTP_URL`, `RUPTA_SMTP_FROM`,
+`RUPTA_RETENTION_DAYS` and `RUPTA_LOG` (the monitoring overlay adds
+`RUPTA_METRICS_TOKEN`). Any other variable of the
+[configuration](configuration.md), for example `RUPTA_TRUSTED_PROXIES`
+behind a reverse proxy, has no effect in `.env` alone: add it to the
+`environment:` of the `rupta` service, for instance in a
+`compose.override.yaml`:
+
+```yaml
+services:
+  rupta:
+    environment:
+      RUPTA_TRUSTED_PROXIES: 172.16.0.0/12
+```
 
 What runs:
 
@@ -75,6 +99,11 @@ The settings that matter:
   upload the last log records on shutdown.
 - **Health check** `rupta healthcheck` calls `/readyz`, which fails when the
   database is not writable or another writer has taken over.
+- **First login.** The stack sets no bootstrap administrator, so the first
+  visitor of the public URL creates the administrator account in the setup
+  screen. Open it right after the first deploy, or add
+  `RUPTA_ADMIN_EMAIL` and `RUPTA_ADMIN_PASSWORD_FILE` (a Docker secret) to
+  the stack.
 
 Put a reverse proxy (Traefik, Caddy, nginx) in front for TLS and set
 `RUPTA_PUBLIC_URL` to the external `https://` URL and
