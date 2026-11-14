@@ -235,12 +235,37 @@ fn full_event(c: &Connection, p: &ProjectCtx, issue_id: i64, event_id: [u8; 16])
         obj.insert("issue_id".into(), json!(issue.to_string()));
         obj.insert("previous_event_id".into(), json!(prev));
         obj.insert("next_event_id".into(), json!(next));
+        // Links to the replay and trace the error was recorded in.
+        let replay_id = obj
+            .get("contexts")
+            .and_then(|c| c.get("replay"))
+            .and_then(|r| r.get("replay_id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                obj.get("tags")?
+                    .as_array()?
+                    .iter()
+                    .find(|t| t[0] == "replayId")
+                    .and_then(|t| t[1].as_str().map(str::to_string))
+            })
+            .and_then(|s| Uuid::try_parse(&s).ok())
+            .map(|u| u.simple().to_string());
+        let trace_id = obj
+            .get("contexts")
+            .and_then(|c| c.get("trace"))
+            .and_then(|t| t.get("trace_id"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        obj.insert("replay_id".into(), json!(replay_id));
+        obj.insert("trace_id".into(), json!(trace_id));
     }
     Ok(doc)
 }
 
 /// The full normalized event (see the event shape in docs/api.md) plus
-/// `previous_event_id` and `next_event_id`.
+/// `previous_event_id`, `next_event_id`, and `replay_id` and `trace_id`
+/// (from the replay and trace contexts; `null` when absent).
 #[utoipa::path(get, path = "/api/v1/issues/{id}/events/{event}", tag = "issues",
     params(("id" = String, Path), ("event" = String, Path, description = "`latest`, `oldest`, `recommended` or an event id")),
     responses((status = 200, description = "the event document", body = Object), (status = 404, body = crate::error::ErrorBody)))]

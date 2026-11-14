@@ -1,5 +1,7 @@
 <?php
-// Sends one of everything the PHP SDK supports to SMOKE_DSN.
+// Sends one of everything the PHP SDK supports to SMOKE_DSN: errors,
+// messages, attachments, check-ins, a transaction, logs and metrics.
+// Profiling needs the excimer extension and is skipped without it.
 require __DIR__ . '/vendor/autoload.php';
 
 \Sentry\init([
@@ -9,6 +11,8 @@ require __DIR__ . '/vendor/autoload.php';
     'traces_sample_rate' => 1.0,
     'send_default_pii' => true,
     'server_name' => 'smoke-host',
+    'enable_logs' => true,
+    'profiles_sample_rate' => extension_loaded('excimer') ? 1.0 : null,
 ]);
 
 \Sentry\configureScope(function (\Sentry\State\Scope $scope): void {
@@ -40,10 +44,16 @@ $checkInId = \Sentry\captureCheckIn('smoke-php-cron', \Sentry\CheckInStatus::inP
 $context = \Sentry\Tracing\TransactionContext::make()->setName('smoke-php-transaction')->setOp('task');
 $transaction = \Sentry\startTransaction($context);
 \Sentry\SentrySdk::getCurrentHub()->setSpan($transaction);
-$span = $transaction->startChild(\Sentry\Tracing\SpanContext::make()->setOp('db.query'));
+$span = $transaction->startChild(\Sentry\Tracing\SpanContext::make()->setOp('db.query')->setDescription('SELECT 1'));
 usleep(10000);
 $span->finish();
+\Sentry\logger()->info('smoke php log %s', ['widget'], ['smoke.kind' => 'php']);
+\Sentry\logger()->error('smoke php log error');
+\Sentry\traceMetrics()->count('smoke.php.requests', 5, ['route' => '/cart']);
+\Sentry\traceMetrics()->distribution('smoke.php.latency', 12.5, [], \Sentry\Unit::millisecond());
 $transaction->finish();
+\Sentry\logger()->flush();
+\Sentry\traceMetrics()->flush();
 
 \Sentry\flush();
 echo "php: sent\n";

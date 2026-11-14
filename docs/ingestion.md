@@ -32,7 +32,8 @@ HTTP handler ──try_send──► bounded queue ──► workers ──► b
 3. **Batch writer** collects processed envelopes for up to 50 ms or 1,000
    events (earlier when everything in flight has been collected) and writes
    them in one transaction: `events` (columnar append), `event_payloads`,
-   `transactions`, issue counters and state changes, releases, session
+   `transactions`, `spans`, `logs` and `metrics` (columnar appends),
+   profile and replay rows, issue counters and state changes, releases, session
    counts, outcomes, feedback, attachment rows and check-ins. After the
    commit it publishes issue signals (`Ingest::subscribe`, used by the
    alert engine): `New`, `Regressed`, `Reappeared` and an aggregated `Seen`
@@ -85,7 +86,7 @@ metric:
 | `filtered` | dropped by an inbound filter (reason: `browser-extensions`, `localhost`, `legacy-browsers`, `web-crawlers`, `error-message`, `release-version`; attachments of filtered events: `event_filtered`) |
 | `rate_limited` | rejected by a rate limit (reason `project` or `key`) or a full queue (reason `queue_full`; metric outcome `queue_full`) |
 | `invalid` | malformed or too large (reason: `invalid_json`, `too_large`, `invalid_session`, `invalid_check_in`, `missing_event_id`, ...) |
-| `dropped_unsupported` | acknowledged but not stored (replays, profiles, metrics, logs, child spans, unknown items) |
+| `dropped_unsupported` | acknowledged but not stored (`replay_video`, `metric_meta`, `otel_span`, CSP reports of other types, unknown items) |
 | `client_discard` | dropped by the SDK itself, from client reports, with the SDK's reason |
 
 Requests rejected before the project is known (bad key, malformed body)
@@ -159,13 +160,20 @@ four cores).
 every 24 hours. For each project it deletes data older than the project's
 `retention_days` or `RUPTA_RETENTION_DAYS` (default 90):
 
-- `events` and `transactions` (columnar), one `DELETE` per day from the
-  oldest event up to the cutoff, so each statement rewrites a bounded part
-  of the segments;
+- `events` (columnar), one `DELETE` per day from the oldest event up to
+  the cutoff, so each statement rewrites a bounded part of the segments;
 - `event_payloads` (by `day`), `attachments` (objects first, then rows; an
   object that cannot be deleted keeps its row and is retried next run),
   `session_counts`, `outcomes`, check-ins;
 - issues whose `last_seen` is before the cutoff, with their activity.
+
+Telemetry has its own retention per project (`settings.retention`, in
+days): `spans` for transactions and spans (default 30), `logs` (30),
+`metrics` (90), `profiles` (30) and `replays` (30). Columnar tables are
+deleted a day at a time like events; profile and replay documents are
+deleted by day prefix in the object store (`profiles/{project}/{day}/`,
+`replays/{project}/{day}/`) before their rows. Transactions follow the
+`spans` retention, not `retention_days`.
 
 A columnar `DELETE` rewrites every segment that contains matching rows.
 Measured (`cargo test --release -p rupta-ingest --test retention --

@@ -659,7 +659,7 @@
         "tags": [
           "issues"
         ],
-        "summary": "The full normalized event (see the event shape in docs/api.md) plus\n`previous_event_id` and `next_event_id`.",
+        "summary": "The full normalized event (see the event shape in docs/api.md) plus\n`previous_event_id`, `next_event_id`, and `replay_id` and `trace_id`\n(from the replay and trace contexts; `null` when absent).",
         "operationId": "issue_event",
         "parameters": [
           {
@@ -746,6 +746,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Page_Feedback"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/issues/{id}/replays": {
+      "get": {
+        "tags": [
+          "replays"
+        ],
+        "summary": "Replays in which errors of this issue were recorded, newest first.",
+        "operationId": "issue_replays",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 100 (default 50).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReplaySummary"
                 }
               }
             }
@@ -1294,6 +1344,215 @@
         }
       }
     },
+    "/api/v1/orgs/{org}/dashboards": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Dashboards of an organization, newest first.",
+        "operationId": "list_dashboards",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 100 (default 50).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Dashboard"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Creates a dashboard (members and above).",
+        "operationId": "create_dashboard",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DashboardCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/dashboards/{id}": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "A dashboard.",
+        "operationId": "get_dashboard",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Deletes a dashboard (members and above).",
+        "operationId": "delete_dashboard",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {}
+        }
+      },
+      "patch": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Changes a dashboard (members and above).",
+        "operationId": "update_dashboard",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DashboardUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orgs/{org}/events": {
       "get": {
         "tags": [
@@ -1671,6 +1930,295 @@
         }
       }
     },
+    "/api/v1/orgs/{org}/logs": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Log records, newest first.",
+        "operationId": "list_logs",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Filter: free text matches the body (substring); `level:error`,\n`level:[warn,error]`, `trace:<id>`, `span:<id>`, `release:`,\n`sdk:`, `severity:>=17`, `body:`/`message:` (substring); any other\n`key:value` matches an attribute. `!` negates a term.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "`-timestamp` (newest first, default) or `timestamp`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 1000, default 100.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/logs/histogram": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Log counts per interval and level.",
+        "operationId": "histogram",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Same filter as the log list.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "description": "`1m`, `1h` or `1d` (default: chosen from the range).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogHistogram"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/logs/stream": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Live tail: new log records as Server-Sent Events. Each `logs` event\ncarries a JSON array of records (oldest first); a `lagging` event\n`{\"skipped\": n}` reports records skipped because more than 500 arrived\nwithin a second. The stream polls once per second and ends after 30\nminutes; reconnect to continue. Only records received after the\nstream started are sent.",
+        "operationId": "stream",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Same filter as the log list.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`text/event-stream` with `logs` events (data: JSON array of log records)",
+            "content": {
+              "text/event-stream": {}
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orgs/{org}/members": {
       "get": {
         "tags": [
@@ -1839,6 +2387,753 @@
                   "$ref": "#/components/schemas/Member"
                 }
               }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/metrics/names": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Metric names seen in the range, by name.",
+        "operationId": "metric_names",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricNames"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/metrics/query": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "A metric aggregated over time, optionally one series per attribute value.",
+        "operationId": "metric_query",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "op",
+            "in": "query",
+            "description": "`sum`, `avg`, `min`, `max`, `count`, `count_unique` (sets), `p50`,\n`p75`, `p95`, `p99`. Default: `sum` for counters, `avg` for gauges,\n`p95` for distributions, `count_unique` for sets.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_by",
+            "in": "query",
+            "description": "An attribute name, or `environment` / `release`: one series per value\n(the 10 largest by total).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "description": "`1m`, `1h` or `1d` (default: chosen from the range).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Filter: `key:value` on attributes, `release:`, `trace:`, `value:>n`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricQueryResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/performance/transactions": {
+      "get": {
+        "tags": [
+          "performance"
+        ],
+        "summary": "Transactions grouped by name: throughput, latency percentiles,\nfailure rate and Apdex.",
+        "operationId": "transactions",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Filter: free text matches the name; keys `op`, `status`, `release`,\n`platform`, `sdk`, `trace`, `duration` (ms, comparisons), any other\nkey matches a tag.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "`tpm` (default), `count`, `p50`, `p95`, `p99`, `failure_rate`,\n`apdex`, `name`; prefix `-` for ascending (`-p95`).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionStatsPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/performance/transactions/summary": {
+      "get": {
+        "tags": [
+          "performance"
+        ],
+        "summary": "One transaction name: statistics, time series, duration histogram,\nslowest samples, related issues and web vitals.",
+        "operationId": "transaction_summary",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "The transaction name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "description": "`1m`, `1h` or `1d` (default: chosen from the range).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/profiles": {
+      "get": {
+        "tags": [
+          "profiling"
+        ],
+        "summary": "Profiles and continuous profiling chunks, newest first.",
+        "operationId": "list_profiles",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "transaction",
+            "in": "query",
+            "description": "Only profiles of this transaction name.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "description": "`transaction` or `chunk`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "release",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profiler_id",
+            "in": "query",
+            "description": "Only chunks of this continuous profiler session.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfilePage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/profiles/aggregate-flamegraph": {
+      "get": {
+        "tags": [
+          "profiling"
+        ],
+        "summary": "A flamegraph merged from the latest (at most 50) profiles of a\ntransaction: transaction profiles of that name, and for transactions\nrecorded with continuous profiling the samples of their chunks within\nthe transaction's time span.",
+        "operationId": "aggregate_flamegraph",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "transaction",
+            "in": "query",
+            "description": "The transaction name.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlamegraphOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/profiles/{project}/{profile_id}/flamegraph": {
+      "get": {
+        "tags": [
+          "profiling"
+        ],
+        "summary": "The flamegraph of one profile or chunk.",
+        "operationId": "flamegraph",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "description": "slug or id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "thread",
+            "in": "query",
+            "description": "Thread id (default: the transaction's thread, else the main thread,\nelse the busiest thread).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Only samples at or after this time (Unix seconds), e.g. the start\nof a transaction within a continuous profiling chunk.",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "Only samples at or before this time (Unix seconds).",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlamegraphOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/profiles/{project}/{profile_id}/raw": {
+      "get": {
+        "tags": [
+          "profiling"
+        ],
+        "summary": "The profile document as sent by the SDK (JSON, as a download).",
+        "operationId": "raw_profile",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "description": "slug or id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the profile document",
+            "content": {
+              "application/json": {}
             }
           }
         }
@@ -2050,6 +3345,243 @@
         }
       }
     },
+    "/api/v1/orgs/{org}/replays": {
+      "get": {
+        "tags": [
+          "replays"
+        ],
+        "summary": "Replays, newest first.",
+        "operationId": "list_replays",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Filter: `url:` (substring), `user.email:`, `user.id:`, `browser:`,\n`os:`, `device:` (substrings), `release:`, `count_errors:>0`,\n`count_clicks:`, `duration:>60000` (ms), `error_id:`, `trace:`;\nfree text matches URLs and the user.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "`-started` (default), `started`, `-duration`, `duration`,\n`-count_errors`, `-count_clicks`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReplaySummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/replays/{project}/{replay_id}": {
+      "get": {
+        "tags": [
+          "replays"
+        ],
+        "summary": "A replay with the issues of its errors.",
+        "operationId": "get_replay",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "description": "slug or id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "replay_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/replays/{project}/{replay_id}/recording-segments": {
+      "get": {
+        "tags": [
+          "replays"
+        ],
+        "summary": "Recording segments in order: `{\"data\": [[rrweb events of segment 0],\n[segment 1], ...], \"next_cursor\": ...}`. Each inner array is the\ndecompressed segment exactly as recorded. `limit` counts segments (1 to\n100, default 100). The body is streamed.",
+        "operationId": "recording_segments",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "description": "slug or id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "replay_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from `next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 100 (default 50).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{\"data\": [[event, ...], ...], \"next_cursor\": string|null}`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orgs/{org}/saved-searches": {
       "get": {
         "tags": [
@@ -2190,6 +3722,120 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SavedSearch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/spans": {
+      "get": {
+        "tags": [
+          "performance"
+        ],
+        "summary": "The span explorer: spans grouped by operation, description or\ntransaction with counts and latency, or the matching spans themselves.",
+        "operationId": "spans",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "query",
+            "description": "Project ids or slugs, comma-separated (default: every project of\nthe organization).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time range back from now, e.g. `1h`, `24h`, `14d` (default 24h, at\nmost 366d). Ignored when `start` is given.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "description": "Start of the range (ISO 8601).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "description": "End of the range (ISO 8601, default now).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Filter: free text matches the description; keys `op`,\n`description` (substring), `transaction`, `status`, `release`,\n`trace`, `platform`, `duration` (ms); other keys match span data.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group_by",
+            "in": "query",
+            "description": "`op` (default), `description`, `transaction` or `none` (span rows).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "`sum` (default), `count`, `p50`, `p95`, `avg` (groups);\nrows are sorted newest first.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpanQueryResult"
                 }
               }
             }
@@ -2630,6 +4276,54 @@
         ],
         "responses": {
           "204": {}
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/traces/{trace_id}": {
+      "get": {
+        "tags": [
+          "performance"
+        ],
+        "summary": "A trace: its transactions, the span tree, errors and the number of logs.",
+        "operationId": "trace",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "trace_id",
+            "in": "path",
+            "description": "32 hex digits",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trace"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -4470,6 +6164,103 @@
           }
         ]
       },
+      "Dashboard": {
+        "type": "object",
+        "description": "A dashboard of widgets.",
+        "required": [
+          "id",
+          "title",
+          "widgets",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "widgets": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Widgets: `{id, title, type, chart, query, layout}` where `type` is\n`metric`, `transactions`, `logs` or `issues`, `chart` is `line`,\n`area`, `bar`, `table` or `number`, `query` holds the parameters of\nthe matching query endpoint and `layout` is `{x, y, w, h}` on a\n12-column grid. Stored as given after validation."
+          }
+        }
+      },
+      "DashboardCreate": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "widgets": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "DashboardUpdate": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` clears it."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "widgets": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            },
+            "description": "Replaces all widgets."
+          }
+        }
+      },
       "Deploy": {
         "type": "object",
         "required": [
@@ -4714,6 +6505,104 @@
           }
         }
       },
+      "FlamegraphOut": {
+        "type": "object",
+        "description": "A flamegraph. Children are in the order first sampled (time order);\nsort by `total_weight` for a left-heavy view.",
+        "required": [
+          "frames",
+          "root",
+          "samples",
+          "profiles",
+          "threads",
+          "profile_ids"
+        ],
+        "properties": {
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FrameOut"
+            }
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profile_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Profiles (and chunks) merged (aggregated flamegraphs)."
+          },
+          "profiles": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Profiles merged.",
+            "minimum": 0
+          },
+          "root": {
+            "$ref": "#/components/schemas/NodeOut"
+          },
+          "samples": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Samples in the tree.",
+            "minimum": 0
+          },
+          "thread_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The thread shown (single profiles)."
+          },
+          "threads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThreadInfo"
+            },
+            "description": "Threads of the profile with their sample counts (single profiles)."
+          }
+        }
+      },
+      "FrameOut": {
+        "type": "object",
+        "description": "A frame of a flamegraph.",
+        "required": [
+          "name",
+          "is_application"
+        ],
+        "properties": {
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_application": {
+            "type": "boolean"
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "package": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "Health": {
         "type": "object",
         "required": [
@@ -4762,6 +6651,30 @@
           "total_sessions": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "HistogramBucket": {
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "number",
+            "format": "double",
+            "description": "Upper bound in milliseconds (exclusive; the last bucket also holds\neverything slower)."
+          },
+          "start": {
+            "type": "number",
+            "format": "double",
+            "description": "Lower bound in milliseconds (inclusive)."
           }
         }
       },
@@ -5201,6 +7114,166 @@
           }
         }
       },
+      "LogBucket": {
+        "type": "object",
+        "required": [
+          "ts",
+          "total",
+          "counts"
+        ],
+        "properties": {
+          "counts": {
+            "type": "object",
+            "description": "Records per level (only levels that occur).",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ts": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bucket start, Unix seconds."
+          }
+        }
+      },
+      "LogHistogram": {
+        "type": "object",
+        "required": [
+          "interval",
+          "buckets",
+          "totals"
+        ],
+        "properties": {
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogBucket"
+            }
+          },
+          "interval": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bucket size in seconds."
+          },
+          "totals": {
+            "type": "object",
+            "description": "Records per level over the whole range.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "LogPage": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogRecord"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "LogRecord": {
+        "type": "object",
+        "description": "One log record.",
+        "required": [
+          "id",
+          "project_id",
+          "timestamp",
+          "received",
+          "level",
+          "body",
+          "attributes"
+        ],
+        "properties": {
+          "attributes": {
+            "type": "object",
+            "description": "Attributes as plain JSON values (`{\"key\": value}`)."
+          },
+          "body": {
+            "type": "string"
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string",
+            "description": "trace, debug, info, warn, error or fatal."
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "received": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When rupta received it."
+          },
+          "release": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sdk": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "trace_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "LoginRequest": {
         "type": "object",
         "required": [
@@ -5260,6 +7333,142 @@
           },
           "user_id": {
             "type": "string"
+          }
+        }
+      },
+      "MetricName": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "last_seen",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Values stored in the range."
+          },
+          "last_seen": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "description": "counter, gauge, distribution or set."
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "MetricNames": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricName"
+            }
+          }
+        }
+      },
+      "MetricQueryResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "op",
+          "interval",
+          "series",
+          "truncated"
+        ],
+        "properties": {
+          "interval": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bucket size in seconds."
+          },
+          "name": {
+            "type": "string"
+          },
+          "op": {
+            "type": "string"
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricSeries"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True if there were more than 10 groups (only the largest are returned)."
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "MetricSeries": {
+        "type": "object",
+        "required": [
+          "points"
+        ],
+        "properties": {
+          "group": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "`{group_by: value}`, or `null` without `group_by`."
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": false,
+              "prefixItems": [
+                {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "format": "double"
+                }
+              ]
+            },
+            "description": "`[[unix_seconds, value_or_null], ...]`, one point per bucket."
+          },
+          "total": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The aggregate over the whole range."
           }
         }
       },
@@ -5392,6 +7601,40 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "NodeOut": {
+        "type": "object",
+        "description": "A call tree node: `frame_index` into `frames` (`null` for the root),\nweights in samples.",
+        "required": [
+          "self_weight",
+          "total_weight",
+          "children"
+        ],
+        "properties": {
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NodeOut"
+            }
+          },
+          "frame_index": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "self_weight": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "total_weight": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -5654,6 +7897,71 @@
                 "updated_at": {
                   "type": "string",
                   "format": "date-time"
+                }
+              }
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor of the next page; `null` on the last page."
+          }
+        }
+      },
+      "Page_Dashboard": {
+        "type": "object",
+        "description": "A page of results.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A dashboard of widgets.",
+              "required": [
+                "id",
+                "title",
+                "widgets",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "created_by": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "widgets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "description": "Widgets: `{id, title, type, chart, query, layout}` where `type` is\n`metric`, `transactions`, `logs` or `issues`, `chart` is `line`,\n`area`, `bar`, `table` or `number`, `query` holds the parameters of\nthe matching query endpoint and `layout` is `{x, y, w, h}` on a\n12-column grid. Stored as given after validation."
                 }
               }
             }
@@ -6208,6 +8516,147 @@
           }
         }
       },
+      "Page_ReplaySummary": {
+        "type": "object",
+        "description": "A page of results.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A replay in lists.",
+              "required": [
+                "replay_id",
+                "project_id",
+                "started",
+                "finished",
+                "duration_ms",
+                "segment_count",
+                "count_errors",
+                "count_clicks",
+                "urls",
+                "user",
+                "error_ids",
+                "trace_ids"
+              ],
+              "properties": {
+                "browser": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "count_clicks": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "count_errors": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "device": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "duration_ms": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "environment": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "error_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Error event ids (32 hex digits) recorded during the replay."
+                },
+                "finished": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "os": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "platform": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "project_id": {
+                  "type": "string"
+                },
+                "release": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "replay_id": {
+                  "type": "string"
+                },
+                "replay_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "`session` or `buffer`."
+                },
+                "sdk": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "segment_count": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "started": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "trace_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "urls": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Pages visited, in order."
+                },
+                "user": {
+                  "$ref": "#/components/schemas/ReplayUser"
+                }
+              }
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor of the next page; `null` on the last page."
+          }
+        }
+      },
       "Page_TagValue": {
         "type": "object",
         "description": "A page of results.",
@@ -6240,6 +8689,111 @@
               "null"
             ],
             "description": "Cursor of the next page; `null` on the last page."
+          }
+        }
+      },
+      "ProfilePage": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileSummary"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ProfileSummary": {
+        "type": "object",
+        "required": [
+          "profile_id",
+          "project_id",
+          "kind",
+          "started",
+          "samples",
+          "size"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "description": "`transaction` (transaction profiling) or `chunk` (continuous profiling)."
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profile_id": {
+            "type": "string"
+          },
+          "profiler_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "release": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "samples": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the document in bytes."
+          },
+          "started": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "trace_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transaction_name": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -6491,6 +9045,44 @@
           }
         }
       },
+      "RelatedIssue": {
+        "type": "object",
+        "required": [
+          "id",
+          "short_id",
+          "title",
+          "level",
+          "status",
+          "count",
+          "last_seen"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Events of the issue in this transaction within the range."
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_seen": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "level": {
+            "type": "string"
+          },
+          "short_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "Release": {
         "type": "object",
         "required": [
@@ -6666,6 +9258,288 @@
           }
         }
       },
+      "ReplayDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ReplaySummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "issues",
+              "recording_url"
+            ],
+            "properties": {
+              "issues": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ReplayIssue"
+                },
+                "description": "Issues of errors recorded during the replay."
+              },
+              "recording_url": {
+                "type": "string",
+                "description": "API path of the recording segments."
+              }
+            }
+          }
+        ]
+      },
+      "ReplayIssue": {
+        "type": "object",
+        "required": [
+          "id",
+          "short_id",
+          "title",
+          "level",
+          "status",
+          "event_ids"
+        ],
+        "properties": {
+          "event_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Error events of the issue during the replay."
+          },
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "short_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "ReplaySummary": {
+        "type": "object",
+        "description": "A replay in lists.",
+        "required": [
+          "replay_id",
+          "project_id",
+          "started",
+          "finished",
+          "duration_ms",
+          "segment_count",
+          "count_errors",
+          "count_clicks",
+          "urls",
+          "user",
+          "error_ids",
+          "trace_ids"
+        ],
+        "properties": {
+          "browser": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "count_clicks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "count_errors": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "device": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Error event ids (32 hex digits) recorded during the replay."
+          },
+          "finished": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "os": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "release": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "replay_id": {
+            "type": "string"
+          },
+          "replay_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`session` or `buffer`."
+          },
+          "sdk": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "segment_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "started": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "trace_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Pages visited, in order."
+          },
+          "user": {
+            "$ref": "#/components/schemas/ReplayUser"
+          }
+        }
+      },
+      "ReplayUser": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ip_address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SampleTransaction": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "project_id",
+          "timestamp"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "profile_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profiler_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "release": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "trace_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "SavedSearch": {
         "type": "object",
         "required": [
@@ -6741,6 +9615,38 @@
           },
           "scope": {
             "type": "string"
+          }
+        }
+      },
+      "SeriesPoint": {
+        "type": "object",
+        "required": [
+          "ts",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "p50": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "p95": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "ts": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bucket start, Unix seconds."
           }
         }
       },
@@ -6840,6 +9746,231 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "SpanGroup": {
+        "type": "object",
+        "required": [
+          "count",
+          "sum_duration_ms"
+        ],
+        "properties": {
+          "avg": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The value of the grouping column (`null` when unset)."
+          },
+          "p50": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "p95": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "sum_duration_ms": {
+            "type": "number",
+            "format": "double",
+            "description": "Total time spent in these spans, milliseconds."
+          }
+        }
+      },
+      "SpanNode": {
+        "type": "object",
+        "description": "A span with its children (the trace waterfall).",
+        "required": [
+          "span_id",
+          "is_segment",
+          "project_id",
+          "start_timestamp",
+          "end_timestamp",
+          "data",
+          "tags",
+          "children"
+        ],
+        "properties": {
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpanNode"
+            },
+            "description": "Child spans, by start time."
+          },
+          "data": {
+            "type": "object"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "end_timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_segment": {
+            "type": "boolean"
+          },
+          "op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "segment_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Span id of the transaction (segment) this span belongs to."
+          },
+          "span_id": {
+            "type": "string"
+          },
+          "start_timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "object"
+          },
+          "transaction": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SpanQueryResult": {
+        "type": "object",
+        "required": [
+          "group_by",
+          "groups",
+          "spans"
+        ],
+        "properties": {
+          "group_by": {
+            "type": "string",
+            "description": "`op`, `description`, `transaction` or `none`."
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpanGroup"
+            },
+            "description": "Groups (when grouped)."
+          },
+          "spans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpanRowOut"
+            },
+            "description": "Span rows, newest first (`group_by=none`)."
+          }
+        }
+      },
+      "SpanRowOut": {
+        "type": "object",
+        "required": [
+          "trace_id",
+          "span_id",
+          "project_id",
+          "timestamp"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "span_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "trace_id": {
+            "type": "string"
+          },
+          "transaction": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -7050,6 +10181,403 @@
           }
         }
       },
+      "ThreadInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "samples"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "samples": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Trace": {
+        "type": "object",
+        "required": [
+          "trace_id",
+          "transactions",
+          "spans",
+          "span_count",
+          "truncated",
+          "errors",
+          "logs_count"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TraceError"
+            }
+          },
+          "logs_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "span_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "spans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpanNode"
+            },
+            "description": "Root spans of the trace (spans whose parent is not in the trace),\neach with its descendants."
+          },
+          "start": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "trace_id": {
+            "type": "string"
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TraceTransaction"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True if the trace had more than 10,000 spans and only those were loaded."
+          }
+        }
+      },
+      "TraceError": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "issue_id",
+          "project_id",
+          "title",
+          "timestamp"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "issue_id": {
+            "type": "string"
+          },
+          "level": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "span_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The span that was active when the error happened."
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "TraceTransaction": {
+        "type": "object",
+        "required": [
+          "event_id",
+          "project_id",
+          "project_slug",
+          "timestamp"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profile_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profiler_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "project_slug": {
+            "type": "string"
+          },
+          "release": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_timestamp": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TransactionStats": {
+        "type": "object",
+        "description": "One transaction name with its statistics over the range.",
+        "required": [
+          "name",
+          "count",
+          "tpm",
+          "failure_rate",
+          "apdex",
+          "users"
+        ],
+        "properties": {
+          "apdex": {
+            "type": "number",
+            "format": "double",
+            "description": "Apdex with T = 300 ms."
+          },
+          "avg": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failure_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Share (0 to 1) of transactions whose status is not `ok`,\n`cancelled` or `unknown`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "p50": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Durations in milliseconds."
+          },
+          "p75": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "p95": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "p99": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "tpm": {
+            "type": "number",
+            "format": "double",
+            "description": "Transactions per minute over the range."
+          },
+          "users": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Distinct users (estimate)."
+          }
+        }
+      },
+      "TransactionStatsPage": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransactionStats"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TransactionSummary": {
+        "type": "object",
+        "required": [
+          "name",
+          "interval",
+          "series",
+          "histogram",
+          "slowest",
+          "related_issues",
+          "web_vitals"
+        ],
+        "properties": {
+          "histogram": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistogramBucket"
+            },
+            "description": "20 buckets from 0 to the 99th percentile."
+          },
+          "interval": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bucket size in seconds."
+          },
+          "name": {
+            "type": "string"
+          },
+          "related_issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelatedIssue"
+            },
+            "description": "Issues with events in this transaction, most events first."
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeriesPoint"
+            }
+          },
+          "slowest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SampleTransaction"
+            },
+            "description": "The ten slowest transactions."
+          },
+          "stats": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TransactionStats",
+                "description": "Overall statistics; `null` if there is no transaction in the range."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "web_vitals": {
+            "$ref": "#/components/schemas/WebVitals",
+            "description": "Web vitals (browser transactions)."
+          }
+        }
+      },
       "UpdateMember": {
         "type": "object",
         "required": [
@@ -7180,6 +10708,54 @@
             "type": "string"
           }
         }
+      },
+      "WebVital": {
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Measurements."
+          },
+          "p75": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "75th percentile (milliseconds; unitless for CLS)."
+          }
+        }
+      },
+      "WebVitals": {
+        "type": "object",
+        "required": [
+          "lcp",
+          "fcp",
+          "cls",
+          "inp",
+          "ttfb"
+        ],
+        "properties": {
+          "cls": {
+            "$ref": "#/components/schemas/WebVital"
+          },
+          "fcp": {
+            "$ref": "#/components/schemas/WebVital"
+          },
+          "inp": {
+            "$ref": "#/components/schemas/WebVital"
+          },
+          "lcp": {
+            "$ref": "#/components/schemas/WebVital"
+          },
+          "ttfb": {
+            "$ref": "#/components/schemas/WebVital"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -7235,6 +10811,26 @@
     {
       "name": "monitors",
       "description": "Cron monitors"
+    },
+    {
+      "name": "performance",
+      "description": "Transactions, traces and spans"
+    },
+    {
+      "name": "logs",
+      "description": "Structured logs and the live tail"
+    },
+    {
+      "name": "metrics",
+      "description": "Metrics and dashboards"
+    },
+    {
+      "name": "profiling",
+      "description": "Profiles and flamegraphs"
+    },
+    {
+      "name": "replays",
+      "description": "Session replays"
     }
   ]
 }

@@ -13,15 +13,20 @@
 
 pub mod auth;
 pub mod cron;
+pub mod custom_metrics;
 pub mod decode;
 pub mod envelope;
 pub mod filters;
 mod http;
+pub mod logs;
 pub mod metrics;
 mod process;
+pub mod profiles;
 pub mod ratelimit;
+pub mod replays;
 pub mod retention;
 pub mod symbolicate;
+mod traces;
 mod writer;
 
 use std::collections::HashMap;

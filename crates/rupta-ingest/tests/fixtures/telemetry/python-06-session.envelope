@@ -1,0 +1,3 @@
+{}
+{"type":"session","content_type":"application/json","length":252}
+{"sid":"071bb423-e527-4bc8-aac5-b87ee30ae729","init":true,"started":"2026-11-14T15:21:49.559546Z","timestamp":"2026-11-14T15:21:49.883367Z","status":"exited","errors":1,"did":"python-user","attrs":{"release":"smoke-python@1.0.0","environment":"smoke"}}

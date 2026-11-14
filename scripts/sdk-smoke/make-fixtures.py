@@ -25,6 +25,8 @@ def scrub(data: bytes) -> bytes:
     text = text.replace(key, TEST_KEY)
     for p in prefixes:
         text = text.replace(p, "/srv/app").replace(p.replace("/", "\\/"), "\\/srv\\/app")
+        # Module names derived from paths (profiles of the Node SDK).
+        text = text.replace(p.replace("/", "."), ".srv.app")
     text = re.sub(r"127\.0\.0\.1(\\?/?:|:)(\d{4,5})", lambda m: "localhost:8080" if "@" in text[max(0, m.start() - 40):m.start()] else "localhost:3000", text)
     text = re.sub(r"/tmp/rupta-smoke\.\w+", "/srv/app", text)
     # Kernel release and host name in OS contexts.

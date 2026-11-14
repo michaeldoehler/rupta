@@ -29,7 +29,7 @@ pub fn date(d: NaiveDate) -> Value {
     Value::Date((d - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days() as i32 - PG_EPOCH_DAYS)
 }
 
-fn text(s: &Option<String>) -> Value {
+pub(crate) fn text(s: &Option<String>) -> Value {
     s.as_ref().map_or(Value::Null, |s| Value::Text(s.clone()))
 }
 
@@ -109,6 +109,9 @@ pub struct EventRow {
     pub tags: serde_json::Value,
     /// JSON object.
     pub contexts: serde_json::Value,
+    /// `contexts.trace.trace_id` and `span_id`.
+    pub trace_id: Option<String>,
+    pub span_id: Option<String>,
 }
 
 impl EventRow {
@@ -119,6 +122,8 @@ impl EventRow {
         let mut v = self.values_without_json();
         v.push(tags);
         v.push(contexts);
+        v.push(text(&self.trace_id));
+        v.push(text(&self.span_id));
         v
     }
 
@@ -126,6 +131,8 @@ impl EventRow {
         let mut v = self.values_without_json();
         v.push(Value::Jsonb(Box::new(self.tags.clone())));
         v.push(Value::Jsonb(Box::new(self.contexts.clone())));
+        v.push(text(&self.trace_id));
+        v.push(text(&self.span_id));
         v
     }
 
@@ -622,6 +629,16 @@ pub struct TransactionRow {
     pub span_count: Option<i32>,
     pub tags: String,
     pub measurements: String,
+    /// Web vitals: LCP, FCP, INP and TTFB in milliseconds, CLS unitless.
+    pub lcp: Option<f64>,
+    pub fcp: Option<f64>,
+    pub cls: Option<f64>,
+    pub inp: Option<f64>,
+    pub ttfb: Option<f64>,
+    /// `contexts.profile.profile_id` (transaction profiling).
+    pub profile_id: Option<String>,
+    /// `contexts.profile.profiler_id` (continuous profiling).
+    pub profiler_id: Option<String>,
 }
 
 pub fn append_transactions(conn: &Connection, rows: &[TransactionRow]) -> Result<u64> {
@@ -652,6 +669,13 @@ pub fn append_transactions(conn: &Connection, rows: &[TransactionRow]) -> Result
                 r.span_count.map_or(Value::Null, Value::Int4),
                 Value::Text(r.tags.clone()),
                 Value::Text(r.measurements.clone()),
+                r.lcp.map_or(Value::Null, Value::Float8),
+                r.fcp.map_or(Value::Null, Value::Float8),
+                r.cls.map_or(Value::Null, Value::Float8),
+                r.inp.map_or(Value::Null, Value::Float8),
+                r.ttfb.map_or(Value::Null, Value::Float8),
+                text(&r.profile_id),
+                text(&r.profiler_id),
             ]
         })
         .collect();
@@ -746,22 +770,13 @@ pub fn oldest_event(conn: &Connection, project_id: i64) -> Result<Option<DateTim
     Ok(conn.query_one("SELECT min(timestamp) FROM events WHERE project_id = $1", &[&project_id])?.get(0))
 }
 
-/// Deletes events and transactions of a project in `[from, to)`.
-pub fn delete_columnar_range(
-    conn: &Connection,
-    project_id: i64,
-    from: DateTime<Utc>,
-    to: DateTime<Utc>,
-) -> Result<(u64, u64)> {
-    let e = conn.execute(
+/// Deletes events of a project in `[from, to)`. Transactions follow the
+/// trace retention (see [`crate::telemetry::delete_range`]).
+pub fn delete_events_range(conn: &Connection, project_id: i64, from: DateTime<Utc>, to: DateTime<Utc>) -> Result<u64> {
+    Ok(conn.execute(
         "DELETE FROM events WHERE project_id = $1 AND timestamp >= $2 AND timestamp < $3",
         &[&project_id, &from, &to],
-    )?;
-    let t = conn.execute(
-        "DELETE FROM transactions WHERE project_id = $1 AND timestamp >= $2 AND timestamp < $3",
-        &[&project_id, &from, &to],
-    )?;
-    Ok((e, t))
+    )?)
 }
 
 /// Object keys of a project's attachments stored before `day`.
@@ -977,9 +992,9 @@ mod tests {
         assert_eq!(link_feedback(&conn, p, [3; 16], id).unwrap(), 1);
 
         let mut d = Deleted::default();
-        let (e, t) =
-            delete_columnar_range(&conn, p, now - chrono::Duration::days(1), now + chrono::Duration::days(1)).unwrap();
-        assert_eq!((e, t), (1, 1));
+        let range = (now - chrono::Duration::days(1), now + chrono::Duration::days(1));
+        assert_eq!(delete_events_range(&conn, p, range.0, range.1).unwrap(), 1);
+        assert_eq!(crate::telemetry::delete_range(&conn, "transactions", p, range.0, range.1).unwrap(), 1);
         delete_rows_before(&conn, p, now + chrono::Duration::days(1), &mut d).unwrap();
         assert_eq!((d.payloads, d.issues, d.checkins), (1, 2, 1));
     }
