@@ -2,7 +2,7 @@ import { CornerDownLeft, Search, X } from 'lucide-react'
 import { forwardRef, useDeferredValue, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTagValues } from '@/api/queries'
 import { Kbd } from '@/components/ui/kbd'
-import { applySuggestion, completionContext, dynamicTagFor, suggestKeys, suggestValues, type Suggestion } from '@/lib/search/autocomplete'
+import { applySuggestion, completionContext, dynamicTagFor, suggestKeys, suggestValues, type CompletionContext, type Suggestion } from '@/lib/search/autocomplete'
 import { tokenize } from '@/lib/search/parse'
 import { cn } from '@/lib/utils'
 
@@ -17,6 +17,10 @@ interface Props {
   onSubmit: (query: string) => void
   placeholder?: string
   className?: string
+  /** Accessible name of the input (default "Search issues"). */
+  label?: string
+  /** Suggestions for another query language (logs, replays); default: issue keys and tag values. */
+  suggest?: (ctx: CompletionContext) => Suggestion[]
 }
 
 /** Renders the query with coloured tokens, behind the transparent input text. */
@@ -49,7 +53,7 @@ function Highlight({ value }: { value: string }) {
 }
 
 export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
-  { org, projects, value, onSubmit, placeholder = 'Search issues: is:unresolved level:error browser:Chrome "text"', className },
+  { org, projects, value, onSubmit, placeholder = 'Search issues: is:unresolved level:error browser:Chrome "text"', className, label = 'Search issues', suggest },
   ref,
 ) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -66,12 +70,13 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
   const ctx = useMemo(() => completionContext(draft, caret), [draft, caret])
   const dynKey = ctx.mode === 'value' && ctx.key ? dynamicTagFor(ctx.key) : null
   const partial = useDeferredValue(ctx.partial)
-  const tagValues = useTagValues(org, open ? dynKey : null, projects, partial)
+  const tagValues = useTagValues(org, open && !suggest ? dynKey : null, projects, partial)
 
   const suggestions: Suggestion[] = useMemo(() => {
+    if (suggest) return suggest(ctx)
     if (ctx.mode === 'key') return suggestKeys(ctx.partial)
     return suggestValues(ctx.key!, ctx.partial, tagValues.data?.map((v) => v.value) ?? [])
-  }, [ctx, tagValues.data])
+  }, [ctx, tagValues.data, suggest])
 
   useEffect(() => setActive(0), [ctx.mode, ctx.key, ctx.partial])
 
@@ -147,7 +152,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
             aria-controls={listId}
             aria-autocomplete="list"
             aria-activedescendant={showList ? `${listId}-${active}` : undefined}
-            aria-label="Search issues"
+            aria-label={label}
             spellCheck={false}
             autoComplete="off"
             className="relative h-full w-full bg-transparent px-2 font-mono text-[13px] text-transparent caret-foreground outline-none selection:bg-brand/25 selection:text-foreground placeholder:font-sans placeholder:text-muted-foreground"

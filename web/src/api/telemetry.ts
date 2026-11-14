@@ -358,7 +358,7 @@ function normMetricName(raw: unknown): MetricName {
   const o = obj(raw)
   const t = String(o.type ?? 'counter')
   const type: MetricType = t === 'c' ? 'counter' : t === 'g' ? 'gauge' : t === 'd' ? 'distribution' : t === 's' ? 'set' : (t as MetricType)
-  return { name: String(o.name), type, unit: str(o.unit) === 'none' ? null : str(o.unit), last_seen: o.last_seen ? isoOf(o.last_seen) : null }
+  return { name: String(o.name), type, unit: str(o.unit) === 'none' ? null : str(o.unit), last_seen: o.last_seen ? isoOf(o.last_seen) : null, attributes: arr(o.attributes ?? o.attribute_keys).map(String) }
 }
 
 function groupLabel(v: unknown): string {

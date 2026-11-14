@@ -173,6 +173,8 @@ export interface MetricName {
   type: MetricType
   unit: string | null
   last_seen: Iso | null
+  /** Attribute keys, when the server lists them (for group-by suggestions). */
+  attributes: string[]
 }
 
 export interface MetricSeries {
