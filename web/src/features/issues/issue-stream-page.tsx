@@ -198,7 +198,9 @@ export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSor
         assignee: a,
         message: a ? `Assigned ${issue.short_id} to ${a.name}` : `${issue.short_id} unassigned`,
       }),
-    [update],
+    // mutate is stable; depending on the mutation object would re-render every row
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [update.mutate],
   )
 
   const me: Assignee | null = session ? { type: 'user', id: session.user.id, name: session.user.name || session.user.email } : null

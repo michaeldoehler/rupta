@@ -28,16 +28,25 @@ export function RelativeTime({
   long = false,
   className,
   suffix = false,
+  plain = false,
 }: {
   date: string | number | Date
   long?: boolean
   className?: string
   suffix?: boolean
+  /** Native title instead of a tooltip component (for long lists). */
+  plain?: boolean
 }) {
   useTick()
   const d = new Date(date)
   const short = relShort(d)
   const text = long ? relLong(d) : `${short}${suffix && short !== 'now' && !short.startsWith('in ') ? ' ago' : ''}`
+  if (plain)
+    return (
+      <time dateTime={d.toISOString()} title={absolute(d, { seconds: true })} className={cn('whitespace-nowrap tabular', className)}>
+        {text}
+      </time>
+    )
   return (
     <Tip content={absolute(d, { seconds: true })}>
       <time dateTime={d.toISOString()} className={cn('whitespace-nowrap tabular', className)}>

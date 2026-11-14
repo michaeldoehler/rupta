@@ -1,13 +1,12 @@
 import { Link } from '@tanstack/react-router'
 import { Bookmark } from 'lucide-react'
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import type { Assignee, Issue } from '@/api/types'
 import { LevelBar } from '@/components/common/level'
 import { PlatformIcon } from '@/components/common/platform-icon'
 import { Sparkline } from '@/components/common/sparkline'
 import { RelativeTime } from '@/components/common/time'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Tip } from '@/components/ui/tooltip'
 import { compact, thousands } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { AssigneeAvatar, AssigneePicker } from './actions'
@@ -100,17 +99,17 @@ export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, 
             <StatusBadge issue={issue} />
             {issue.culprit && <span className="hidden min-w-0 truncate md:inline">{issue.culprit}</span>}
             <span className="ml-auto hidden shrink-0 items-center gap-1 sm:flex lg:hidden">
-              <RelativeTime date={issue.last_seen} />
+              <RelativeTime plain date={issue.last_seen} />
             </span>
           </div>
         </Link>
       </div>
       <div role="gridcell" className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground lg:block">
         <div>
-          <RelativeTime date={issue.last_seen} suffix />
+          <RelativeTime plain date={issue.last_seen} suffix />
         </div>
         <div className="text-[11px]">
-          <RelativeTime date={issue.first_seen} /> old
+          <RelativeTime plain date={issue.first_seen} /> old
         </div>
       </div>
       <div role="gridcell" className="hidden w-[100px] shrink-0 md:block">
@@ -123,32 +122,42 @@ export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, 
         />
       </div>
       <div role="gridcell" className="w-12 shrink-0 text-right text-[13px] font-medium tabular sm:w-16">
-        <Tip content={`${thousands(issue.count)} events`}>
-          <span>{compact(issue.count)}</span>
-        </Tip>
+        <span title={`${thousands(issue.count)} events`}>{compact(issue.count)}</span>
       </div>
       <div role="gridcell" className="hidden w-14 shrink-0 text-right text-[13px] text-muted-foreground tabular sm:block">
-        <Tip content={`${thousands(issue.user_count)} users`}>
-          <span>{compact(issue.user_count)}</span>
-        </Tip>
+        <span title={`${thousands(issue.user_count)} users`}>{compact(issue.user_count)}</span>
       </div>
       <div role="gridcell" className="flex w-8 shrink-0 justify-end">
-        <AssigneePicker
-          org={org}
-          value={issue.assignee}
-          onChange={(a) => onAssign(issue, a)}
-          trigger={
-            <button
-              type="button"
-              className="rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              aria-label={issue.assignee ? `Assigned to ${issue.assignee.name}. Change assignee` : 'Assign'}
-              title={issue.assignee?.name ?? 'Unassigned'}
-            >
-              <AssigneeAvatar assignee={issue.assignee} />
-            </button>
-          }
-        />
+        <LazyAssignee issue={issue} org={org} onAssign={onAssign} />
       </div>
     </div>
   )
 })
+
+/** The picker (and its member queries) mounts only when opened. */
+function LazyAssignee({ issue, org, onAssign }: { issue: Issue; org: string; onAssign: (issue: Issue, a: Assignee | null) => void }) {
+  const [active, setActive] = useState(false)
+  const label = issue.assignee ? `Assigned to ${issue.assignee.name}. Change assignee` : 'Assign'
+  const button = (
+    <button
+      type="button"
+      className="rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      aria-label={label}
+      title={issue.assignee?.name ?? 'Unassigned'}
+      onClick={() => setActive(true)}
+    >
+      <AssigneeAvatar assignee={issue.assignee} />
+    </button>
+  )
+  if (!active) return button
+  return (
+    <AssigneePicker
+      org={org}
+      value={issue.assignee}
+      onChange={(a) => onAssign(issue, a)}
+      trigger={button}
+      defaultOpen
+      onOpenChange={(o) => !o && setActive(false)}
+    />
+  )
+}

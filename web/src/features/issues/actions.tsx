@@ -208,14 +208,22 @@ export function AssigneePicker({
   onChange,
   trigger,
   align = 'end',
+  defaultOpen = false,
+  onOpenChange,
 }: {
   org: string
   value: Assignee | null
   onChange: (a: Assignee | null) => void
   trigger: React.ReactNode
   align?: 'start' | 'end'
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpenState] = useState(defaultOpen)
+  const setOpen = (o: boolean) => {
+    setOpenState(o)
+    onOpenChange?.(o)
+  }
   const [q, setQ] = useState('')
   const { data: session } = useSession()
   const members = useMembers(org)
