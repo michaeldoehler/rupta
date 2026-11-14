@@ -3,6 +3,7 @@
 
 import type { Breadcrumb, EventSummary, ExceptionValue, Frame, RuptaEvent } from '@/api/types'
 import { Rng } from '../rng'
+import { errorSpanId, replayIdAt, replaysForIssue, traceIdForEvent } from './ids'
 import { LIB_FRAMES, TEMPLATES, type FrameSpec, type Template } from './templates'
 import { HOUR, iso, type DbIssue, type DbProject } from './world'
 
@@ -242,8 +243,14 @@ export function buildEvent(issue: DbIssue, project: DbProject, index: number): R
   tags.push(['customer_tier', rng.pick(['free', 'pro', 'business'])])
   if (isJs) tags.push(['feature.new_checkout', rng.chance(0.4) ? 'on' : 'off'])
 
+  const traceId = traceIdForEvent(issue.id, index)
   const contexts: RuptaEvent['contexts'] = {
-    trace: { trace_id: rng.hex(32), span_id: rng.hex(16), op: isJs ? 'navigation' : 'http.server', status: 'internal_error' },
+    trace: { trace_id: traceId, span_id: errorSpanId(traceId), op: isJs ? 'navigation' : 'http.server', status: 'internal_error' },
+  }
+  // Browser events carry the session replay that captured them (when sampled).
+  if (isJs && index % 5 !== 2) {
+    const linked = replaysForIssue(issue.id)
+    contexts.replay = { replay_id: replayIdAt(linked[index % linked.length]), type: 'replay' }
   }
   if (isJs) {
     contexts.browser = { name: browserName, version: browserVersion, type: 'browser' }

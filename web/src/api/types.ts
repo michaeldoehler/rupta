@@ -320,7 +320,7 @@ export interface IssueQueryParams {
 }
 
 export type IssueSort = 'last_seen' | 'first_seen' | 'freq' | 'users' | 'priority'
-export type StatsPeriod = '24h' | '7d' | '14d' | '30d' | '90d'
+export type StatsPeriod = '1h' | '24h' | '7d' | '14d' | '30d' | '90d'
 
 export interface TagValue {
   value: string

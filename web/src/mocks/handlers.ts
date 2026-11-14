@@ -22,6 +22,7 @@ import type {
 import { parseQuery, parseRelative, type FilterToken } from '@/lib/search/parse'
 import { Rng } from './rng'
 import { buildEvent, eventIds, eventSummary } from './fixtures/events'
+import { telemetryHandlers } from './telemetry-handlers'
 import { createWorld, DAY, HOUR, iso, issueSeries, type DbIssue, type DbOrg, type DbProject, type World } from './fixtures/world'
 
 const BASE = '/api/v1'
@@ -154,12 +155,12 @@ function assigneeOut(a: DbIssue['assignee']): Assignee | null {
   return t ? { type: 'team', id: t.id, name: `#${t.slug}` } : null
 }
 
-const PERIOD_MS: Record<string, number> = { '24h': DAY, '7d': 7 * DAY, '14d': 14 * DAY, '30d': 30 * DAY, '90d': 90 * DAY }
+const PERIOD_MS: Record<string, number> = { '1h': HOUR, '24h': DAY, '7d': 7 * DAY, '14d': 14 * DAY, '30d': 30 * DAY, '90d': 90 * DAY }
 
 /** Sparkline like the server: hourly up to 48 hours, daily beyond. */
 function periodSeries(i: DbIssue, period: string) {
   const ms = PERIOD_MS[period] ?? DAY
-  return ms <= 2 * DAY ? issueSeries(i, world.now, Math.round(ms / HOUR), HOUR) : issueSeries(i, world.now, Math.round(ms / DAY), DAY)
+  return ms < DAY ? issueSeries(i, world.now, 12, ms / 12) : ms <= 2 * DAY ? issueSeries(i, world.now, Math.round(ms / HOUR), HOUR) : issueSeries(i, world.now, Math.round(ms / DAY), DAY)
 }
 
 function issueOut(i: DbIssue, period = '24h'): Issue {
@@ -1511,5 +1512,14 @@ export const handlers = [
       sessions: [...byDay.entries()].sort((a, b) => a[0] - b[0]).map(([t, [n, c]]) => [t, n, c]),
     }
     return json(out as unknown as JsonBodyType)
+  }),
+  ...telemetryHandlers({
+    world: () => world,
+    wait,
+    withOrg: (params) => withOrg(params as Params),
+    canWrite: (orgId) => {
+      const role = roleIn(orgId)
+      return role !== null && role !== 'viewer'
+    },
   }),
 ]
