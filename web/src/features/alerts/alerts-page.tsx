@@ -2,6 +2,7 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Bell, Plus } from 'lucide-react'
 import { api } from '@/api/endpoints'
+import { ik, integrationsApi } from '@/api/integrations'
 import { qk, useApiMutation, useMembers, useProjects, useTeams } from '@/api/queries'
 import type { AlertRule } from '@/api/types'
 import { PlatformIcon } from '@/components/common/platform-icon'
@@ -19,6 +20,7 @@ export function AlertsPage() {
   const teams = useTeams(org)
   const members = useMembers(org)
   const channels = useQuery({ queryKey: qk.channels(org), queryFn: () => api.orgs.channels(org) })
+  const integrations = useQuery({ queryKey: ik.list(org), queryFn: () => integrationsApi.list(org), retry: false })
   const targets = (projects.data ?? []).filter((p) => !selected.length || selected.includes(p.id))
   const results = useQueries({ queries: targets.map((p) => ({ queryKey: qk.alertRules(org, p.slug), queryFn: () => api.projects.alertRules(org, p) })) })
   const rules: AlertRule[] = results.flatMap((r) => r.data ?? [])
@@ -92,6 +94,7 @@ export function AlertsPage() {
                           channels.data ?? [],
                           teams.data ?? [],
                           (members.data ?? []).map((m) => ({ id: m.user.id, name: m.user.name || m.user.email })),
+                          integrations.data ?? [],
                         ),
                       )
                       .join(', ')}{' '}

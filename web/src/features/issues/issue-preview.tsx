@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { thousands } from '@/lib/format'
 import { EventView } from '@/features/event/event-view'
 import { IssueChart } from '@/features/issue-detail/issue-chart'
+import { LinkedTickets } from '@/features/integrations/linked-tickets'
 import { IgnoreButton, ResolveButton, type ActionHandler } from './actions'
 import { StatusBadge } from './issue-row'
 
@@ -70,8 +71,12 @@ export default function IssuePreview({ org, issueId }: { org: string; issueId: s
         )}
       </header>
       {d && (
-        <div className="border-b px-5 py-3">
+        <div className="grid gap-4 border-b px-5 py-3 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <IssueChart issueId={issueId} />
+          <div>
+            <h3 className="mb-1.5 text-[11px] font-medium tracking-wide text-subtle-foreground uppercase">Linked tickets</h3>
+            <LinkedTickets org={org} issueId={issueId} projectSlug={d.project.slug} />
+          </div>
         </div>
       )}
       {ev.data && d ? (

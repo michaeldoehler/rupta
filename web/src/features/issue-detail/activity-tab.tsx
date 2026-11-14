@@ -1,5 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleCheck, CircleDot, CircleSlash, Flag, Pencil, RotateCcw, Sparkles, Trash2, TrendingUp, UserPlus } from 'lucide-react'
+import {
+  CircleAlert,
+  CircleCheck,
+  CircleDot,
+  CircleSlash,
+  Flag,
+  Pencil,
+  RefreshCw,
+  RotateCcw,
+  Sparkles,
+  Ticket,
+  Trash2,
+  TrendingUp,
+  Unlink,
+  UserPlus,
+} from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { toast } from 'sonner'
 import { errorMessage } from '@/api/client'
@@ -14,6 +29,25 @@ import { Textarea } from '@/components/ui/textarea'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const Markdown = lazy(() => import('./markdown'))
+
+/** "OPS-42 in Jira" as a link, from ticket activity data. */
+function ticketRef(d: Record<string, unknown>) {
+  const key = String(d.external_key ?? d.key ?? d.external_id ?? 'a ticket')
+  const where = d.integration_name ?? (d.integration as { name?: string } | undefined)?.name
+  const label = (
+    <>
+      <span className="font-mono">{key}</span>
+      {where ? ` in ${String(where)}` : ''}
+    </>
+  )
+  return typeof d.url === 'string' ? (
+    <a href={d.url} target="_blank" rel="noreferrer noopener" className="text-palm-text hover:text-brand">
+      {label}
+    </a>
+  ) : (
+    label
+  )
+}
 
 function describe(a: Activity): { icon: React.ReactNode; text: React.ReactNode } {
   const v = a.data.version as string | undefined
@@ -49,6 +83,48 @@ function describe(a: Activity): { icon: React.ReactNode; text: React.ReactNode }
       }
     case 'set_escalating':
       return { icon: <TrendingUp className="text-warning" />, text: 'Escalating: event volume rose sharply' }
+    case 'status_change':
+      return {
+        icon: a.data.to === 'resolved' ? <CircleCheck className="text-success" /> : <RotateCcw />,
+        text: (
+          <>
+            {a.data.to === 'resolved' ? 'resolved' : a.data.to === 'unresolved' ? 'reopened' : `set to ${String(a.data.to ?? 'a new status')}`}
+            {a.data.source === 'integration' && <> because {ticketRef(a.data)} changed</>}
+          </>
+        ),
+      }
+    case 'ticket_linked':
+      return { icon: <Ticket className="text-palm-text" />, text: <>linked {ticketRef(a.data)}</> }
+    case 'ticket_unlinked':
+      return { icon: <Unlink />, text: <>unlinked {ticketRef(a.data)}</> }
+    case 'ticket_status_change':
+      return {
+        icon: <Ticket className="text-palm-text" />,
+        text: (
+          <>
+            {ticketRef(a.data)} moved to <span className="font-medium">{String(a.data.status ?? a.data.to ?? 'a new status')}</span>
+          </>
+        ),
+      }
+    case 'ticket_sync':
+      return a.data.ok === false
+        ? {
+            icon: <CircleAlert className="text-destructive" />,
+            text: (
+              <>
+                could not update {ticketRef(a.data)}: {String(a.data.error ?? 'unknown error')}
+              </>
+            ),
+          }
+        : {
+            icon: <RefreshCw />,
+            text: (
+              <>
+                updated {ticketRef(a.data)}
+                {a.data.action ? ` (${String(a.data.action)})` : ''}
+              </>
+            ),
+          }
     case 'set_ongoing':
       return { icon: <CircleDot />, text: 'Ongoing: no longer new or escalating' }
     case 'assigned':

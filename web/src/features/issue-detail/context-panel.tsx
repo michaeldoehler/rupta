@@ -19,6 +19,7 @@ import { compact, percent, shortVersion, thousands } from '@/lib/format'
 import { formatFilter } from '@/lib/search/parse'
 import { cn } from '@/lib/utils'
 import { AssigneeAvatar, AssigneePicker, IgnoreButton, ResolveButton, type ActionHandler } from '@/features/issues/actions'
+import { LinkedTickets } from '@/features/integrations/linked-tickets'
 import { IssueChart } from './issue-chart'
 
 const PRIORITY_DOT: Record<Priority, string> = { high: 'bg-level-error', medium: 'bg-level-warning', low: 'bg-level-debug' }
@@ -255,6 +256,9 @@ export function IssueContextPanel({ d, org, act }: { d: IssueDetail; org: string
               )}
             </Stat>
           </div>
+        </PanelSection>
+        <PanelSection title="Linked tickets">
+          <LinkedTickets org={org} issueId={d.id} projectSlug={d.project.slug} />
         </PanelSection>
         <PanelSection title="Trace & replay">{ev.data ? <Linked event={ev.data} org={org} /> : <Skeleton className="h-9 w-full" />}</PanelSection>
         <PanelSection

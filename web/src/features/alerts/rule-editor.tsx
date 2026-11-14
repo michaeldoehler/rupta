@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ApiError, errorMessage } from '@/api/client'
 import { api } from '@/api/endpoints'
+import { ik, integrationsApi } from '@/api/integrations'
 import { qk, useEnvironments, useMembers, useProjects, useTeams } from '@/api/queries'
 import type { AlertAction, AlertCondition, AlertFilter, AlertRuleInput, Level } from '@/api/types'
 import { Field, FormError } from '@/components/common/field'
@@ -81,6 +82,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
     enabled: !isNew && Boolean(projectRef),
   })
   const channels = useQuery({ queryKey: qk.channels(org), queryFn: () => api.orgs.channels(org) })
+  const integrations = useQuery({ queryKey: ik.list(org), queryFn: () => integrationsApi.list(org), retry: false })
   const members = useMembers(org)
   const teams = useTeams(org)
   const projectId = projects.data?.find((p) => p.slug === project)?.id
@@ -114,6 +116,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
     if (!rule.actions.length) e.actions = 'Add at least one action.'
     rule.actions.forEach((a, i) => {
       if (a.type === 'channel' && !a.channel_id) e[`action-${i}`] = 'Choose a channel.'
+      if (a.type === 'create_ticket' && !a.integration_id) e[`action-${i}`] = 'Choose an issue tracker (connect one under Settings → Integrations).'
       if (a.type === 'email' && a.user_ids.length + a.team_ids.length === 0) e[`action-${i}`] = 'Choose who to email.'
     })
     rule.filters.forEach((f, i) => {
@@ -330,7 +333,11 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                     setAt(
                       'actions',
                       i,
-                      t === 'email' ? { type: 'email', user_ids: [], team_ids: [] } : { type: 'channel', channel_id: channels.data?.[0]?.id ?? '' },
+                      t === 'email'
+                        ? { type: 'email', user_ids: [], team_ids: [] }
+                        : t === 'create_ticket'
+                          ? { type: 'create_ticket', integration_id: integrations.data?.find((x) => x.enabled)?.id ?? '' }
+                          : { type: 'channel', channel_id: channels.data?.[0]?.id ?? '' },
                     )
                   }
                 >
@@ -340,9 +347,34 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                   <SelectContent>
                     <SelectItem value="email">Send an email to</SelectItem>
                     <SelectItem value="channel">Send a notification to</SelectItem>
+                    <SelectItem value="create_ticket">Create a ticket in</SelectItem>
                   </SelectContent>
                 </Select>
-                {a.type === 'email' ? (
+                {a.type === 'create_ticket' ? (
+                  <>
+                    <Select value={a.integration_id} onValueChange={(v) => setAt('actions', i, { ...a, integration_id: v })}>
+                      <SelectTrigger size="sm" className="w-auto min-w-48" aria-label="Issue tracker">
+                        <SelectValue placeholder="Choose a tracker" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {integrations.data?.map((x) => (
+                          <SelectItem key={x.id} value={x.id} disabled={!x.enabled}>
+                            {x.name}
+                            {!x.enabled && <span className="text-muted-foreground"> (disabled)</span>}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={a.target ?? ''}
+                      onChange={(e) => setAt('actions', i, { ...a, target: e.target.value || undefined })}
+                      placeholder="project default"
+                      className="h-7 w-40 font-mono text-[12.5px]"
+                      aria-label="Ticket target (optional)"
+                      title="Optional: Jira project key, Linear team id, owner/repo or GitLab path; empty uses the project's default"
+                    />
+                  </>
+                ) : a.type === 'email' ? (
                   <RecipientPicker
                     userIds={a.user_ids}
                     teamIds={a.team_ids}
@@ -379,6 +411,9 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
             </Button>
             <Link to="/$org/settings/channels" params={{ org }} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
               Manage notification channels
+            </Link>
+            <Link to="/$org/settings/integrations" params={{ org }} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+              Issue trackers
             </Link>
           </div>
         </Block>
