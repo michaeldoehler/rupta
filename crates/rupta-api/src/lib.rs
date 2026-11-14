@@ -14,6 +14,7 @@ pub mod notify;
 pub mod routes;
 pub mod sql;
 pub mod state;
+pub mod telemetry;
 
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
@@ -42,6 +43,11 @@ pub use state::{ApiConfig, ApiMetrics, ApiState};
         (name = "releases", description = "Releases and release health"),
         (name = "alerts", description = "Alert rules and notification channels"),
         (name = "monitors", description = "Cron monitors"),
+        (name = "performance", description = "Transactions, traces and spans"),
+        (name = "logs", description = "Structured logs and the live tail"),
+        (name = "metrics", description = "Metrics and dashboards"),
+        (name = "profiling", description = "Profiles and flamegraphs"),
+        (name = "replays", description = "Session replays"),
     )
 )]
 struct ApiDoc;

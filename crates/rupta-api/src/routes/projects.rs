@@ -211,7 +211,11 @@ pub fn merge_settings(current: &Value, patch: &Value) -> ApiResult<ProjectSettin
     let obj = merged.as_object_mut().expect("settings are an object");
     for (k, v) in patch {
         match (k.as_str(), obj.get_mut(k), v) {
-            ("filters" | "scrubbing", Some(Value::Object(cur)), Value::Object(p)) => {
+            (
+                "filters" | "scrubbing" | "retention" | "sampling" | "data_types",
+                Some(Value::Object(cur)),
+                Value::Object(p),
+            ) => {
                 for (kk, vv) in p {
                     cur.insert(kk.clone(), vv.clone());
                 }
@@ -227,6 +231,28 @@ pub fn merge_settings(current: &Value, patch: &Value) -> ApiResult<ProjectSettin
         && !(1..=3650).contains(&d)
     {
         return Err(ApiError::invalid("settings.retention_days", "between 1 and 3650"));
+    }
+    let r = &s.retention;
+    for (field, days) in [
+        ("settings.retention.logs", r.logs),
+        ("settings.retention.spans", r.spans),
+        ("settings.retention.metrics", r.metrics),
+        ("settings.retention.profiles", r.profiles),
+        ("settings.retention.replays", r.replays),
+    ] {
+        if !(1..=3650).contains(&days) {
+            return Err(ApiError::invalid(field, "between 1 and 3650"));
+        }
+    }
+    let sm = &s.sampling;
+    for (field, rate) in [
+        ("settings.sampling.transactions", sm.transactions),
+        ("settings.sampling.spans", sm.spans),
+        ("settings.sampling.logs", sm.logs),
+    ] {
+        if !(0.0..=1.0).contains(&rate) {
+            return Err(ApiError::invalid(field, "between 0 and 1"));
+        }
     }
     if s.allowed_origins.iter().any(|o| o.is_empty() || o.len() > 255) {
         return Err(ApiError::invalid("settings.allowed_origins", "entries must have 1 to 255 characters"));
@@ -671,6 +697,16 @@ mod tests {
         assert!(merge_settings(&json!({}), &json!({"retention_days": 0})).is_err());
         assert!(merge_settings(&json!({}), &json!({"retention_days": "x"})).is_err());
         assert!(merge_settings(&json!({}), &json!([1])).is_err());
+        let t = merge_settings(
+            &json!({"retention": {"logs": 7}}),
+            &json!({"retention": {"replays": 14}, "sampling": {"logs": 0.5}}),
+        )
+        .unwrap();
+        assert_eq!((t.retention.logs, t.retention.replays, t.retention.spans), (7, 14, 30));
+        assert_eq!(t.sampling.logs, 0.5);
+        assert!(merge_settings(&json!({}), &json!({"sampling": {"transactions": 1.5}})).is_err());
+        assert!(merge_settings(&json!({}), &json!({"retention": {"metrics": 0}})).is_err());
+        assert!(merge_settings(&json!({}), &json!({"data_types": {"replays": "no"}})).is_err());
     }
 
     #[test]

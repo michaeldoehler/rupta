@@ -249,7 +249,7 @@ pub struct Flamegraph {
     pub root: Node,
     /// Samples merged into the tree.
     pub samples: u64,
-    /// Profiles merged into the tree.
+    /// Profiles that contributed samples.
     pub profiles: u64,
 }
 
@@ -354,7 +354,9 @@ impl FlamegraphBuilder {
             added += 1;
         }
         self.samples += added;
-        self.profiles += 1;
+        if added > 0 {
+            self.profiles += 1;
+        }
         added
     }
 
