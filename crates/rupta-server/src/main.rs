@@ -65,6 +65,8 @@ async fn serve(config: Config) -> Result<()> {
     };
     let store = tokio::task::spawn_blocking(move || Store::open(&opts)).await?.context("opening the database")?;
 
+    let trusted_proxies = rupta_ingest::parse_trusted_proxies(&config.trusted_proxies)
+        .map_err(|e| anyhow::anyhow!("RUPTA_TRUSTED_PROXIES: {e}"))?;
     let ingest = rupta_ingest::Ingest::start(
         store.clone(),
         rupta_ingest::IngestConfig {
@@ -74,8 +76,12 @@ async fn serve(config: Config) -> Result<()> {
             max_envelope_bytes: config.max_envelope_bytes,
             max_decompressed_bytes: config.max_decompressed_bytes,
             public_url: config.public_url.clone(),
+            trusted_proxies,
+            retention_days: config.retention_days,
+            ..rupta_ingest::IngestConfig::default()
         },
     );
+    let retention = rupta_ingest::retention::spawn(store.clone(), config.retention_days);
     let app = Arc::new(App { config: config.clone(), store: store.clone(), ingest: ingest.clone() });
 
     let api = rupta_api::router(rupta_api::ApiState { store: store.clone(), public_url: config.public_url.clone() });
@@ -95,6 +101,7 @@ async fn serve(config: Config) -> Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
+    retention.abort();
     tracing::info!("shutting down: writing queued events");
     if tokio::time::timeout(config.shutdown_timeout, ingest.shutdown()).await.is_err() {
         tracing::warn!("ingest did not drain within RUPTA_SHUTDOWN_TIMEOUT_SECS");
