@@ -110,6 +110,12 @@ pub struct Config {
     /// `RUPTA_SSO_ALLOW_PRIVATE_ISSUERS`: the SSO connection test may fetch
     /// issuers on loopback, link-local and private addresses.
     pub sso_allow_private_issuers: bool,
+    /// `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS`: issue trackers and paging
+    /// services may be reached on loopback, link-local and private addresses.
+    pub integrations_allow_private_hosts: bool,
+    /// `RUPTA_METRICS_PROJECT_LABELS`: projects with their own label in the
+    /// per-project metrics; the rest are counted as `project="other"`.
+    pub metrics_project_labels: usize,
 }
 
 impl std::fmt::Debug for Config {
@@ -319,6 +325,8 @@ impl Config {
             cors_allowed_origins: r.list("RUPTA_CORS_ALLOWED_ORIGINS"),
             shutdown_timeout: Duration::from_secs(r.number("RUPTA_SHUTDOWN_TIMEOUT_SECS", 30)?),
             sso_allow_private_issuers: r.bool("RUPTA_SSO_ALLOW_PRIVATE_ISSUERS", false)?,
+            integrations_allow_private_hosts: r.bool("RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS", false)?,
+            metrics_project_labels: r.number::<usize>("RUPTA_METRICS_PROJECT_LABELS", 50)?,
         };
         if !config.local_login && config.oidc.is_none() {
             bail!("RUPTA_LOCAL_LOGIN=false needs single sign-on (RUPTA_OIDC_ISSUER), or nobody could log in");
@@ -360,6 +368,21 @@ mod tests {
         assert_eq!(c.durability, Durability::Fast);
         assert_eq!(c.retention_days, 90);
         assert!(c.oidc.is_none());
+        assert!(!c.integrations_allow_private_hosts);
+        assert_eq!(c.metrics_project_labels, 50);
+    }
+
+    #[test]
+    fn integration_and_metrics_settings() {
+        let c = Config::from_env(&env(&[
+            KEY,
+            ("RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS", "true"),
+            ("RUPTA_METRICS_PROJECT_LABELS", "10"),
+        ]))
+        .unwrap();
+        assert!(c.integrations_allow_private_hosts);
+        assert_eq!(c.metrics_project_labels, 10);
+        assert!(Config::from_env(&env(&[KEY, ("RUPTA_METRICS_PROJECT_LABELS", "many")])).is_err());
     }
 
     #[test]
