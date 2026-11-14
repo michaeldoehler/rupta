@@ -1,0 +1,3 @@
+{"sent_at":"2026-11-14T15:21:41.407Z","sdk":{"name":"sentry.javascript.browser","version":"11.12.0"}}
+{"type":"session"}
+{"sid":"5fbeae1682904122938747eef5a96122","init":true,"started":"2026-11-14T15:21:41.373Z","timestamp":"2026-11-14T15:21:41.387Z","status":"ok","errors":0,"did":"browser-user","attrs":{"release":"smoke-browser@1.0.0","environment":"smoke","ip_address":"{{auto}}","user_agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36"}}

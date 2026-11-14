@@ -1,0 +1,7 @@
+{}
+{"type":"statsd","length":171}
+smoke.statsd.requests@none:1:2|c|#route:/a,environment:smoke|T1794669712
+smoke.statsd.latency@millisecond:10:20:30|d|T1794669712
+smoke.statsd.users:alice:bob|s|T1794669712
+{"type":"metric_buckets","length":195}
+[{"timestamp": 1794669712, "width": 10, "name": "g:custom/smoke.statsd.queue@none", "type": "g", "value": {"last": 3, "min": 1, "max": 5, "sum": 9, "count": 3}, "tags": {"environment": "smoke"}}]

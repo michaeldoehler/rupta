@@ -62,6 +62,17 @@ fn main() {
                 ("checkins", "SELECT count(*) FROM checkins"),
                 ("sessions", "SELECT coalesce(sum(total), 0)::bigint FROM session_counts"),
                 ("releases", "SELECT count(*) FROM releases"),
+                ("spans", "SELECT count(*) FROM spans"),
+                ("logs", "SELECT count(*) FROM logs"),
+                ("logs_with_trace", "SELECT count(*) FROM logs WHERE trace_id IS NOT NULL"),
+                ("metrics", "SELECT count(*) FROM metrics"),
+                ("statsd_metrics", "SELECT count(*) FROM metrics WHERE name LIKE 'smoke.statsd.%'"),
+                ("profiles", "SELECT count(*) FROM profiles WHERE kind = 'transaction'"),
+                ("profile_chunks", "SELECT count(*) FROM profiles WHERE kind = 'chunk'"),
+                ("replays", "SELECT count(*) FROM replays"),
+                ("replay_segments", "SELECT count(*) FROM replay_segments"),
+                ("replay_clicks", "SELECT coalesce(sum(count_clicks), 0)::bigint FROM replays"),
+                ("issue_replays", "SELECT count(*) FROM issue_replays"),
             ] {
                 out.insert(name.into(), count(sql).into());
             }
@@ -72,6 +83,15 @@ fn main() {
                 .map(|r| serde_json::json!([r.get::<String>(0), r.get::<i64>(1)]))
                 .collect();
             out.insert("events_by_sdk".into(), by_sdk.into());
+            let strings = |sql: &str| -> Vec<serde_json::Value> {
+                conn.query(sql, &[]).unwrap().iter().map(|r| serde_json::json!(r.get::<Option<String>>(0))).collect()
+            };
+            out.insert("log_sdks".into(), strings("SELECT DISTINCT sdk FROM logs ORDER BY 1").into());
+            out.insert("metric_names".into(), strings("SELECT DISTINCT name FROM metrics ORDER BY 1").into());
+            out.insert(
+                "profile_platforms".into(),
+                strings("SELECT DISTINCT platform || ':' || kind FROM profiles ORDER BY 1").into(),
+            );
             let titles: Vec<serde_json::Value> = conn
                 .query("SELECT title FROM issues ORDER BY id", &[])
                 .unwrap()
