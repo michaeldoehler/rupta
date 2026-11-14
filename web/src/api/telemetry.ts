@@ -169,10 +169,10 @@ export function normSummary(raw: unknown, name: string): TransactionSummary {
     if (v === undefined || v === null) continue
     vitals[k] = typeof v === 'number' ? { p75: v, count: 0 } : { p75: numOrNull(obj(v).p75), count: num(obj(v).count) }
   }
-  const t = o.totals ?? o.summary
+  const t = o.stats ?? o.totals ?? o.summary
   return {
     name: String(o.name ?? name),
-    op: str(o.op),
+    op: str(o.op ?? obj(o.stats).op),
     totals: t ? (({ count, tpm, p50, p95, failure_rate, apdex }) => ({ count, tpm, p50, p95, failure_rate, apdex }))(normTransactionRow(t)) : null,
     series: normSummarySeries(o.series ?? o.timeseries),
     histogram: normHistogram(o.histogram ?? o.duration_histogram),
@@ -249,6 +249,7 @@ export function normTrace(raw: unknown, traceId: string): Trace {
       const existing = spans.find((x) => x.span_id === s.span_id)!
       existing.is_segment = true
       existing.transaction ??= s.transaction
+      existing.profile_id ??= s.profile_id
     }
   }
   return {
@@ -259,9 +260,40 @@ export function normTrace(raw: unknown, traceId: string): Trace {
   }
 }
 
-function normSpanGroup(raw: unknown): SpanGroupRow {
+function normSpanGroup(raw: unknown, groupBy: SpanGroupBy): SpanGroupRow {
   const o = obj(raw)
-  return { op: str(o.op), description: str(o.description), count: num(o.count), p50: num(o.p50), p95: num(o.p95), sum: num(o.sum ?? o.sum_duration ?? o.total) }
+  // The server names the grouped value `group`; earlier drafts used op/description.
+  const group = str(o.group)
+  const op = str(o.op) ?? (groupBy === 'op' ? group : null)
+  const description = str(o.description) ?? (groupBy === 'description' ? group : null)
+  return { group: group ?? (groupBy === 'op' ? op : groupBy === 'description' ? description : str(o.transaction)), op, description, count: num(o.count), p50: num(o.p50), p95: num(o.p95), sum: num(o.sum_duration_ms ?? o.sum ?? o.sum_duration ?? o.total) }
+}
+
+export interface SpanSample {
+  span_id: string
+  trace_id: string
+  project_id: string
+  op: string | null
+  description: string | null
+  transaction: string | null
+  status: string | null
+  duration_ms: number
+  timestamp: number
+}
+
+function normSpanSample(raw: unknown): SpanSample {
+  const o = obj(raw)
+  return {
+    span_id: String(o.span_id ?? ''),
+    trace_id: String(o.trace_id ?? ''),
+    project_id: String(o.project_id ?? ''),
+    op: str(o.op),
+    description: str(o.description),
+    transaction: str(o.transaction),
+    status: str(o.status),
+    duration_ms: num(o.duration_ms),
+    timestamp: toMs(o.timestamp ?? o.start_timestamp),
+  }
 }
 
 // ---- logs --------------------------------------------------------------------
@@ -396,8 +428,14 @@ function normWidget(raw: unknown, i: number): Widget {
     kind,
     chart,
     query: obj(o.query) as Widget['query'],
-    width: Math.min(4, Math.max(1, num(o.width ?? obj(o.layout).w, 2))),
+    // The server keeps a 12-column `layout`; the UI uses quarters of the width.
+    width: Math.min(4, Math.max(1, o.width !== undefined ? num(o.width, 2) : obj(o.layout).w !== undefined ? Math.round(num(obj(o.layout).w, 6) / 3) : 2)),
   }
+}
+
+/** A widget as the server stores it (`type`, `chart`, `query`, `layout` on 12 columns). */
+export function widgetBody(w: Widget, index: number) {
+  return { id: w.id, title: w.title, type: w.kind, chart: w.chart, query: w.query, layout: { x: 0, y: index, w: w.width * 3, h: 4 } }
 }
 
 export function normDashboard(raw: unknown): Dashboard {
@@ -493,7 +531,14 @@ function normReplayError(raw: unknown): ReplayError {
 
 export function normReplayDetail(raw: unknown): ReplayDetail {
   const o = obj(raw)
-  return { ...normReplay(raw), errors: arr(o.errors).map(normReplayError) }
+  // The server lists `issues: [{id, short_id, title, level, status, event_ids}]`
+  // without times; their errors are placed on the timeline from the recording.
+  const fromIssues = arr(o.issues).flatMap((i) => {
+    const x = obj(i)
+    const ids = arr(x.event_ids).map(String)
+    return (ids.length ? ids : ['']).slice(0, 1).map((event_id) => ({ event_id, issue_id: str(x.id), short_id: str(x.short_id), title: String(x.title ?? 'Error'), timestamp: toMs(x.timestamp ?? 0) }))
+  })
+  return { ...normReplay(raw), errors: o.errors ? arr(o.errors).map(normReplayError) : fromIssues }
 }
 
 /** Segments as `[[...events], [...events]]`, a flat event array, or a page of either. */
@@ -541,7 +586,14 @@ export const telemetryApi = {
   },
   spans: {
     groups: (org: string, params: CommonParams & { group_by: SpanGroupBy; sort?: string }, signal?: AbortSignal) =>
-      request<unknown>(`/orgs/${e(org)}/spans`, { query: { ...params, limit: 100 }, signal }).then((r) => listOf(r).map(normSpanGroup)),
+      request<unknown>(`/orgs/${e(org)}/spans`, { query: { ...params, limit: 100 }, signal }).then((r) =>
+        (Array.isArray(obj(r).groups) ? arr(obj(r).groups) : listOf(r)).map((g) => normSpanGroup(g, params.group_by)),
+      ),
+    /** Matching spans, newest first (`group_by=none`). */
+    samples: (org: string, params: CommonParams, signal?: AbortSignal) =>
+      request<unknown>(`/orgs/${e(org)}/spans`, { query: { ...params, group_by: 'none', limit: 100 }, signal }).then((r) =>
+        (Array.isArray(obj(r).spans) ? arr(obj(r).spans) : listOf(r)).map(normSpanSample),
+      ),
   },
   logs: {
     list: (org: string, params: LogParams, signal?: AbortSignal) =>
@@ -574,9 +626,9 @@ export const telemetryApi = {
     list: (org: string) => request<unknown>(`/orgs/${e(org)}/dashboards`).then((r) => listOf(r).map(normDashboard)),
     get: (org: string, id: Id) => request<unknown>(`/orgs/${e(org)}/dashboards/${e(id)}`).then(normDashboard),
     create: (org: string, body: { title: string; description?: string | null; widgets: Widget[] }) =>
-      request<unknown>(`/orgs/${e(org)}/dashboards`, { method: 'POST', body }).then(normDashboard),
+      request<unknown>(`/orgs/${e(org)}/dashboards`, { method: 'POST', body: { ...body, widgets: body.widgets.map(widgetBody) } }).then(normDashboard),
     update: (org: string, id: Id, body: Partial<{ title: string; description: string | null; widgets: Widget[] }>) =>
-      request<unknown>(`/orgs/${e(org)}/dashboards/${e(id)}`, { method: 'PATCH', body }).then(normDashboard),
+      request<unknown>(`/orgs/${e(org)}/dashboards/${e(id)}`, { method: 'PATCH', body: body.widgets ? { ...body, widgets: body.widgets.map(widgetBody) } : body }).then(normDashboard),
     remove: (org: string, id: Id) => request<void>(`/orgs/${e(org)}/dashboards/${e(id)}`, { method: 'DELETE' }),
   },
   profiles: {

@@ -136,7 +136,7 @@ export function TransactionsPage({ sort, onSort }: { sort: TransactionSort; onSo
             <Table aria-label="Transactions">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="pl-4 sm:pl-6">Transaction</TableHead>
+                  <TableHead className="w-[40%] min-w-64 pl-4 sm:pl-6">Transaction</TableHead>
                   {sortHead('tpm', 'TPM')}
                   {sortHead('p50', 'p50')}
                   <TableHead className="hidden text-right md:table-cell">

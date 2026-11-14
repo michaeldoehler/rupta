@@ -69,6 +69,7 @@ import { Route as AuthOrgSettingsProjectsProjectLimitsRouteImport } from './rout
 import { Route as AuthOrgSettingsProjectsProjectScrubbingRouteImport } from './routes/_auth/$org/settings/projects/$project/scrubbing'
 import { Route as AuthOrgSettingsProjectsProjectSecurityRouteImport } from './routes/_auth/$org/settings/projects/$project/security'
 import { Route as AuthOrgSettingsProjectsProjectSourceMapsRouteImport } from './routes/_auth/$org/settings/projects/$project/source-maps'
+import { Route as AuthOrgSettingsProjectsProjectTelemetryRouteImport } from './routes/_auth/$org/settings/projects/$project/telemetry'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -396,6 +397,12 @@ const AuthOrgSettingsProjectsProjectSourceMapsRoute =
     path: '/source-maps',
     getParentRoute: () => AuthOrgSettingsProjectsProjectRoute,
   } as any)
+const AuthOrgSettingsProjectsProjectTelemetryRoute =
+  AuthOrgSettingsProjectsProjectTelemetryRouteImport.update({
+    id: '/telemetry',
+    path: '/telemetry',
+    getParentRoute: () => AuthOrgSettingsProjectsProjectRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -455,6 +462,7 @@ export interface FileRoutesByFullPath {
   '/$org/settings/projects/$project/scrubbing': typeof AuthOrgSettingsProjectsProjectScrubbingRoute
   '/$org/settings/projects/$project/security': typeof AuthOrgSettingsProjectsProjectSecurityRoute
   '/$org/settings/projects/$project/source-maps': typeof AuthOrgSettingsProjectsProjectSourceMapsRoute
+  '/$org/settings/projects/$project/telemetry': typeof AuthOrgSettingsProjectsProjectTelemetryRoute
   '/$org/issues/$issueId/tags/': typeof AuthOrgIssuesIssueIdTagsIndexRoute
   '/$org/settings/projects/$project/': typeof AuthOrgSettingsProjectsProjectIndexRoute
 }
@@ -512,6 +520,7 @@ export interface FileRoutesByTo {
   '/$org/settings/projects/$project/scrubbing': typeof AuthOrgSettingsProjectsProjectScrubbingRoute
   '/$org/settings/projects/$project/security': typeof AuthOrgSettingsProjectsProjectSecurityRoute
   '/$org/settings/projects/$project/source-maps': typeof AuthOrgSettingsProjectsProjectSourceMapsRoute
+  '/$org/settings/projects/$project/telemetry': typeof AuthOrgSettingsProjectsProjectTelemetryRoute
   '/$org/issues/$issueId/tags': typeof AuthOrgIssuesIssueIdTagsIndexRoute
   '/$org/settings/projects/$project': typeof AuthOrgSettingsProjectsProjectIndexRoute
 }
@@ -575,6 +584,7 @@ export interface FileRoutesById {
   '/_auth/$org/settings/projects/$project/scrubbing': typeof AuthOrgSettingsProjectsProjectScrubbingRoute
   '/_auth/$org/settings/projects/$project/security': typeof AuthOrgSettingsProjectsProjectSecurityRoute
   '/_auth/$org/settings/projects/$project/source-maps': typeof AuthOrgSettingsProjectsProjectSourceMapsRoute
+  '/_auth/$org/settings/projects/$project/telemetry': typeof AuthOrgSettingsProjectsProjectTelemetryRoute
   '/_auth/$org/issues/$issueId/tags/': typeof AuthOrgIssuesIssueIdTagsIndexRoute
   '/_auth/$org/settings/projects/$project/': typeof AuthOrgSettingsProjectsProjectIndexRoute
 }
@@ -638,6 +648,7 @@ export interface FileRouteTypes {
     | '/$org/settings/projects/$project/scrubbing'
     | '/$org/settings/projects/$project/security'
     | '/$org/settings/projects/$project/source-maps'
+    | '/$org/settings/projects/$project/telemetry'
     | '/$org/issues/$issueId/tags/'
     | '/$org/settings/projects/$project/'
   fileRoutesByTo: FileRoutesByTo
@@ -695,6 +706,7 @@ export interface FileRouteTypes {
     | '/$org/settings/projects/$project/scrubbing'
     | '/$org/settings/projects/$project/security'
     | '/$org/settings/projects/$project/source-maps'
+    | '/$org/settings/projects/$project/telemetry'
     | '/$org/issues/$issueId/tags'
     | '/$org/settings/projects/$project'
   id:
@@ -757,6 +769,7 @@ export interface FileRouteTypes {
     | '/_auth/$org/settings/projects/$project/scrubbing'
     | '/_auth/$org/settings/projects/$project/security'
     | '/_auth/$org/settings/projects/$project/source-maps'
+    | '/_auth/$org/settings/projects/$project/telemetry'
     | '/_auth/$org/issues/$issueId/tags/'
     | '/_auth/$org/settings/projects/$project/'
   fileRoutesById: FileRoutesById
@@ -1192,6 +1205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthOrgSettingsProjectsProjectSourceMapsRouteImport
       parentRoute: typeof AuthOrgSettingsProjectsProjectRoute
     }
+    '/_auth/$org/settings/projects/$project/telemetry': {
+      id: '/_auth/$org/settings/projects/$project/telemetry'
+      path: '/telemetry'
+      fullPath: '/$org/settings/projects/$project/telemetry'
+      preLoaderRoute: typeof AuthOrgSettingsProjectsProjectTelemetryRouteImport
+      parentRoute: typeof AuthOrgSettingsProjectsProjectRoute
+    }
   }
 }
 
@@ -1202,6 +1222,7 @@ interface AuthOrgSettingsProjectsProjectRouteChildren {
   AuthOrgSettingsProjectsProjectScrubbingRoute: typeof AuthOrgSettingsProjectsProjectScrubbingRoute
   AuthOrgSettingsProjectsProjectSecurityRoute: typeof AuthOrgSettingsProjectsProjectSecurityRoute
   AuthOrgSettingsProjectsProjectSourceMapsRoute: typeof AuthOrgSettingsProjectsProjectSourceMapsRoute
+  AuthOrgSettingsProjectsProjectTelemetryRoute: typeof AuthOrgSettingsProjectsProjectTelemetryRoute
   AuthOrgSettingsProjectsProjectIndexRoute: typeof AuthOrgSettingsProjectsProjectIndexRoute
 }
 
@@ -1219,6 +1240,8 @@ const AuthOrgSettingsProjectsProjectRouteChildren: AuthOrgSettingsProjectsProjec
       AuthOrgSettingsProjectsProjectSecurityRoute,
     AuthOrgSettingsProjectsProjectSourceMapsRoute:
       AuthOrgSettingsProjectsProjectSourceMapsRoute,
+    AuthOrgSettingsProjectsProjectTelemetryRoute:
+      AuthOrgSettingsProjectsProjectTelemetryRoute,
     AuthOrgSettingsProjectsProjectIndexRoute:
       AuthOrgSettingsProjectsProjectIndexRoute,
   }

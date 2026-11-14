@@ -76,7 +76,7 @@ export function TransactionSummaryPage({ name, projectId }: { name: string; proj
   const params = { project: scope, environment: environments, period }
   const q = useQuery({ queryKey: tk.summary(org, name, params), queryFn: ({ signal }) => telemetryApi.performance.summary(org, name, params, signal), placeholderData: (p) => p, staleTime: 30_000 })
   const d: TransactionSummary | undefined = q.data
-  const isBrowser = d && (d.op === 'pageload' || d.op === 'navigation')
+  const isBrowser = d && (d.op === 'pageload' || d.op === 'navigation' || Object.values(d.vitals).some((v) => v && v.count > 0))
 
   return (
     <div>

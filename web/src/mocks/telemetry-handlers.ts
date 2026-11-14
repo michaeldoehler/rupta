@@ -89,13 +89,23 @@ function filterLogs(t: Telemetry, world: World, org: DbOrg, url: URL): MockLog[]
   if (q.trace) {
     // Logs of a trace: the stored ones plus the lines emitted by its spans.
     const trace = buildTrace(t, world, q.trace)
-    const spans = trace.spans.map((s) => ({ ...s, start_timestamp: s.start_timestamp * 1000 }))
-    base = [...t.logs.filter((l) => l.trace_id === q.trace), ...traceLogs(t, spans, trace.errors.length > 0)].sort((a, b) => b.timestamp - a.timestamp)
+    base = [...t.logs.filter((l) => l.trace_id === q.trace), ...traceLogs(t, flatSpans(trace.spans), trace.errors.length > 0)].sort((a, b) => b.timestamp - a.timestamp)
     return base.filter((l) => matchesLog(l as unknown as LogRow, q))
   }
   return base.filter(
     (l) => projects.has(l.project_id) && (!envs.length || envs.includes(l.environment)) && l.timestamp >= from && l.timestamp <= to && matchesLog(l as unknown as LogRow, q),
   )
+}
+
+/** The trace's nested spans, flat again with epoch-millisecond starts. */
+function flatSpans(nodes: { start_timestamp: string; children: unknown[] }[]): Parameters<typeof traceLogs>[1] {
+  const out: Parameters<typeof traceLogs>[1] = []
+  const visit = (n: { start_timestamp: string; children: unknown[] }) => {
+    out.push({ ...(n as unknown as Parameters<typeof traceLogs>[1][number]), start_timestamp: Date.parse(n.start_timestamp) })
+    for (const c of n.children) visit(c as typeof n)
+  }
+  nodes.forEach(visit)
+  return out
 }
 
 function niceInterval(ms: number, target = 60): number {
@@ -111,12 +121,12 @@ function replayOut(world: World, r: MockReplay) {
     project_id: r.project_id,
     started: new Date(r.started).toISOString(),
     finished: new Date(r.started + r.duration_ms).toISOString(),
-    duration: Math.round(r.duration_ms / 1000),
+    duration_ms: r.duration_ms,
     segment_count: Math.max(1, Math.round(r.duration_ms / 5000)),
     urls: r.urls,
     error_ids: errors.map((e) => e.event_id),
     trace_ids: [],
-    user: r.user,
+    user: { id: r.user.id, email: r.user.email, name: r.user.name, ip_address: r.user.ip },
     browser: r.browser,
     os: r.os,
     device: r.device,
@@ -193,38 +203,51 @@ export function telemetryHandlers(ctx: MockContext) {
       const r = withTel(params)
       if ('error' in r) return r.error
       const url = new URL(request.url)
-      const groupBy = url.searchParams.get('group_by') === 'description' ? 'description' : 'op'
+      const groupBy = (['description', 'transaction', 'none'].includes(url.searchParams.get('group_by') ?? '') ? url.searchParams.get('group_by') : 'op') as 'op' | 'description' | 'transaction' | 'none'
       const period = url.searchParams.get('period') ?? '14d'
       const projects = projectSet(r.world, r.org, url)
       const minutes = periodMs(period) / 60_000
       // Aggregate a sample of traces per transaction, scaled to the period.
-      const groups = new Map<string, { op: string; description: string | null; durations: number[]; weight: number }>()
+      const groups = new Map<string, { group: string | null; durations: number[]; weight: number }>()
+      const tokens = tokenize(url.searchParams.get('query') ?? '')
+      const matchSpan = (s: { op: string; description: string; transaction: string | null; duration_ms: number }) =>
+        tokens.every((tok) => {
+          if (tok.type === 'text') return s.description.toLowerCase().includes(tok.value.toLowerCase())
+          if (tok.key === 'op') return tok.values.some((v) => s.op === v || s.op.startsWith(`${v}.`))
+          if (tok.key === 'description') return tok.values.some((v) => s.description.toLowerCase().includes(v.toLowerCase()))
+          if (tok.key === 'duration') return tok.op === '>' || tok.op === '>=' ? s.duration_ms >= Number(tok.values[0]) : s.duration_ms <= Number(tok.values[0])
+          return true
+        })
+      const samples: Record<string, unknown>[] = []
       for (const def of TX) {
         if (!projects.has(r.t.projectIds.get(def.project) ?? '') && !def.browser) continue
         for (let i = 0; i < 3; i++) {
           const trace = buildTrace(r.t, r.world, `${(i + 1).toString(16).padStart(2, '0')}${def.name.length.toString(16).padStart(2, '0')}${'ab'.repeat(14)}`.slice(0, 32))
-          for (const s of trace.spans) {
-            if (!projects.has(s.project_id)) continue
-            const key = groupBy === 'op' ? s.op : `${s.op}\u0000${s.description}`
-            const g = groups.get(key) ?? { op: s.op, description: groupBy === 'op' ? null : s.description, durations: [], weight: 0 }
+          for (const s of flatSpans(trace.spans)) {
+            if (!projects.has(s.project_id) || !matchSpan(s)) continue
+            if (groupBy === 'none') {
+              if (samples.length < 100) samples.push({ span_id: s.span_id, trace_id: s.trace_id, project_id: s.project_id, op: s.op, description: s.description, transaction: s.transaction ?? def.name, status: s.status, duration_ms: s.duration_ms, timestamp: new Date(s.start_timestamp).toISOString() })
+              continue
+            }
+            const key = groupBy === 'op' ? s.op : groupBy === 'transaction' ? def.name : s.description
+            const g = groups.get(key) ?? { group: key, durations: [], weight: 0 }
             g.durations.push(s.duration_ms)
             g.weight += def.tpm / 3
             groups.set(key, g)
           }
         }
       }
-      const q = (url.searchParams.get('query') ?? '').toLowerCase()
+      if (groupBy === 'none') return json({ group_by: 'none', groups: [], spans: samples })
       const rows = [...groups.values()]
-        .filter((g) => !q || `${g.op} ${g.description ?? ''}`.toLowerCase().includes(q))
         .map((g) => {
           const d = [...g.durations].sort((a, b) => a - b)
           const count = Math.round(g.weight * minutes)
           const avg = d.reduce((s, x) => s + x, 0) / d.length
-          return { op: g.op, description: g.description, count, p50: Math.round(d[Math.floor(d.length * 0.5)] * 10) / 10, p95: Math.round(d[Math.min(d.length - 1, Math.floor(d.length * 0.95))] * 10) / 10, sum: Math.round(avg * count) }
+          return { group: g.group, count, p50: Math.round(d[Math.floor(d.length * 0.5)] * 10) / 10, p95: Math.round(d[Math.min(d.length - 1, Math.floor(d.length * 0.95))] * 10) / 10, avg: Math.round(avg * 10) / 10, sum_duration_ms: Math.round(avg * count) }
         })
-        .sort((a, b) => b.sum - a.sum)
+        .sort((a, b) => b.sum_duration_ms - a.sum_duration_ms)
         .slice(0, 100)
-      return json({ data: rows })
+      return json({ group_by: groupBy, groups: rows, spans: [] })
     }),
 
     // ---- logs ----------------------------------------------------------------
@@ -255,9 +278,12 @@ export function telemetryHandlers(ctx: MockContext) {
         b[l.level] = (b[l.level] ?? 0) + 1
         buckets.set(ts, b)
       }
+      const totals: Record<string, number> = {}
+      for (const l of rows) totals[l.level] = (totals[l.level] ?? 0) + 1
       return json({
         interval: interval / 1000,
-        data: [...buckets.entries()].sort((a, b) => a[0] - b[0]).map(([ts, counts]) => ({ ts: new Date(ts).toISOString(), counts })),
+        buckets: [...buckets.entries()].sort((a, b) => a[0] - b[0]).map(([ts, counts]) => ({ ts: Math.floor(ts / 1000), total: Object.values(counts).reduce((s, n) => s + n, 0), counts })),
+        totals,
       })
     }),
     http.get(`${BASE}/orgs/:org/logs/stream`, async ({ params, request }) => {
@@ -271,7 +297,7 @@ export function telemetryHandlers(ctx: MockContext) {
       let timer: ReturnType<typeof setInterval> | undefined
       const stream = new ReadableStream({
         start(controller) {
-          controller.enqueue(enc.encode(': connected\n\nretry: 2000\n\n'))
+          controller.enqueue(enc.encode('retry: 2000\nevent: ready\ndata: {}\n\n'))
           timer = setInterval(() => {
             const n = 1 + (seq % 4)
             const rows: MockLog[] = []
@@ -280,8 +306,8 @@ export function telemetryHandlers(ctx: MockContext) {
               if (projects.has(l.project_id) && matchesLog(l as unknown as LogRow, q)) rows.push(l)
             }
             try {
-              for (const l of rows) controller.enqueue(enc.encode(`event: log\ndata: ${JSON.stringify(logOut(l))}\n\n`))
-              if (!rows.length) controller.enqueue(enc.encode(': keep-alive\n\n'))
+              if (rows.length) controller.enqueue(enc.encode(`event: logs\ndata: ${JSON.stringify(rows.map(logOut))}\n\n`))
+              else controller.enqueue(enc.encode(': keep-alive\n\n'))
             } catch {
               clearInterval(timer)
             }
@@ -449,7 +475,12 @@ export function telemetryHandlers(ctx: MockContext) {
       if (!rep) return err(404, 'not_found', 'Replay not found. It may have been deleted by the retention policy.')
       // The fixture recording is what plays; report its length.
       const out = replayOut(r.world, { ...rep, duration_ms: RECORDING_MS })
-      return json({ ...out, errors: replayErrors(r.world, rep) })
+      // As the server: the issues of the recorded errors, without times.
+      const issues = replayErrors(r.world, rep).map((e) => {
+        const i = r.world.issues.find((x) => x.id === e.issue_id)!
+        return { id: i.id, short_id: i.short_id, title: i.title, level: i.level, status: i.status, event_ids: [e.event_id] }
+      })
+      return json({ ...out, issues, recording_url: `${BASE}/orgs/${p(params, 'org')}/replays/${p(params, 'project')}/${rep.replay_id}/recording-segments` })
     }),
     http.get(`${BASE}/orgs/:org/replays/:project/:replayId/recording-segments`, async ({ params, request }) => {
       await ctx.wait()

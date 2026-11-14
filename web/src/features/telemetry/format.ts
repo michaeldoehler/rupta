@@ -11,6 +11,7 @@ export const MAX_SERIES = SERIES_COLORS.length
 /** Compact duration for dense tables: 0.42 ms, 12 ms, 1.24 s, 2m 5s. */
 export function ms(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return '—'
+  if (v === 0) return '0 ms'
   if (v < 1) return `${v.toFixed(2)} ms`
   if (v < 10) return `${v.toFixed(1)} ms`
   return duration(v)

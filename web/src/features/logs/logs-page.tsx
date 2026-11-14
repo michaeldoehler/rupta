@@ -283,7 +283,7 @@ export function LogsPage({
     [parsed],
   )
   const tailUrl = live ? telemetryApi.logs.streamUrl(org, { project: projects, environment: environments, query }) : null
-  const tail = useLiveTail(tailUrl, onLive)
+  const { status: tail, skipped, message: tailMessage } = useLiveTail(tailUrl, onLive)
 
   const rows = useMemo(() => {
     const base = list.data?.pages.flatMap((p) => p.data) ?? []
@@ -423,7 +423,9 @@ export function LogsPage({
             <div className="flex items-center gap-2 border-b bg-muted/40 px-4 py-1.5 text-xs" role="status">
               <span className={cn('size-2 rounded-full', tail === 'live' ? 'bg-success' : tail === 'error' ? 'bg-destructive' : 'bg-warning')} />
               <span>{paused ? 'Paused while you scroll' : STATUS_LABEL[tail]}</span>
-              {!paused && tail === 'live' && <span className="text-muted-foreground">new lines appear at the top</span>}
+              {!paused && tail === 'live' && !tailMessage && <span className="text-muted-foreground">new lines appear at the top</span>}
+              {tailMessage && <span className="text-destructive">{tailMessage}</span>}
+              {skipped > 0 && <span className="text-warning">{skipped.toLocaleString('en-US')} lines skipped while lines arrived faster than shown</span>}
               {paused ? (
                 <Button size="xs" variant="outline" className="ml-auto" onClick={resume}>
                   <Play /> Resume{pending.length ? ` (${pending.length} new)` : ''}

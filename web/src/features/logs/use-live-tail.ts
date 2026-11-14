@@ -25,19 +25,31 @@ export function parseSse(buffer: string): { events: { event: string; data: strin
   return { events, rest }
 }
 
+export interface TailState {
+  status: TailStatus
+  /** Records the server skipped because too many arrived at once (`lagging`). */
+  skipped: number
+  /** Last error the server reported on the stream (`error` event). */
+  message: string | null
+}
+
 /**
  * Live tail over Server-Sent Events (`GET /logs/stream`). Uses fetch with a
  * stream reader rather than EventSource, so it sends the session cookie the
  * same way as every other request and stops cleanly. Reconnects with a
  * growing delay. `onRows` receives new rows, newest last.
  */
-export function useLiveTail(url: string | null, onRows: (rows: LogRow[]) => void): TailStatus {
+export function useLiveTail(url: string | null, onRows: (rows: LogRow[]) => void): TailState {
   const [status, setStatus] = useState<TailStatus>('off')
+  const [skipped, setSkipped] = useState(0)
+  const [message, setMessage] = useState<string | null>(null)
   const cb = useRef(onRows)
   useEffect(() => {
     cb.current = onRows
   })
   useEffect(() => {
+    setSkipped(0)
+    setMessage(null)
     if (!url) {
       setStatus('off')
       return
@@ -64,7 +76,22 @@ export function useLiveTail(url: string | null, onRows: (rows: LogRow[]) => void
           buf = rest
           const rows: LogRow[] = []
           for (const ev of events) {
+            if (ev.event === 'ready') {
+              setMessage(null)
+              continue
+            }
+            if (ev.event === 'lagging' || ev.event === 'error') {
+              try {
+                const d = JSON.parse(ev.data) as { skipped?: number; message?: string }
+                if (ev.event === 'lagging') setSkipped((n) => n + Number(d.skipped ?? 0))
+                else setMessage(d.message ?? 'The server could not read new log lines.')
+              } catch {
+                /* ignore */
+              }
+              continue
+            }
             if (ev.event !== 'message' && ev.event !== 'log' && ev.event !== 'logs') continue
+            setMessage(null)
             try {
               const parsed: unknown = JSON.parse(ev.data)
               const list = Array.isArray(parsed) ? parsed : [parsed]
@@ -93,5 +120,5 @@ export function useLiveTail(url: string | null, onRows: (rows: LogRow[]) => void
       clearTimeout(timer)
     }
   }, [url])
-  return status
+  return { status, skipped, message }
 }

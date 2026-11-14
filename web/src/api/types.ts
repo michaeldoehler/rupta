@@ -207,6 +207,9 @@ export interface ProjectSettings {
   scrubbing: Scrubbing
   in_app_include: string[]
   in_app_exclude: string[]
+  retention?: Partial<{ logs: number; spans: number; metrics: number; profiles: number; replays: number }>
+  sampling?: Partial<{ transactions: number; spans: number; logs: number }>
+  data_types?: Partial<{ traces: boolean; logs: boolean; metrics: boolean; profiles: boolean; replays: boolean }>
   [key: string]: unknown
 }
 
@@ -516,6 +519,10 @@ export interface RuptaEvent {
   errors: { type: string; name?: string; value?: unknown }[] | null
   previous_event_id: string | null
   next_event_id: string | null
+  /** Trace and session replay the event belongs to (also in contexts). */
+  trace_id?: string | null
+  span_id?: string | null
+  replay_id?: string | null
 }
 
 export interface EventSummary {

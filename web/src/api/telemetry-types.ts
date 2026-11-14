@@ -127,9 +127,11 @@ export interface Trace {
   logs_count: number
 }
 
-export type SpanGroupBy = 'op' | 'description'
+export type SpanGroupBy = 'op' | 'description' | 'transaction' | 'none'
 
 export interface SpanGroupRow {
+  /** The grouped value (op, description or transaction). */
+  group: string | null
   op: string | null
   description: string | null
   count: number
@@ -166,7 +168,7 @@ export interface LogHistogram {
 // --- metrics ------------------------------------------------------------------
 
 export type MetricType = 'counter' | 'gauge' | 'distribution' | 'set'
-export type MetricOp = 'sum' | 'avg' | 'min' | 'max' | 'count' | 'p50' | 'p75' | 'p95' | 'p99'
+export type MetricOp = 'sum' | 'avg' | 'min' | 'max' | 'count' | 'count_unique' | 'p50' | 'p75' | 'p95' | 'p99'
 
 export interface MetricName {
   name: string

@@ -63,6 +63,13 @@ export function AppShell({ org, children }: { org: string; children: ReactNode }
       'g f': () => void navigate({ to: '/$org/feedback', params: { org } }),
       'g a': () => void navigate({ to: '/$org/alerts', params: { org } }),
       'g s': () => void navigate({ to: '/$org/settings', params: { org } }),
+      'g p': () => void navigate({ to: '/$org/performance', params: { org } }),
+      'g t': () => void navigate({ to: '/$org/traces', params: { org } }),
+      'g l': () => void navigate({ to: '/$org/logs', params: { org } }),
+      'g m': () => void navigate({ to: '/$org/metrics', params: { org } }),
+      'g d': () => void navigate({ to: '/$org/dashboards', params: { org } }),
+      'g o': () => void navigate({ to: '/$org/profiles', params: { org } }),
+      'g v': () => void navigate({ to: '/$org/replays', params: { org } }),
     },
     [org, toggleSidebar],
   )

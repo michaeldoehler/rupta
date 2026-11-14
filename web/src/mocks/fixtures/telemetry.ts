@@ -139,7 +139,7 @@ export function summary(t: Telemetry, world: World, def: TxDef, period: string) 
     const slow = regression && b > buckets * 0.72 && b < buckets * 0.86 ? 1.6 : 1
     const noise = 0.85 + rng.float() * 0.3
     series.push({
-      ts: new Date(ts).toISOString(),
+      ts: Math.floor(ts / 1000),
       count: Math.round(def.tpm * (bucket / MIN) * daily * noise),
       p50: round(def.p50 * slow * (0.92 + rng.float() * 0.16)),
       p95: round(percentile(def, 'p95') * slow * (0.88 + rng.float() * 0.24)),
@@ -188,15 +188,16 @@ export function summary(t: Telemetry, world: World, def: TxDef, period: string) 
     ? { lcp: { p75: v[0], count: Math.round(total * 0.8) }, fcp: { p75: v[1], count: Math.round(total * 0.9) }, cls: { p75: v[2], count: Math.round(total * 0.8) }, inp: { p75: v[3], count: Math.round(total * 0.5) }, ttfb: { p75: v[4], count: total } }
     : {}
   const row = transactionRow(def, projectId, period)
+  // The server's shape: `stats`, `interval` seconds, `web_vitals`.
   return {
     name: def.name,
-    op: def.op,
-    totals: { count: row.count, tpm: row.tpm, p50: row.p50, p95: row.p95, failure_rate: row.failure_rate, apdex: row.apdex },
+    interval: Math.round(bucket / 1000),
+    stats: row,
     series,
     histogram,
     slowest,
     related_issues: related,
-    vitals,
+    web_vitals: vitals,
   }
 }
 
@@ -466,10 +467,28 @@ export function buildTrace(t: Telemetry, world: World, traceId: string) {
   return {
     trace_id: traceId,
     transactions: segs.map((s) => ({ span_id: s.span_id, parent_span_id: s.parent_span_id, name: s.transaction, op: s.op, project_id: s.project_id, start_timestamp: s.start_timestamp, duration_ms: s.duration_ms, status: s.status, profile_id: s.profile_id })),
-    spans: b.spans.map((s) => ({ ...s, start_timestamp: s.start_timestamp / 1000 })),
+    spans: nest(b.spans),
     errors,
     logs_count: logs.length,
   }
+}
+
+/** The span tree as the server sends it: nested `children`, ISO timestamps. */
+function nest(spans: MockSpan[]) {
+  type Out = Omit<MockSpan, 'timestamp' | 'start_timestamp'> & { start_timestamp: string; end_timestamp: string; children: Out[] }
+  const byId = new Map<string, Out>()
+  for (const s of spans) {
+    const { timestamp: _t, ...rest } = s
+    byId.set(s.span_id, { ...rest, start_timestamp: new Date(s.start_timestamp).toISOString(), end_timestamp: new Date(s.start_timestamp + s.duration_ms).toISOString(), children: [] })
+  }
+  const roots: Out[] = []
+  for (const s of spans) {
+    const node = byId.get(s.span_id)!
+    const parent = s.parent_span_id ? byId.get(s.parent_span_id) : undefined
+    if (parent) parent.children.push(node)
+    else roots.push(node)
+  }
+  return roots
 }
 
 /** Log lines emitted while the trace ran, attached to its spans. */
@@ -720,11 +739,16 @@ export function metricSeries(t: Telemetry, def: MetricDef, op: string, groupBy: 
   const groups = groupBy ? (def.attributes[groupBy] ?? ['(none)']) : ['']
   const start = Math.floor((t.now - ms) / step) * step
   return {
-    interval: `${Math.round(step / 1000)}s`,
+    name: def.name,
+    op,
+    type: def.type,
+    unit: def.unit,
+    truncated: false,
+    interval: Math.round(step / 1000),
     series: groups.map((g, gi) => {
       const rng = new Rng(`metric:${def.name}:${op}:${groupBy}:${g}:${period}`)
       const share = groups.length > 1 ? (1 / (gi + 1.4)) * (groups.length / 2) : 1
-      const data: [string, number | null][] = []
+      const data: [number, number | null][] = []
       let level = def.base
       for (let i = 0; i < n; i++) {
         const ts = start + i * step
@@ -742,9 +766,9 @@ export function metricSeries(t: Telemetry, def: MetricDef, op: string, groupBy: 
         } else {
           v = def.base * (OP_FACTOR[op] ?? 1) * (gi === 0 ? 1 : 0.7 + gi * 0.35) * (0.85 + rng.float() * 0.3) * (op === 'sum' ? daily * (step / MIN) * 4 : 1)
         }
-        data.push([new Date(ts).toISOString(), Math.round(v * 100) / 100])
+        data.push([Math.floor(ts / 1000), Math.round(v * 100) / 100])
       }
-      return { group: groupBy ? { [groupBy]: g } : null, data }
+      return { group: groupBy ? { [groupBy]: g } : null, total: Math.round(data.reduce((s, [, v]) => s + (v ?? 0), 0) * 100) / 100, points: data }
     }),
   }
 }
@@ -1080,12 +1104,17 @@ interface RecordingFixture {
 export const RECORDING = recordingFixture as unknown as RecordingFixture
 export const RECORDING_MS = RECORDING.events[RECORDING.events.length - 1].timestamp - RECORDING.events[0].timestamp
 
-const PAGES = ['/', '/products', '/products/trail-jacket', '/cart', '/checkout', '/account/orders', '/journal', '/search?q=jacket']
+// The pages of the recorded demo shop, so the list matches the recording.
+const PAGES = ['/', '/products', '/cart', '/order/confirmed', '/journal', '/products?sort=price']
 const NAMES = ['Maria Keller', 'Jonas Weber', 'Li Wei', 'Sam Carter', 'Inês Duarte', 'Tomás Rivera', 'Aiko Tanaka', 'Noah Fischer', 'Emma Laurent', 'Ola Nordmann']
 
 function buildReplays(t: Telemetry, world: World): MockReplay[] {
   const jsProjects = world.projects.filter((p) => p.slug === 'web-app' || p.slug === 'storefront')
-  const jsIssues = world.issues.filter((i) => jsProjects.some((p) => p.id === i.project_id))
+  // The most frequent browser issues have replays; most sessions have no errors.
+  const jsIssues = world.issues
+    .filter((i) => jsProjects.some((p) => p.id === i.project_id))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 30)
   const byReplay = new Map<number, string[]>()
   for (const i of jsIssues) for (const r of replaysForIssue(i.id)) byReplay.set(r, [...(byReplay.get(r) ?? []), i.id])
   const out: MockReplay[] = []
@@ -1108,7 +1137,7 @@ function buildReplays(t: Telemetry, world: World): MockReplay[] {
       project_id: project.id,
       started: t.now - (i === 0 ? 4 * MIN : rng.int(10, 14 * 24 * 60) * MIN),
       duration_ms: Math.round(i < 8 ? RECORDING_MS : rng.powerLaw(8, 1800) * 1000),
-      urls: ['https://app.acme.dev/', ...rng.shuffle(PAGES.slice(1)).slice(0, urlCount - 1).map((p) => `https://app.acme.dev${p}`)],
+      urls: rng.shuffle(PAGES).slice(0, urlCount).map((p) => `https://shop.acme.dev${p}`),
       user: { id: String(rng.int(1000, 99999)), email: `${name.split(' ')[0].toLowerCase().normalize('NFD').replace(/[^a-z]/g, '')}.${name.split(' ')[1].toLowerCase()}@example.com`, name, ip: `203.0.113.${rng.int(2, 254)}` },
       browser,
       os: mobile ? 'iOS 18.1' : rng.pick(['macOS 15.1', 'Windows 11', 'Windows 10', 'Ubuntu 24.04']),

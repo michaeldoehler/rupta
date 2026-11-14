@@ -4,7 +4,7 @@ import { MetricsPage } from '@/features/metrics/metrics-page'
 
 const searchSchema = z.object({
   name: z.catch(z.optional(z.string()), undefined),
-  op: z.catch(z.optional(z.enum(['sum', 'avg', 'min', 'max', 'count', 'p50', 'p75', 'p95', 'p99'])), undefined),
+  op: z.catch(z.optional(z.enum(['sum', 'avg', 'min', 'max', 'count', 'count_unique', 'p50', 'p75', 'p95', 'p99'])), undefined),
   group_by: z.catch(z.optional(z.string()), undefined),
   chart: z.catch(z.optional(z.enum(['line', 'area', 'bar'])), undefined),
 })

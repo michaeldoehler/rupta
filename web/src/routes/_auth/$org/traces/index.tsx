@@ -3,7 +3,7 @@ import * as z from 'zod/mini'
 import { SpansPage } from '@/features/performance/spans-page'
 
 const searchSchema = z.object({
-  group_by: z.catch(z.optional(z.enum(['op', 'description'])), undefined),
+  group_by: z.catch(z.optional(z.enum(['op', 'description', 'transaction', 'none'])), undefined),
   q: z.catch(z.optional(z.string()), undefined),
 })
 

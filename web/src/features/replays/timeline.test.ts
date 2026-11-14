@@ -46,6 +46,12 @@ describe('replay timeline', () => {
     expect(markers[1].offset).toBe(1001)
   })
 
+  it('marks console errors when the errors have no times', () => {
+    const withConsoleError = [...events.slice(0, 6), { type: 5, timestamp: T0 + 2200, data: { tag: 'breadcrumb', payload: { timestamp: (T0 + 2200) / 1000, category: 'console', level: 'error', message: 'Checkout failed (502)' } } }, ...events.slice(6)]
+    const markers = buildMarkers(withConsoleError, [{ event_id: 'e1', issue_id: '4', short_id: 'WEB-4', title: 'TypeError', timestamp: 0 }])
+    expect(markers.filter((m) => m.kind === 'error').map((m) => [m.offset, m.label])).toEqual([[2200, 'Checkout failed (502)']])
+  })
+
   it('clamps markers into the recording', () => {
     const markers = buildMarkers(events, [{ event_id: 'late', issue_id: null, short_id: null, title: 'x', timestamp: T0 + 60_000 }])
     expect(markers.at(-1)?.offset).toBe(recordingDuration(events))

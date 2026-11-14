@@ -18,13 +18,13 @@ export const OPS_BY_TYPE: Record<MetricType, MetricOp[]> = {
   counter: ['sum', 'count', 'avg'],
   gauge: ['avg', 'min', 'max', 'p50', 'p95'],
   distribution: ['avg', 'p50', 'p75', 'p95', 'p99', 'min', 'max', 'sum', 'count'],
-  set: ['count'],
+  set: ['count_unique', 'count'],
 }
 
-export const OP_LABEL: Record<MetricOp, string> = { sum: 'Sum', avg: 'Average', min: 'Minimum', max: 'Maximum', count: 'Count', p50: 'p50', p75: 'p75', p95: 'p95', p99: 'p99' }
+export const OP_LABEL: Record<MetricOp, string> = { sum: 'Sum', avg: 'Average', min: 'Minimum', max: 'Maximum', count: 'Count', count_unique: 'Distinct values', p50: 'p50', p75: 'p75', p95: 'p95', p99: 'p99' }
 
 /** Ops that add up across groups, so bars and areas can stack. */
-export const STACKABLE: MetricOp[] = ['sum', 'count']
+export const STACKABLE: MetricOp[] = ['sum', 'count', 'count_unique']
 
 interface Scope {
   org: string

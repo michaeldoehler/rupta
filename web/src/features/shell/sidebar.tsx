@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Bell, ChevronsLeft, ChevronsRight, CircleAlert, Clock, MessageSquareText, Package, Search, Settings } from 'lucide-react'
+import { Bell, ChartLine, ChevronsLeft, ChevronsRight, CircleAlert, Clock, Film, Flame, Gauge, MessageSquareText, Package, Route as RouteIcon, ScrollText, Search, Settings } from 'lucide-react'
 import { Logo } from '@/components/common/logo'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
@@ -10,12 +10,24 @@ import { useShell } from './shell-context'
 import { UserMenu } from './user-menu'
 
 export const NAV = [
-  { to: '/$org/issues', label: 'Issues', icon: CircleAlert, keys: 'g i' },
-  { to: '/$org/releases', label: 'Releases', icon: Package, keys: 'g r' },
-  { to: '/$org/crons', label: 'Crons', icon: Clock, keys: 'g c' },
-  { to: '/$org/feedback', label: 'User feedback', icon: MessageSquareText, keys: 'g f' },
-  { to: '/$org/alerts', label: 'Alerts', icon: Bell, keys: 'g a' },
-  { to: '/$org/settings', label: 'Settings', icon: Settings, keys: 'g s' },
+  { to: '/$org/issues', label: 'Issues', icon: CircleAlert, keys: 'g i', group: 'main' },
+  { to: '/$org/releases', label: 'Releases', icon: Package, keys: 'g r', group: 'main' },
+  { to: '/$org/crons', label: 'Crons', icon: Clock, keys: 'g c', group: 'main' },
+  { to: '/$org/feedback', label: 'User feedback', icon: MessageSquareText, keys: 'g f', group: 'main' },
+  { to: '/$org/alerts', label: 'Alerts', icon: Bell, keys: 'g a', group: 'main' },
+  { to: '/$org/performance', label: 'Performance', icon: Gauge, keys: 'g p', group: 'explore' },
+  { to: '/$org/traces', label: 'Traces', icon: RouteIcon, keys: 'g t', group: 'explore' },
+  { to: '/$org/logs', label: 'Logs', icon: ScrollText, keys: 'g l', group: 'explore' },
+  { to: '/$org/metrics', label: 'Metrics', icon: ChartLine, keys: 'g m', group: 'explore' },
+  { to: '/$org/profiles', label: 'Profiles', icon: Flame, keys: 'g o', group: 'explore' },
+  { to: '/$org/replays', label: 'Replays', icon: Film, keys: 'g v', group: 'explore' },
+  { to: '/$org/settings', label: 'Settings', icon: Settings, keys: 'g s', group: 'settings' },
+] as const
+
+const NAV_GROUPS = [
+  { id: 'main', label: null },
+  { id: 'explore', label: 'Explore' },
+  { id: 'settings', label: null },
 ] as const
 
 export function SidebarContent({ org, collapsed, onNavigate }: { org: string; collapsed: boolean; onNavigate?: () => void }) {
@@ -57,8 +69,12 @@ export function SidebarContent({ org, collapsed, onNavigate }: { org: string; co
           </button>
         </Tip>
       </div>
-      <nav aria-label="Main" className={cn('mt-3 flex flex-col gap-0.5 px-2', collapsed && 'px-1.5')}>
-        {NAV.map((item) => (
+      <nav aria-label="Main" className={cn('mt-3 flex min-h-0 flex-col gap-0.5 overflow-y-auto px-2', collapsed && 'px-1.5')}>
+        {NAV_GROUPS.map((g) => (
+          <div key={g.id} role="group" aria-label={g.label ?? undefined} className={cn('flex flex-col gap-0.5', g.id !== 'main' && 'mt-3')}>
+            {g.label && !collapsed && <p className="px-2 pb-0.5 text-[11px] font-medium tracking-wide text-muted-foreground/80 uppercase">{g.label}</p>}
+            {g.label && collapsed && <span className="mx-2 mb-1 h-px bg-border" aria-hidden />}
+        {NAV.filter((item) => item.group === g.id).map((item) => (
           <Tip key={item.to} content={collapsed ? item.label : undefined} side="right">
             <Link
               to={item.to}
@@ -74,6 +90,8 @@ export function SidebarContent({ org, collapsed, onNavigate }: { org: string; co
               {!collapsed && <span className="flex-1">{item.label}</span>}
             </Link>
           </Tip>
+        ))}
+          </div>
         ))}
       </nav>
       <div className="flex-1" />

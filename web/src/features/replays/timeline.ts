@@ -159,10 +159,10 @@ export function buildMarkers(events: RecordingEvent[], errors: ReplayError[] = [
   // The same URL reported twice within 50 ms is one navigation.
   for (const n of navs) if (!markers.some((m) => m.kind === 'navigation' && m.ref === n.ref && Math.abs(m.offset - n.offset) < 50)) markers.push(n)
 
-  for (const err of errors) {
-    if (!err.timestamp) continue
-    markers.push({ kind: 'error', offset: clamp(err.timestamp), label: err.title, ref: err.event_id })
-  }
+  const timed = errors.filter((e) => e.timestamp)
+  for (const err of timed) markers.push({ kind: 'error', offset: clamp(err.timestamp), label: err.title, ref: err.event_id })
+  // Without error times, console errors the SDK recorded mark where things failed.
+  if (!timed.length) for (const c of crumbs) if (c.category === 'console' && c.level === 'error') markers.push({ kind: 'error', offset: clamp(c.timestamp), label: c.message || 'Console error' })
   return markers.sort((a, b) => a.offset - b.offset)
 }
 

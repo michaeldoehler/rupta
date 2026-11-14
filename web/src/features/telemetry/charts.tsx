@@ -6,7 +6,7 @@ import { memo, useMemo, type ReactNode } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { ChartType } from '@/api/telemetry-types'
 import { Skeleton } from '@/components/ui/skeleton'
-import { absolute } from '@/lib/format'
+import { absolute, compact } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { MAX_SERIES, SERIES_COLORS } from './format'
 
@@ -182,7 +182,7 @@ export function HistogramChart({
         <BarChart data={data} margin={{ top: 14, right: 8, bottom: 0, left: 0 }} barCategoryGap={1}>
           <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
           <XAxis dataKey="x" type="number" domain={['dataMin', 'dataMax']} tickFormatter={format} tick={AXIS} tickLine={false} axisLine={false} minTickGap={30} />
-          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44} allowDecimals={false} />
+          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44} allowDecimals={false} tickFormatter={(v: number) => compact(v)} />
           <Tooltip
             isAnimationActive={false}
             cursor={{ fill: 'var(--accent)' }}

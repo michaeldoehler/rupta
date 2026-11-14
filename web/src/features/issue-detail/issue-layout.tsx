@@ -119,6 +119,7 @@ export function IssueLayout({ org, issueId }: { org: string; issueId: string }) 
             ['/$org/issues/$issueId/tags', 'Tags', undefined],
             ['/$org/issues/$issueId/activity', 'Activity', comments || undefined],
             ['/$org/issues/$issueId/feedback', 'User feedback', undefined],
+            ['/$org/issues/$issueId/replays', 'Replays', undefined],
           ] as const
         ).map(([to, label, badge]) => (
           <Link

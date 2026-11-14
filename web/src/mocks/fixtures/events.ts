@@ -355,6 +355,9 @@ export function buildEvent(issue: DbIssue, project: DbProject, index: number): R
             env: isJs ? null : { REMOTE_ADDR: '10.0.1.17', SERVER_NAME: 'api.acme.dev' },
           },
     contexts,
+    trace_id: traceId,
+    span_id: errorSpanId(traceId),
+    replay_id: (contexts.replay?.replay_id as string | undefined) ?? null,
     sdk: {
       name: sdkName,
       version: { javascript: '9.14.0', node: '9.14.0', python: '2.19.2', php: '4.11.0', go: '0.31.1' }[t.platform],

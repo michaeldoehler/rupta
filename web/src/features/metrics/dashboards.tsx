@@ -204,23 +204,14 @@ export function WidgetEditor({ open, onOpenChange, initial, onSave }: { open: bo
                       </Select>
                     )}
                   </Field>
-                  <Field label="Group by">
-                    {(p) => (
-                      <Select value={w.query.group_by ?? '__none'} onValueChange={(v) => setQ({ group_by: v === '__none' ? undefined : v })}>
-                        <SelectTrigger id={p.id} className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">None</SelectItem>
-                          {(meta?.attributes ?? []).map((a) => (
-                            <SelectItem key={a} value={a}>
-                              {a}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                  <Field label="Group by" hint="Attribute, environment or release">
+                    {(p) => <Input {...p} list="group-by-options" className="font-mono" value={w.query.group_by ?? ''} onChange={(e) => setQ({ group_by: e.target.value || undefined })} placeholder="None" />}
                   </Field>
+                  <datalist id="group-by-options">
+                    {['environment', 'release', ...(meta?.attributes ?? [])].map((a) => (
+                      <option key={a} value={a} />
+                    ))}
+                  </datalist>
                 </div>
               </>
             )}

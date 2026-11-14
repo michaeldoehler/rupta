@@ -15,6 +15,13 @@ export const SHORTCUTS: { group: string; items: [string, string][] }[] = [
       ['g f', 'Go to user feedback'],
       ['g a', 'Go to alerts'],
       ['g s', 'Go to settings'],
+      ['g p', 'Go to performance'],
+      ['g t', 'Go to traces'],
+      ['g l', 'Go to logs'],
+      ['g m', 'Go to metrics'],
+      ['g d', 'Go to dashboards'],
+      ['g o', 'Go to profiles'],
+      ['g v', 'Go to session replays'],
     ],
   },
   {
@@ -45,6 +52,38 @@ export const SHORTCUTS: { group: string; items: [string, string][] }[] = [
       ['Esc', 'Back to the stream'],
     ],
   },
+  {
+    group: 'Trace view',
+    items: [
+      ['j / k', 'Next / previous span'],
+      ['← / →', 'Collapse / expand'],
+      ['Enter', 'Open span details'],
+      ['c', 'Critical path'],
+      ['e', 'Expand all'],
+      ['= / -', 'Zoom in / out'],
+      ['0', 'Reset zoom'],
+    ],
+  },
+  {
+    group: 'Logs',
+    items: [
+      ['j / k', 'Next / previous line'],
+      ['Enter', 'Expand or collapse'],
+      ['t', 'Live tail on or off'],
+      ['/', 'Focus the query'],
+    ],
+  },
+  {
+    group: 'Flamegraph & replay',
+    items: [
+      ['/', 'Search frames'],
+      ['0', 'Reset flamegraph zoom'],
+      ['space', 'Play or pause the replay'],
+      ['← / →', 'Back / forward 5 s'],
+      [', / .', 'Slower / faster'],
+      ['f', 'Fullscreen'],
+    ],
+  },
 ]
 
 export function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -55,7 +94,7 @@ export function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenC
           <DialogTitle>Keyboard shortcuts</DialogTitle>
           <DialogDescription>Single-key shortcuts work when no text field has focus.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-6 sm:grid-cols-3">
+        <div className="grid max-h-[70vh] gap-6 overflow-y-auto sm:grid-cols-3">
           {SHORTCUTS.map((g) => (
             <section key={g.group}>
               <h3 className="mb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{g.group}</h3>

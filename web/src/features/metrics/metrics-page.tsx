@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AreaChart, BarChart3, LayoutDashboard, LineChart, Plus, Search, Sigma } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { errorMessage } from '@/api/client'
 import { telemetryApi, tk, useMetricNames } from '@/api/telemetry'
@@ -33,6 +33,35 @@ export interface MetricsState {
   op?: MetricOp
   group_by?: string
   chart?: ChartType
+}
+
+/** Attribute to group by: suggestions (attribute keys, environment, release) or any key typed. */
+function GroupByInput({ value, options, onCommit, ...rest }: { id: string; value: string; options: string[]; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const listId = `${rest.id}-options`
+  return (
+    <>
+      <Input
+        {...rest}
+        list={listId}
+        value={draft}
+        placeholder="No grouping"
+        className="w-44 font-mono text-[13px]"
+        onChange={(e) => {
+          setDraft(e.target.value)
+          if (options.includes(e.target.value)) onCommit(e.target.value)
+        }}
+        onBlur={() => draft.trim() !== value && onCommit(draft.trim())}
+        onKeyDown={(e) => e.key === 'Enter' && onCommit(draft.trim())}
+      />
+      <datalist id={listId}>
+        {[...new Set(options)].map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+    </>
+  )
 }
 
 function MetricList({ names, value, onPick }: { names: MetricName[]; value?: string; onPick: (n: MetricName) => void }) {
@@ -215,25 +244,10 @@ export function MetricsPage({ state, onChange }: { state: MetricsState; onChange
                 )}
               </Field>
               <Field label="Group by">
-                {(p) => (
-                  <Select value={groupBy || '__none'} onValueChange={(v) => onChange({ ...state, name, group_by: v === '__none' ? undefined : v })}>
-                    <SelectTrigger id={p.id} className="w-44">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none">No grouping</SelectItem>
-                      {(meta?.attributes ?? []).map((a) => (
-                        <SelectItem key={a} value={a} className="font-mono">
-                          {a}
-                        </SelectItem>
-                      ))}
-                      {groupBy && !(meta?.attributes ?? []).includes(groupBy) && <SelectItem value={groupBy}>{groupBy}</SelectItem>}
-                    </SelectContent>
-                  </Select>
-                )}
+                {(p) => <GroupByInput {...p} value={groupBy} options={['environment', 'release', ...(meta?.attributes ?? [])]} onCommit={(v) => onChange({ ...state, name, group_by: v || undefined })} />}
               </Field>
-              <div className="space-y-1.5">
-                <span className="block text-[13px] font-medium">Chart</span>
+              <div className="grid gap-1.5">
+                <span className="text-[13px] leading-none font-medium">Chart</span>
                 <ToggleGroup type="single" value={chart} onValueChange={(v) => v && onChange({ ...state, name, chart: v as ChartType })} aria-label="Chart type" className="h-8">
                   <ToggleGroupItem value="line" aria-label="Line chart">
                     <LineChart />
