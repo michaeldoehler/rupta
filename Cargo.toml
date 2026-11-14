@@ -40,7 +40,7 @@ uuid = { version = "1", features = ["v4", "v7", "serde"] }
 http = "1"
 
 # API and authentication
-utoipa = { version = "6", features = ["chrono", "uuid"] }
+utoipa = { version = "6", features = ["chrono", "uuid", "axum_extras"] }
 utoipa-axum = "0.3"
 openidconnect = { version = "4.1", default-features = false }
 argon2 = "0.6"
