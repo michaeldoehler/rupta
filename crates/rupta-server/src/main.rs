@@ -53,6 +53,7 @@ pub struct App {
     pub config: Config,
     pub store: Store,
     pub ingest: rupta_ingest::Ingest,
+    pub api: rupta_api::ApiState,
 }
 
 async fn serve(config: Config) -> Result<()> {
@@ -76,9 +77,18 @@ async fn serve(config: Config) -> Result<()> {
             public_url: config.public_url.clone(),
         },
     );
-    let app = Arc::new(App { config: config.clone(), store: store.clone(), ingest: ingest.clone() });
+    let api_state = rupta_api::ApiState::new(store.clone(), api_config(&config));
+    if let (Some(email), Some(password)) = (&config.admin_email, &config.admin_password) {
+        rupta_api::bootstrap::admin_from_env(&api_state, email, password, &config.default_org)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
+    }
+    let alerts = rupta_api::alerts::spawn(api_state.clone(), ingest.subscribe());
+    let maintenance = rupta_api::maintenance::spawn(api_state.clone());
+    let app =
+        Arc::new(App { config: config.clone(), store: store.clone(), ingest: ingest.clone(), api: api_state.clone() });
 
-    let api = rupta_api::router(rupta_api::ApiState { store: store.clone(), public_url: config.public_url.clone() });
+    let api = rupta_api::router(api_state);
     let router = Router::new()
         .merge(ops::router(app.clone()))
         .merge(ingest.router())
@@ -99,11 +109,40 @@ async fn serve(config: Config) -> Result<()> {
     if tokio::time::timeout(config.shutdown_timeout, ingest.shutdown()).await.is_err() {
         tracing::warn!("ingest did not drain within RUPTA_SHUTDOWN_TIMEOUT_SECS");
     }
+    alerts.abort();
+    maintenance.abort();
     drop(app);
     // Closing the database uploads anything not yet in the object store.
     tokio::task::spawn_blocking(move || drop(store)).await?;
     tracing::info!("stopped");
     Ok(())
+}
+
+/// Settings of the API from the server configuration.
+fn api_config(config: &Config) -> rupta_api::ApiConfig {
+    use rupta_core::role::Role;
+    let oidc = config.oidc.as_ref().map(|o| rupta_auth::oidc::OidcSettings {
+        id: rupta_auth::oidc::INSTANCE_PROVIDER_ID.to_string(),
+        name: o.name.clone(),
+        issuer: o.issuer.clone(),
+        client_id: o.client_id.clone(),
+        client_secret: Some(o.client_secret.clone()),
+        scopes: o.scopes.clone(),
+        role_claim: Some(o.role_claim.clone()).filter(|c| !c.is_empty()),
+        role_mapping: o.role_mapping.iter().filter_map(|(idp, r)| Some((idp.clone(), Role::parse(r)?))).collect(),
+        default_role: Role::parse(&o.default_role).unwrap_or(Role::Member),
+        jit_provisioning: o.jit_provisioning,
+    });
+    rupta_api::ApiConfig {
+        oidc,
+        local_login: config.local_login,
+        default_org: config.default_org.clone(),
+        smtp_url: config.smtp_url.clone(),
+        smtp_from: config.smtp_from.clone(),
+        cors_allowed_origins: config.cors_allowed_origins.clone(),
+        trusted_proxies: config.trusted_proxies.clone(),
+        ..rupta_api::ApiConfig::new(&config.public_url, &config.secret_key)
+    }
 }
 
 async fn shutdown_signal() {
