@@ -139,14 +139,14 @@ warm cache; full table in `benchmarks/telemetry-2026-11-14.txt`):
 | trace by id | 10 ms |
 | spans grouped by op, 7 days | 13 ms |
 
-Aggregations run in squad's column engine. The summary is slower because
-its histogram groups by an expression, which the row engine evaluates; it
-reads only the rows of one transaction name.
+Aggregations run in the column engine of the embedded database. The
+summary is slower because its histogram groups by an expression, which the
+row engine evaluates; it reads only the rows of one transaction name.
 
 ## Limits
 
-- Percentiles are estimates from a quantile sketch; exact percentiles
-  (`percentile_cont`) are not available in squad.
+- Percentiles are estimates from a quantile sketch; the embedded database
+  has no exact percentiles (`percentile_cont`).
 - Transactions and spans have no inbound filters or rate limits of their
   own beyond the project rate limit for `transaction` items.
 - Span links, span events and OpenTelemetry (`otel_span`) items are not

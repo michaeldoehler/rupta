@@ -403,7 +403,6 @@ the app.
 | | `shift h` / `shift l` | Oldest / latest event |
 | | `c` | Copy the short id |
 | | `Esc` | Back to the stream |
-
 | Trace view | `j` / `k`, `↑` / `↓` | Next / previous span |
 | | `←` / `→` | Collapse (or go to the parent) / expand |
 | | `Enter` or `o`, `Esc` | Open / close span details |
@@ -455,7 +454,8 @@ custom tags are not suggested yet.
 - The web app needs a current browser (it uses modern JavaScript and CSS;
   no support for Internet Explorer).
 - Times use your browser's timezone unless you choose another one in your
-  account settings; that choice is per browser.
+  account settings; that choice is saved with your account. Deploy
+  notification choices are kept per browser.
 - Log facets count the lines loaded in the browser (up to 1,000), not the
   whole period.
 - Dashboards store each widget's width in quarters of the page; the

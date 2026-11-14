@@ -25,6 +25,13 @@ changelog says when and how to migrate.
   login. Operations: issues last seen before the retention cutoff are
   deleted (the chapter said they stay), telemetry retention, and more
   troubleshooting entries.
+- Feature chapters: alerts no longer claim that webhook URLs may point at
+  internal addresses (they are refused unless
+  `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS=true`); data scrubbing lists
+  logs as scrubbed and states that span data and replay recordings are
+  not; the user guide's shortcut table renders as one table and says that
+  the timezone choice is saved with the account; internal code paths were
+  removed from ingestion, alerts and authentication.
 
 ## [0.1.0] - 2026-11-14
 

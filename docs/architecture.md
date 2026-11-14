@@ -4,7 +4,7 @@ rupta is a single Rust binary that embeds its web app and its database.
 This chapter explains the parts and the reasons behind them.
 
 ```text
-  SDKs (browser, Node, PHP, Python, …)          users, CLI, automation
+  Sentry SDKs (browser, Node, PHP, Python, …)   users, sentry-cli, scripts
         │ POST /api/{project}/envelope/                │ /api/v1, /api/0, web app
         ▼                                              ▼
  ┌────────────────────────────┐            ┌────────────────────────────┐
@@ -19,9 +19,9 @@ This chapter explains the parts and the reasons behind them.
  └──────────────┬─────────────┘                   └────────────────────┘
                 ▼ batches (≤ 1,000 events / 50 ms)
  ┌──────────────────────────────────────────────────────────────────────┐
- │ squad (embedded, PostgreSQL dialect)                                  │
- │ row tables: orgs, users, projects, issues, payloads, …                │
- │ columnar tables: events, transactions — for search and aggregation    │
+ │ squad (embedded, PostgreSQL dialect)                                 │
+ │ row tables: orgs, users, projects, issues, payloads, …               │
+ │ columnar tables: events, transactions, spans, logs, metrics          │
  └──────────────┬───────────────────────────────────────────────────────┘
                 ▼ every commit (sync) or every second (async)
         S3-compatible bucket (Garage): durable copy, restore source

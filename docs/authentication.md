@@ -114,8 +114,8 @@ Rules around owners: an organization always keeps at least one owner (the
 last owner cannot be demoted, removed or leave). Admins cannot change
 owners or make anyone owner. Every member may leave an organization.
 
-The permission check lives in one place (`rupta_auth::rbac::authorize`) and
-is applied by one guard in the API before any data is read. Callers that
+The permission check lives in one place and is applied by one guard in
+the API before any data is read. Callers that
 are not members of an organization get `404` for everything in it.
 
 ## Invitations
