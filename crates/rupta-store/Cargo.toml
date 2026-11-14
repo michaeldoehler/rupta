@@ -1,0 +1,21 @@
+[package]
+name = "rupta-store"
+description = "Storage for rupta on the embedded squad database"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rupta-core.workspace = true
+squad.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

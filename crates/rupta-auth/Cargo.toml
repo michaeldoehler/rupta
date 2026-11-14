@@ -1,0 +1,18 @@
+[package]
+name = "rupta-auth"
+description = "Authentication for rupta: sessions, OpenID Connect single sign-on, API tokens, roles"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rupta-core.workspace = true
+rupta-store.workspace = true
+axum.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true

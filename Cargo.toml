@@ -1,0 +1,45 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/rupta-core",
+    "crates/rupta-store",
+    "crates/rupta-ingest",
+    "crates/rupta-auth",
+    "crates/rupta-api",
+    "crates/rupta-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT"
+repository = "https://github.com/michaeldoehler/rupta"
+
+[workspace.dependencies]
+rupta-core = { path = "crates/rupta-core" }
+rupta-store = { path = "crates/rupta-store" }
+rupta-ingest = { path = "crates/rupta-ingest" }
+rupta-auth = { path = "crates/rupta-auth" }
+rupta-api = { path = "crates/rupta-api" }
+
+squad = { git = "https://github.com/michaeldoehler/squad", rev = "84cac0876f7d003b54fa0eb0fbbb5da770bb01d5", features = ["s3"] }
+
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.7", features = ["trace", "compression-full", "decompression-full", "cors", "request-id", "timeout", "limit", "set-header"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+http = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+debug = 1
