@@ -200,7 +200,9 @@ Start with [getting started](docs/getting-started.md); the
   server; mask sensitive content in the SDK (the default).
 - Not yet available: SAML and SCIM, native (mobile and desktop) crash
   reports and minidumps, mobile session replay, source maps for profile
-  frames, automatic failover beyond rescheduling.
+  frames, automatic failover beyond rescheduling. The SDK features that do
+  not work with rupta are listed under
+  [not supported](docs/sdk-compatibility.md#not-supported).
 
 Each chapter lists the limits of its feature.
 
