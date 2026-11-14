@@ -1,3 +1,169 @@
-# rupta
+<p align="center">
+  <img src="web/public/favicon.svg" width="64" height="64" alt="">
+</p>
 
-Self-hosted error tracking. Work in progress.
+<h1 align="center">rupta</h1>
+
+<p align="center">
+  <strong>Self-hosted error tracking and application monitoring in a single container.</strong><br>
+  Compatible with the official open-source SDKs. Built in Rust on an embedded database.
+</p>
+
+<p align="center">
+  <a href="https://github.com/michaeldoehler/rupta/actions/workflows/ci.yml"><img src="https://github.com/michaeldoehler/rupta/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
+</p>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/issues-dark.png">
+  <img src="docs/images/issues-light.png" alt="The issue stream of rupta">
+</picture>
+
+rupta (from *rupture*) collects errors, traces, logs, metrics, profiles and
+session replays from your applications, groups errors into issues and
+alerts your team. Point the official open-source SDKs for JavaScript, PHP,
+Python and other platforms at rupta's DSN and they work unchanged.
+
+It runs as **one process** — HTTP API, ingestion pipeline, web app and
+database in a single binary — and keeps its durable copy in any
+S3-compatible bucket such as [Garage](https://garagehq.deuxfleurs.fr). No
+Kafka, no ClickHouse, no Redis, no PostgreSQL to operate.
+
+> **Status: 0.1.** The first public release. It has an extensive test suite,
+> including end-to-end tests with the real SDKs, but it has not yet run in
+> large production deployments. See [what is supported](docs/sdk-compatibility.md)
+> and the [limits](#limits).
+
+## Features
+
+- **Error tracking.** Issues with stack traces, source context, chained
+  exceptions, breadcrumbs, request data, contexts, tag distributions,
+  release and environment, user impact, comments and assignment. Grouping
+  by fingerprint, exception and in-app frames, with regression and
+  escalation detection. → [grouping](docs/grouping.md)
+- **JavaScript source maps** uploaded with the official upload CLI (debug
+  ids or release artifacts). → [source maps](docs/sourcemaps.md)
+- **Performance.** Transactions with throughput, latency percentiles,
+  failure rate, Apdex and Web Vitals; trace waterfall; span explorer.
+  → [performance](docs/performance.md)
+- **Logs** with search, facets and live tail, linked to traces and issues.
+  → [logs](docs/logs.md)
+- **Metrics** explorer and dashboards. → [metrics](docs/metrics.md)
+- **Profiling** with flamegraphs per profile and aggregated per
+  transaction. → [profiling](docs/profiling.md)
+- **Session replay** of browser sessions, linked to the errors they
+  contain. → [session replay](docs/session-replay.md)
+- **Release health** (crash-free sessions and users), **cron monitoring**
+  and **user feedback**.
+- **Alerts** by email, Slack, Microsoft Teams and signed webhooks.
+  → [alerts](docs/alerts.md)
+- **Enterprise-ready access control.** Single sign-on with OpenID Connect
+  (Zitadel, Keycloak, Entra ID, Okta, …) with role mapping and
+  per-organization enforcement, organizations, teams, four roles, scoped
+  API tokens, audit log. → [single sign-on](docs/sso.md),
+  [authentication](docs/authentication.md)
+- **Privacy.** Server-side scrubbing of passwords, tokens, cookies and card
+  numbers, inbound filters, per-project retention and sampling.
+  → [data scrubbing](docs/data-scrubbing.md)
+- **A complete REST API** with an OpenAPI 3.1 description.
+  → [API](docs/api.md)
+- **Fast.** Ingestion acknowledges tens of thousands of events per second
+  and stores about 10,000 per second on four cores; issue lists and
+  aggregations over a million rows answer in milliseconds.
+  → [ingestion](docs/ingestion.md)
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/stacktrace-dark.png">
+  <img src="docs/images/stacktrace-light.png" alt="A stack trace with source context and breadcrumbs">
+</picture>
+
+## Quick start
+
+With Docker Compose (rupta plus a single-node Garage for durable storage):
+
+```sh
+git clone https://github.com/michaeldoehler/rupta && cd rupta
+scripts/generate-env.sh http://localhost:8080   # writes .env with random secrets, prints the admin password
+docker compose up -d
+```
+
+Open <http://localhost:8080>, log in as `admin@example.com`, create a
+project and copy its DSN.
+
+Without Garage, for a quick look:
+
+```sh
+docker run -d -p 8080:8080 -v rupta-data:/data \
+  -e RUPTA_SECRET_KEY=$(openssl rand -hex 32) \
+  ghcr.io/michaeldoehler/rupta:0.1.0
+```
+
+## Send your first error
+
+Install the official SDK for your platform and initialize it with the DSN
+from the project settings. For a browser application:
+
+```sh
+npm install @sentry/browser
+```
+
+```js
+import * as Sentry from "@sentry/browser";
+
+Sentry.init({
+  dsn: "http://<public-key>@localhost:8080/<project-id>",
+  release: "my-app@1.0.0",
+  tracesSampleRate: 1.0,
+});
+```
+
+The project settings show the setup for every supported platform (React,
+Next.js, Node.js, PHP, Laravel, Symfony, Python, Django, Go, Java, .NET,
+Ruby, Rust and others). → [SDK compatibility](docs/sdk-compatibility.md)
+
+## Documentation
+
+| | |
+| --- | --- |
+| [Deployment](docs/deployment.md) | Docker Compose, Docker Swarm, Garage and S3, TLS, sizing |
+| [Configuration](docs/configuration.md) | every environment variable |
+| [Operations](docs/operations.md) | health checks, metrics, backup and restore, upgrades, troubleshooting |
+| [User guide](docs/user-guide.md) | a tour of the web app, keyboard shortcuts |
+| [SDK compatibility](docs/sdk-compatibility.md) | what each SDK item does, tested SDK versions |
+| [Search](docs/search.md) | the query language |
+| [Single sign-on](docs/sso.md) | OpenID Connect, step by step with Zitadel |
+| [Authentication](docs/authentication.md) | accounts, sessions, roles, API tokens |
+| [Alerts](docs/alerts.md) | rules, conditions, notification channels |
+| [Source maps](docs/sourcemaps.md), [upload](docs/sourcemap-upload.md) | symbolication and the upload CLI |
+| [Performance](docs/performance.md), [Logs](docs/logs.md), [Metrics](docs/metrics.md), [Profiling](docs/profiling.md), [Session replay](docs/session-replay.md) | the monitoring features |
+| [Ingestion](docs/ingestion.md), [Grouping](docs/grouping.md), [Data scrubbing](docs/data-scrubbing.md) | how events are processed |
+| [API](docs/api.md) | REST API overview; [OpenAPI](docs/api/openapi.json) |
+| [Architecture](docs/architecture.md) | the parts and the reasons behind them |
+| [Security](docs/security.md) | threat model and hardening |
+| [Comparison](docs/comparison.md) | rupta compared with other self-hosted options |
+
+## Limits
+
+- One writer per instance: rupta scales up, not out. Run separate
+  instances for separate tenants or regions.
+- Percentiles are approximate. Replay recordings are not scrubbed on the
+  server; mask sensitive content in the SDK (the default).
+- Not yet available: SAML and SCIM, native (mobile and desktop) crash
+  reports and minidumps, mobile session replay, source maps for profile
+  frames, automatic failover beyond rescheduling.
+
+Each chapter lists the limits of its feature.
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). In short:
+
+```sh
+RUPTA_SECRET_KEY=$(openssl rand -hex 32) RUPTA_DATA_DIR=./data cargo run -p rupta-server
+pnpm --dir web install && pnpm --dir web dev      # http://localhost:5173
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE). rupta is an independent project and is not
+affiliated with the vendors of the SDKs it is compatible with.
