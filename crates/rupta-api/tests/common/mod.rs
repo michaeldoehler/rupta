@@ -196,7 +196,7 @@ impl TestApp {
         )
         .unwrap();
         conn.execute(
-            "UPDATE issues SET times_seen = times_seen + 1, last_seen = greatest(last_seen, $2), first_seen = least(first_seen, $2) WHERE id = $1",
+            "UPDATE issues SET last_seen = CASE WHEN times_seen = 0 THEN $2 ELSE greatest(last_seen, $2) END, first_seen = CASE WHEN times_seen = 0 THEN $2 ELSE least(first_seen, $2) END, times_seen = times_seen + 1 WHERE id = $1",
             &[&issue, &ts],
         )
         .unwrap();

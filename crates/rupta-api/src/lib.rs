@@ -7,6 +7,7 @@ pub mod error;
 pub mod extract;
 pub mod mail;
 pub mod routes;
+pub mod sql;
 pub mod state;
 
 use axum::Router;

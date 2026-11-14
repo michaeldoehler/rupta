@@ -2,6 +2,7 @@
 
 pub mod admin;
 pub mod auth;
+pub mod issues;
 pub mod orgs;
 pub mod projects;
 pub mod tokens;
@@ -18,4 +19,5 @@ pub fn all() -> OpenApiRouter<ApiState> {
         .merge(tokens::routes())
         .merge(admin::routes())
         .merge(projects::routes())
+        .merge(issues::routes())
 }
