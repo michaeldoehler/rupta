@@ -116,6 +116,14 @@ async fn resolve(state: &ApiState, url: &url::Url) -> Result<Vec<SocketAddr>, St
     Ok(addrs)
 }
 
+/// Refuses an issuer that resolves to an internal address, with the same
+/// rules as the connection test. Used before an organization's SSO
+/// settings are saved.
+pub async fn check_issuer(state: &ApiState, issuer: &str) -> Result<(), String> {
+    let url = url::Url::parse(issuer).map_err(|e| format!("not a URL: {e}"))?;
+    resolve(state, &url).await.map(|_| ())
+}
+
 async fn fetch(state: &ApiState, issuer: &str) -> Result<Value, String> {
     let url = url::Url::parse(&format!("{issuer}/.well-known/openid-configuration")).map_err(|e| e.to_string())?;
     let addrs = resolve(state, &url).await?;

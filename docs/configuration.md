@@ -61,7 +61,7 @@ is restored automatically. See [deployment](deployment.md).
 | `RUPTA_OIDC_ROLE_MAPPING` | empty | Comma-separated `provider-role:rupta-role` pairs, e.g. `rupta-admin:admin,rupta-viewer:viewer`. rupta roles: `owner`, `admin`, `member`, `viewer`. The highest mapped role wins and is applied at every login. Owners are never demoted by SSO, and a member whose claims map to no role keeps their current role. |
 | `RUPTA_OIDC_DEFAULT_ROLE` | `member` | Role given to new members whose claims map to no role. |
 | `RUPTA_OIDC_JIT` | `true` | Create accounts for new users at their first login. With `false`, only users that already exist (invited) can log in through SSO. |
-| `RUPTA_SSO_ALLOW_PRIVATE_ISSUERS` | `false` | Let the SSO connection test (`POST /api/v1/orgs/{org}/sso/test`) fetch issuers whose host resolves to loopback, private, link-local or other internal addresses. Without it only the host of `RUPTA_OIDC_ISSUER` may be internal. Turn it on when organization providers run on the internal network. See [single sign-on](sso.md#testing-the-connection). |
+| `RUPTA_SSO_ALLOW_PRIVATE_ISSUERS` | `false` | Let organization SSO settings (the connection test and saving) use issuers whose host resolves to loopback, private, link-local or other internal addresses. Without it only the host of `RUPTA_OIDC_ISSUER` may be internal. Turn it on when organization providers run on the internal network. See [single sign-on](sso.md#testing-the-connection). |
 
 The redirect URI to register at the provider is
 `<RUPTA_PUBLIC_URL>/auth/sso/oidc/callback`. Organizations can configure

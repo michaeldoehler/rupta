@@ -163,9 +163,13 @@ The request is made by the server, so it is limited:
   the environment (`HTTPS_PROXY`), the proxy opens the connection; the
   check covers the address rupta resolves, not what the proxy does.
 
-Saving the settings (`PUT .../sso`) fetches the discovery document as
-well, but without the address check, since only owners can do it and the
-provider must be reachable for sign-in anyway.
+Saving the settings (`PUT .../sso`) applies the same address check
+before it fetches the discovery document, because the server contacts the
+provider again at every sign-in of the organization's members. Providers
+on the internal network therefore need `RUPTA_SSO_ALLOW_PRIVATE_ISSUERS=true`
+(or must be the instance provider). The check runs when the settings are
+saved; a provider whose DNS name later resolves to an internal address is
+not detected.
 
 ## Zitadel step by step
 
