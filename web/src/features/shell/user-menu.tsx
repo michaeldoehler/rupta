@@ -45,7 +45,12 @@ export function UserMenu({ org, collapsed }: { org: string; collapsed: boolean }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className={cn('h-9 w-full justify-start gap-2 px-1.5', collapsed && 'justify-center px-0')} aria-label="Account menu">
+        <Button
+          variant="ghost"
+          className={cn('h-9 w-full justify-start gap-2 px-1.5', collapsed && 'justify-center px-0')}
+          aria-label={collapsed ? 'Account menu' : undefined}
+          title="Account menu"
+        >
           <UserAvatar name={user.name || user.email} src={user.avatar_url} />
           {!collapsed && (
             <span className="min-w-0 flex-1 text-left">

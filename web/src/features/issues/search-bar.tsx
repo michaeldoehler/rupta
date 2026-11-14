@@ -175,7 +175,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
         {draft && (
           <button
             type="button"
-            className="mr-1 rounded p-1 text-muted-foreground hover:text-foreground"
+            className="mr-1 flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground"
             aria-label="Clear search"
             onClick={(e) => {
               e.stopPropagation()

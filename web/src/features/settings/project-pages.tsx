@@ -853,6 +853,13 @@ export function ProjectSourceMapsPage({ org, project }: { org: string; project: 
         </div>
         {bundles.isPending ? (
           <ListSkeleton rows={3} />
+        ) : bundles.isError && bundles.error instanceof ApiError && bundles.error.isNotFound ? (
+          <EmptyState
+            compact
+            icon={<FileArchive />}
+            title="Bundle list not available"
+            description="This server does not list uploaded bundles yet. Uploads with the CLI still work and are used for symbolication."
+          />
         ) : bundles.isError ? (
           <ErrorState error={bundles.error} />
         ) : bundles.data.length === 0 ? (

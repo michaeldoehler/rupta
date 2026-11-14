@@ -435,9 +435,9 @@ export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSor
       <div
         ref={scrollRef}
         className="relative min-h-0 flex-1 overflow-y-auto contain-strict"
-        role="grid"
+        role={issues.length ? 'grid' : 'region'}
         aria-label="Issues"
-        aria-rowcount={total ?? rowCount}
+        aria-rowcount={issues.length ? (total ?? rowCount) : undefined}
         aria-busy={list.isFetching}
       >
         {list.isPending ? (
@@ -451,11 +451,7 @@ export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSor
             {items.map((vi) => {
               const issue = issues[vi.index]
               return (
-                <div
-                  key={vi.key}
-                  style={{ position: 'absolute', top: 0, left: 0, right: 0, height: vi.size, transform: `translateY(${vi.start}px)` }}
-                  aria-rowindex={vi.index + 1}
-                >
+                <div key={vi.key} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: vi.size, transform: `translateY(${vi.start}px)` }}>
                   {issue ? (
                     <IssueRow
                       issue={issue}
@@ -466,6 +462,7 @@ export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSor
                       onFocus={setFocusedId}
                       onAssign={assignOne}
                       statsPeriod={stats}
+                      rowIndex={vi.index + 1}
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs text-muted-foreground">Loading more…</div>

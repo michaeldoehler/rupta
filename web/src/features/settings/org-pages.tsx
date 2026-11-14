@@ -369,7 +369,7 @@ function InviteDialog({ org, open, onOpenChange }: { org: string; open: boolean;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <form onSubmit={submit} className="grid gap-4" noValidate>
+        <form onSubmit={submit} className="grid gap-4 *:min-w-0" noValidate>
           <DialogHeader>
             <DialogTitle>Invite members</DialogTitle>
             <DialogDescription>

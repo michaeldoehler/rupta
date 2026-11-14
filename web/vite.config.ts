@@ -44,5 +44,21 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     chunkSizeWarningLimit: 600,
+    rolldownOptions: {
+      output: {
+        // Group small shared modules so a page load is a handful of requests,
+        // not one per icon or primitive. Heavy, rarely used libraries
+        // (charts, syntax highlighting, Markdown) stay in lazy chunks.
+        codeSplitting: {
+          groups: [
+            { name: 'icons', test: /node_modules[\\/]lucide-react/ },
+            {
+              name: 'ui',
+              test: /node_modules[\\/](radix-ui|@radix-ui|@floating-ui|cmdk|aria-hidden|react-remove-scroll|use-sidecar|use-callback-ref|detect-node-es|get-nonce|tslib)/,
+            },
+          ],
+        },
+      },
+    },
   },
 })

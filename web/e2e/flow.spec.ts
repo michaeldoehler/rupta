@@ -14,7 +14,7 @@ test('setup, sign out and in, triage an issue, read its details and change setti
   await expect(page.getByRole('grid', { name: 'Issues' }).getByRole('row').first()).toBeVisible()
 
   // Sign out and back in.
-  await page.getByRole('button', { name: 'Account menu' }).click()
+  await page.getByRole('button', { name: /ada@example.com/ }).click()
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login/)
   await page.getByLabel('Email').fill('ada@example.com')

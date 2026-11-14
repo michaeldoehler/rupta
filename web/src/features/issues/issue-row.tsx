@@ -41,10 +41,11 @@ interface RowProps {
   onFocus: (id: string) => void
   onAssign: (issue: Issue, a: Assignee | null) => void
   statsPeriod: string
+  rowIndex?: number
 }
 
 /** One dense row in the issue stream. Memoised: the list re-renders often. */
-export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, onToggle, onFocus, onAssign, statsPeriod }: RowProps) {
+export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, onToggle, onFocus, onAssign, statsPeriod, rowIndex }: RowProps) {
   const t = issue.metadata.type
   const value = issue.metadata.value
   const done = issue.status !== 'unresolved'
@@ -52,6 +53,7 @@ export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, 
   return (
     <div
       role="row"
+      aria-rowindex={rowIndex}
       aria-selected={selected}
       data-focused={focused || undefined}
       data-issue-id={issue.id}
@@ -107,7 +109,7 @@ export const IssueRow = memo(function IssueRow({ issue, org, selected, focused, 
         <div>
           <RelativeTime date={issue.last_seen} suffix />
         </div>
-        <div className="text-[11px] opacity-80">
+        <div className="text-[11px]">
           <RelativeTime date={issue.first_seen} /> old
         </div>
       </div>

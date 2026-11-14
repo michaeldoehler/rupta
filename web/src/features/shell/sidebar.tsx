@@ -45,7 +45,7 @@ export function SidebarContent({ org, collapsed, onNavigate }: { org: string; co
               'flex h-8 w-full items-center gap-2 rounded-md border bg-card px-2 text-[13px] text-muted-foreground shadow-xs transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
               collapsed && 'justify-center px-0',
             )}
-            aria-label="Open command palette"
+            aria-label={collapsed ? 'Open command palette' : undefined}
           >
             <Search className="size-3.5" />
             {!collapsed && (

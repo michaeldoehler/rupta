@@ -27,7 +27,11 @@ export function OrgSwitcher({ org, collapsed }: { org: string; collapsed: boolea
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className={cn('h-9 w-full justify-start gap-2 px-1.5', collapsed && 'justify-center px-0')} aria-label="Switch organization">
+        <Button
+          variant="ghost"
+          className={cn('h-9 w-full justify-start gap-2 px-1.5', collapsed && 'justify-center px-0')}
+          aria-label={collapsed ? 'Switch organization' : undefined}
+        >
           <OrgBadge name={current?.name ?? org} />
           {!collapsed && (
             <>

@@ -24,6 +24,7 @@ export function UserAvatar({ name, src, className, team = false }: { name: strin
     <Avatar className={cn('size-6', team && 'rounded-md', className)}>
       {src && <AvatarImage src={src} alt="" />}
       <AvatarFallback
+        aria-hidden
         className={cn(
           'bg-[oklch(0.9_0.05_var(--h))] text-[10px] font-semibold text-[oklch(0.38_0.1_var(--h))] dark:bg-[oklch(0.33_0.06_var(--h))] dark:text-[oklch(0.88_0.07_var(--h))]',
           team && 'rounded-md',

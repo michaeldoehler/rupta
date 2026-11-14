@@ -125,8 +125,9 @@ export function PeriodSelector({ className }: { className?: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className={cn('gap-1.5 font-normal', className)} aria-label={`Period: ${PERIOD_LABEL[period]}`}>
+        <Button variant="outline" size="sm" className={cn('gap-1.5 font-normal', className)}>
           <CalendarClock className="size-3.5 opacity-70" />
+          <span className="sr-only">Period:</span>
           <span className="hidden sm:inline">{PERIOD_LABEL[period]}</span>
           <span className="sm:hidden">{period}</span>
           <ChevronDown className="size-3.5 opacity-60" />
