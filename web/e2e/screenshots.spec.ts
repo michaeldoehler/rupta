@@ -3,6 +3,7 @@
 //   REVIEW_DIR=/path pnpm screenshots -> also a review set of every screen, with index.md
 //   REVIEW_WAVE=2 REVIEW_DIR=/path    -> only the telemetry screens
 //   REVIEW_WAVE=3 REVIEW_DIR=/path    -> only the integration screens
+//   REVIEW_WAVE=3,4 REVIEW_DIR=/path  -> the integration screens and the service marks
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { expect, test, type Page } from '@playwright/test'
@@ -22,7 +23,7 @@ const README_SHOTS = new Set([
   'replay',
   'linked-tickets',
 ])
-const WAVE = process.env.REVIEW_WAVE
+const WAVES = process.env.REVIEW_WAVE ? new Set(process.env.REVIEW_WAVE.split(',')) : null
 // SHOTS=45,46 retakes only these numbers (the index still lists every shot).
 const ONLY = process.env.SHOTS ? new Set(process.env.SHOTS.split(',')) : null
 
@@ -34,7 +35,9 @@ type Shot = {
   mobile?: boolean
   wide?: boolean
   readme?: string
-  wave?: 2 | 3
+  wave?: 2 | 3 | 4
+  /** Taken signed out (no demo sign-in first). */
+  signedOut?: boolean
   note?: string
   streaming?: boolean
 }
@@ -995,6 +998,113 @@ shots.push(
     state: 'mobile-linked-tickets',
     go: async (p) => void (await openLinked(p), await p.getByTestId('linked-tickets').scrollIntoViewIfNeeded()),
   },
+  {
+    n: '103',
+    wave: 4,
+    signedOut: true,
+    screen: 'login',
+    state: 'sso-zitadel-mark',
+    note: 'Sign-in with the instance SSO provider named Zitadel: the ZITADEL mark on the button',
+    go: async (p) => void (await p.goto('/login?mock=signed-out'), await expect(p.getByRole('link', { name: 'Continue with Zitadel' })).toBeVisible()),
+  },
+  {
+    n: '104',
+    wave: 4,
+    screen: 'org-settings',
+    state: 'sso-presets-marks',
+    note: 'SSO presets: the ZITADEL mark on the Zitadel preset, a key for the others; pointer on Keycloak',
+    go: async (p) => {
+      await p.goto('/acme/settings/sso')
+      await p.getByRole('radio', { name: 'Keycloak' }).hover()
+    },
+  },
+  {
+    n: '105',
+    wave: 4,
+    screen: 'settings-integrations',
+    state: 'picker-hover-focus',
+    note: 'Tracker picker: GitHub focused with the keyboard (lime ring), pointer on GitLab (palm border, lift)',
+    go: async (p) => {
+      const d = await connectDialog(p)
+      await d.getByRole('radio', { name: 'Jira Cloud' }).focus()
+      for (let i = 0; i < 3; i++) await p.keyboard.press('ArrowRight')
+      await expect(d.getByRole('radio', { name: 'GitHub' })).toBeFocused()
+      await d.getByRole('radio', { name: 'GitLab' }).hover()
+    },
+  },
+  {
+    n: '106',
+    wave: 4,
+    screen: 'settings-channels',
+    state: 'list-marks',
+    note: 'Channels: Slack and Microsoft Teams monograms, email and webhook icons, PagerDuty and Opsgenie marks',
+    go: async (p) => {
+      await p.goto('/acme/settings/channels')
+      for (const [kind, name, field, key] of [
+        ['PagerDuty', 'Primary on-call', /Integration key/, 'R0UT1NGKEY0123456789abcdef012345'],
+        ['Opsgenie', 'Ops team', /API key/, '0a1b2c3d-genie'],
+      ] as const) {
+        await p.getByRole('button', { name: 'Add channel' }).click()
+        const d = p.getByRole('dialog')
+        await d.getByRole('radio', { name: kind }).click()
+        await d.getByLabel('Name').fill(name)
+        await d.getByLabel(field).fill(key)
+        await d.getByRole('button', { name: 'Add channel' }).click()
+        await expect(d).toBeHidden()
+      }
+    },
+  },
+  {
+    n: '107',
+    wave: 4,
+    screen: 'settings-channels',
+    state: 'add-picker',
+    note: 'Add channel: the channel type picker as logo tiles, Microsoft Teams selected',
+    go: async (p) => {
+      await p.goto('/acme/settings/channels')
+      await p.getByRole('button', { name: 'Add channel' }).click()
+      await p.getByRole('dialog').getByRole('radio', { name: 'Microsoft Teams' }).click()
+    },
+  },
+  {
+    n: '108',
+    wave: 4,
+    screen: 'alerts',
+    state: 'channel-select-marks',
+    note: 'Alert rule action: the channel list with the service marks',
+    go: async (p) => {
+      await p.goto('/acme/alerts/new')
+      await p.getByRole('button', { name: 'Add action' }).click()
+      await p.getByRole('combobox', { name: 'Channel' }).first().click()
+      await expect(p.getByRole('listbox')).toBeVisible()
+    },
+  },
+  {
+    n: '109',
+    wave: 4,
+    screen: 'alerts',
+    state: 'tracker-select-marks',
+    note: 'Alert rule action: create a ticket, the tracker list with the marks',
+    go: async (p) => {
+      await p.goto('/acme/alerts/new')
+      await p.getByRole('combobox', { name: 'Action type' }).first().click()
+      await p.getByRole('option', { name: 'Create a ticket in' }).click()
+      await p.getByRole('combobox', { name: 'Issue tracker' }).click()
+      await expect(p.getByRole('listbox')).toBeVisible()
+    },
+  },
+  {
+    n: '110',
+    wave: 4,
+    screen: 'issue-detail',
+    state: 'link-ticket-picker',
+    note: 'Link an existing ticket: the tracker picker as logo tiles',
+    go: async (p) => {
+      await openLinked(p)
+      await p.getByTestId('linked-tickets').getByRole('button', { name: 'Link existing' }).click()
+      await expect(p.getByRole('radiogroup', { name: 'Tracker' })).toBeVisible()
+    },
+  },
 )
 
 for (const theme of ['dark'] as const) {
@@ -1004,7 +1114,7 @@ for (const theme of ['dark'] as const) {
     if (REVIEW) mkdirSync(REVIEW, { recursive: true })
     for (const s of shots) {
       if (!REVIEW && !s.readme) continue
-      if (WAVE && String(s.wave) !== WAVE) continue
+      if (WAVES && !WAVES.has(String(s.wave))) continue
       if (ONLY && !ONLY.has(s.n)) continue
       const ctx = await browser.newContext({
         colorScheme: theme,
@@ -1016,7 +1126,7 @@ for (const theme of ['dark'] as const) {
       const page = await ctx.newPage()
       page.setDefaultTimeout(20_000)
       // start from the demo data, signed in
-      if (s.n !== '01' && s.n !== '02') {
+      if (s.n !== '01' && s.n !== '02' && !s.signedOut) {
         await page.goto('/acme/issues?mock=demo&mock_latency=0')
         await expect(page.getByRole('grid', { name: 'Issues' }).getByRole('row').first()).toBeVisible()
       }
@@ -1029,7 +1139,7 @@ for (const theme of ['dark'] as const) {
     }
     if (REVIEW) {
       const rows = shots
-        .filter((s) => !WAVE || String(s.wave) === WAVE)
+        .filter((s) => !WAVES || WAVES.has(String(s.wave)))
         .map((s) => {
           const size = s.mobile ? '390x844 @2x' : s.wide ? '1920x1080 @1x' : '1440x900 @2x'
           return `| ${s.n} | ${s.screen} | ${s.state} | ${size} | ${s.note ?? ''} | [${s.n}-${s.screen}-${s.state}.png](${s.n}-${s.screen}-${s.state}.png) |`
