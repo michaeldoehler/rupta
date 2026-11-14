@@ -297,7 +297,9 @@ function seed(world: World): State {
     const acts = world.activity.get(first.issue_id) ?? []
     const u = world.users[0]
     const actor = u ? { id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url, is_superuser: u.is_superuser } : null
-    const t = { external_key: first.external_key, url: first.url, integration_name: integrations.find((i) => i.id === first.integration_id)?.name }
+    const integ = integrations.find((i) => i.id === first.integration_id)
+    // The server's shape (store::ticket_json).
+    const t = { integration_id: first.integration_id, integration: integ?.name, kind: integ?.kind, key: first.external_key, url: first.url }
     const add = (kind: string, user: typeof actor, data: Record<string, unknown>, at: number) =>
       acts.push({ id: `t${at}`, kind, user, data, created_at: iso(at) } as never)
     add('ticket_linked', actor, { ...t, mode: 'create' }, first.created_at)
@@ -640,7 +642,14 @@ export function integrationHandlers(ctx: IntegrationsContext) {
         synced_at: Date.now(),
       }
       r.s.links.push(link)
-      addActivity(r.issue.id, 'ticket_linked', { external_key: key, url: link.url, integration_name: integ.name, mode: body.mode ?? 'create' })
+      addActivity(r.issue.id, 'ticket_linked', {
+        integration_id: integ.id,
+        integration: integ.name,
+        kind: integ.kind,
+        key,
+        url: link.url,
+        mode: body.mode ?? 'create',
+      })
       return json(linkOut(r.s, link), 201)
     }),
     http.post(`${BASE}/issues/:id/links/:linkId/refresh`, async ({ params }) => {
@@ -657,11 +666,14 @@ export function integrationHandlers(ctx: IntegrationsContext) {
       if (!r) return err(404, 'not_found', 'Issue not found.')
       const l = r.s.links.find((x) => x.id === p(params, 'linkId'))
       r.s.links = r.s.links.filter((x) => x.id !== p(params, 'linkId'))
+      const integ = l && r.s.integrations.find((x) => x.id === l.integration_id)
       if (l)
         addActivity(r.issue.id, 'ticket_unlinked', {
-          external_key: l.external_key,
+          integration_id: l.integration_id,
+          integration: integ?.name,
+          kind: integ?.kind,
+          key: l.external_key,
           url: l.url,
-          integration_name: r.s.integrations.find((x) => x.id === l.integration_id)?.name,
         })
       return new HttpResponse(null, { status: 204 })
     }),

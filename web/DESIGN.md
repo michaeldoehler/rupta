@@ -109,6 +109,28 @@ Body text needs 4.5:1, large text and UI parts 3:1.
 `--border` (`#2f3326`) and `--border-strong` (`#404436`) separate areas
 and are not the only cue for any control; form fields use `--input`.
 
+## Service marks
+
+Third-party services (issue trackers, notification channels, the ZITADEL
+sign-in provider) are shown with their own marks, bundled as inline SVG in
+`src/components/brand/` (sources and terms in its `NOTICE.md`; nothing is
+loaded from vendor sites). They are the only place where colours outside the
+tokens appear.
+
+- Every mark sits on a rounded tile of 16, 20, 24, 32 or 40 px
+  (`BrandIcon`, `SsoProviderIcon`): the brand-coloured glyph on a light tile
+  (`--foreground`) for dark or low-contrast brand colours (Jira, GitHub,
+  GitLab, Opsgenie, ZITADEL), a white glyph on the brand colour where that is
+  the brand's usual form (Linear, PagerDuty). Brands whose terms do not allow
+  their logo (Slack, Microsoft Teams) get a letter on the brand colour;
+  webhook, email and other OIDC providers a lucide icon on a neutral tile.
+- A tile names its service (`aria-label` and `title`); next to text that
+  already names it, it is decorative.
+- Pickers of services (`BrandPicker`) are radio groups of tiles: palm
+  border, palm tint and a 1 px lift on hover (no lift with reduced motion),
+  the lime focus ring, and a lime border on brand tint when selected. The
+  arrow keys move the selection.
+
 ## Layout
 
 - A sticky top bar (48 px): logo and organization on the left, the main

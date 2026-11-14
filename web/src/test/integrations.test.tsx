@@ -156,3 +156,74 @@ describe('paging channels', () => {
     expect(await within(second).findByText(/the address is internal/)).toBeInTheDocument()
   })
 })
+
+describe('service marks', () => {
+  it('shows the tracker marks in the list, the picker and the dialog header', async () => {
+    const user = userEvent.setup()
+    renderApp('/acme/settings/integrations')
+    const list = await screen.findByRole('list', { name: 'Integrations' })
+    const github = within(list).getByRole('listitem', { name: 'GitHub' })
+    expect(within(github).getByRole('img', { name: 'GitHub' }).querySelector('[data-mark]')).toHaveAttribute('data-mark', 'GitHub')
+    await user.click(screen.getByRole('button', { name: /Connect tracker/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Connect an issue tracker' })
+    const picker = within(dialog).getByRole('radiogroup', { name: 'Tracker' })
+    expect(
+      within(picker)
+        .getAllByRole('radio')
+        .map((r) => r.textContent),
+    ).toEqual([
+      expect.stringMatching(/^Jira Cloud/),
+      expect.stringMatching(/^Jira Data Center/),
+      expect.stringMatching(/^Linear/),
+      expect.stringMatching(/^GitHub/),
+      expect.stringMatching(/^GitLab/),
+    ])
+    expect(within(picker).getByRole('radio', { name: 'GitLab' })).toHaveAccessibleDescription(/gitlab\.com or self-managed/)
+    // The header follows the selection.
+    expect(within(dialog).getByRole('img', { name: 'Jira Cloud' })).toBeInTheDocument()
+    await user.click(within(picker).getByRole('radio', { name: 'Linear' }))
+    expect(within(dialog).getByRole('img', { name: 'Linear' })).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Linear')
+  })
+
+  it('puts the tracker mark before the ticket key and in ticket activity', async () => {
+    const user = userEvent.setup()
+    const issue = linkedIssue()
+    renderApp(`/acme/issues/${issue.id}`)
+    const section = await screen.findByTestId('linked-tickets')
+    const item = (await within(section).findAllByRole('listitem'))[0]
+    expect(within(item).getByRole('img', { name: 'Jira Cloud' })).toBeInTheDocument()
+    await user.click(within(section).getByRole('button', { name: /Create ticket/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Create a ticket' })
+    const picker = await within(dialog).findByRole('radiogroup', { name: 'Tracker' })
+    expect(within(picker).getByRole('radio', { checked: true })).toHaveAccessibleDescription('Jira Cloud')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('link', { name: /^Activity/ }))
+    const linked = (await screen.findAllByText(/^linked/))[0]
+    expect(within(linked.closest('li')!).getByRole('img', { name: 'Jira Cloud' })).toBeInTheDocument()
+  })
+
+  it('shows channel marks, with monograms for Slack and Microsoft Teams', async () => {
+    const user = userEvent.setup()
+    renderApp('/acme/settings/channels')
+    await user.click(await screen.findByRole('button', { name: /Add channel/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add notification channel' })
+    const picker = within(dialog).getByRole('radiogroup', { name: 'Channel type' })
+    expect(
+      within(picker)
+        .getAllByRole('radio')
+        .map((r) => r.getAttribute('aria-checked')),
+    ).toEqual(['true', 'false', 'false', 'false', 'false', 'false'])
+    expect(within(dialog).getByRole('img', { name: 'Slack' }).querySelector('[data-monogram]')).toHaveTextContent('S')
+    await user.click(within(picker).getByRole('radio', { name: 'Opsgenie' }))
+    expect(within(dialog).getByRole('img', { name: 'Opsgenie' }).querySelector('[data-mark]')).toHaveAttribute('data-mark', 'Opsgenie')
+  })
+
+  it('shows the ZITADEL mark on the Zitadel preset', async () => {
+    renderApp('/acme/settings/sso')
+    const presets = await screen.findByRole('radiogroup', { name: 'Provider preset' })
+    const zitadel = within(presets).getByRole('radio', { name: 'Zitadel' })
+    expect(zitadel.querySelector('linearGradient')).not.toBeNull()
+    expect(within(presets).getByRole('radio', { name: 'Keycloak' }).querySelector('linearGradient')).toBeNull()
+  })
+})

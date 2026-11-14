@@ -93,7 +93,7 @@ function DefaultsCard({
     <SettingsCard
       title={
         <span className="flex items-center gap-2">
-          <TrackerIcon kind={integration.kind} /> {integration.name}
+          <TrackerIcon kind={integration.kind} size="lg" /> {integration.name}
           {!integration.enabled && <span className="text-xs font-normal text-muted-foreground">(disabled)</span>}
         </span>
       }

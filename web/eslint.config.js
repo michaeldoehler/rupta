@@ -28,7 +28,16 @@ export default tseslint.config(
   },
   {
     // Route modules, feature modules and fixtures export helpers next to components.
-    files: ['src/routes/**', 'src/features/**', 'src/components/ui/**', 'src/components/common/**', 'src/mocks/**', 'src/test/**', 'e2e/**'],
+    files: [
+      'src/routes/**',
+      'src/features/**',
+      'src/components/ui/**',
+      'src/components/common/**',
+      'src/components/brand/**',
+      'src/mocks/**',
+      'src/test/**',
+      'e2e/**',
+    ],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
 )

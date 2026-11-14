@@ -37,6 +37,7 @@ import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useRole } from '@/features/settings/org-pages'
 import { SettingsCard, SettingsPage } from '@/features/settings/settings-layout'
+import { BrandPicker } from '@/components/brand/brand-picker'
 import { KINDS, kindMeta, TrackerIcon } from './kinds'
 
 /** The webhook URL and (once) the secret, with the tracker's setup steps. */
@@ -45,9 +46,12 @@ function WebhookDialog({ integration, open, onOpenChange }: { integration: Integ
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Set up the webhook in {m.label}</DialogTitle>
-          <DialogDescription>With a webhook, status changes in {m.label} reach rupta right away.</DialogDescription>
+        <DialogHeader className="flex-row items-center gap-3">
+          <TrackerIcon kind={integration.kind} size="xl" />
+          <div className="grid gap-1.5 text-left">
+            <DialogTitle>Set up the webhook in {m.label}</DialogTitle>
+            <DialogDescription>With a webhook, status changes in {m.label} reach rupta right away.</DialogDescription>
+          </div>
         </DialogHeader>
         <div className="space-y-3">
           <Field label="Webhook URL">{() => <CopyField value={integration.webhook_url} label="Copy webhook URL" />}</Field>
@@ -137,35 +141,32 @@ function IntegrationDialog({
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-2xl">
         <form onSubmit={submit} className="grid gap-4" noValidate>
-          <DialogHeader>
-            <DialogTitle>{integration ? `Edit ${integration.name}` : 'Connect an issue tracker'}</DialogTitle>
-            <DialogDescription>Create and link tickets from issues, and keep statuses in sync.</DialogDescription>
+          <DialogHeader className="flex-row items-center gap-3">
+            <TrackerIcon kind={kind} size="xl" />
+            <div className="grid gap-1.5 text-left">
+              <DialogTitle>{integration ? `Edit ${integration.name}` : 'Connect an issue tracker'}</DialogTitle>
+              <DialogDescription>{integration ? `${m.label}: ` : ''}Create and link tickets from issues, and keep statuses in sync.</DialogDescription>
+            </div>
           </DialogHeader>
           <FormError message={error} />
           {!integration && (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="radiogroup" aria-label="Tracker">
-              {KINDS.map((k) => (
-                <button
-                  key={k.kind}
-                  type="button"
-                  role="radio"
-                  aria-checked={kind === k.kind}
-                  onClick={() => {
-                    setKind(k.kind)
-                    setConfig({})
-                    if (!name || KINDS.some((x) => x.label === name)) setName(k.label)
-                  }}
-                  className={cn(
-                    'flex flex-col items-center gap-1.5 rounded-md border px-2 py-2.5 text-xs font-medium hover:bg-accent',
-                    kind === k.kind && 'border-brand bg-brand-soft text-brand-text',
-                  )}
-                >
-                  <TrackerIcon kind={k.kind} /> {k.label}
-                </button>
-              ))}
-            </div>
+            <BrandPicker
+              label="Tracker"
+              value={kind}
+              onChange={(k) => {
+                setKind(k)
+                setConfig({})
+                if (!name || KINDS.some((x) => x.label === name)) setName(kindMeta(k).label)
+              }}
+              options={KINDS.map((k) => ({
+                value: k.kind,
+                label: k.label,
+                description: k.description,
+                icon: <TrackerIcon kind={k.kind} size="lg" decorative />,
+              }))}
+            />
           )}
           <Field label="Name" error={fieldErrors.name}>
             {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder={m.label} />}
@@ -294,7 +295,7 @@ function IntegrationCard({
   return (
     <li className="px-4 py-3" aria-label={i.name}>
       <div className="flex flex-wrap items-center gap-3">
-        <TrackerIcon kind={i.kind} className="size-8 text-[11px]" />
+        <TrackerIcon kind={i.kind} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 font-medium">
             {i.name}

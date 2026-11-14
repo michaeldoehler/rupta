@@ -8,6 +8,8 @@ import { api } from '@/api/endpoints'
 import { ik, integrationsApi } from '@/api/integrations'
 import { qk, useEnvironments, useMembers, useProjects, useTeams } from '@/api/queries'
 import type { AlertAction, AlertCondition, AlertFilter, AlertRuleInput, Level } from '@/api/types'
+import { BrandIcon } from '@/components/brand/brand-icon'
+import { brandOf } from '@/components/brand/brands'
 import { Field, FormError } from '@/components/common/field'
 import { PlatformIcon } from '@/components/common/platform-icon'
 import { ErrorState } from '@/components/common/states'
@@ -359,6 +361,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                       <SelectContent>
                         {integrations.data?.map((x) => (
                           <SelectItem key={x.id} value={x.id} disabled={!x.enabled}>
+                            <BrandIcon kind={x.kind} size="xs" />
                             {x.name}
                             {!x.enabled && <span className="text-muted-foreground"> (disabled)</span>}
                           </SelectItem>
@@ -390,7 +393,8 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                     <SelectContent>
                       {channels.data?.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.name} <span className="text-muted-foreground">({c.kind})</span>
+                          <BrandIcon kind={c.kind} size="xs" />
+                          {c.name} <span className="text-muted-foreground">({brandOf(c.kind).label})</span>
                         </SelectItem>
                       ))}
                     </SelectContent>

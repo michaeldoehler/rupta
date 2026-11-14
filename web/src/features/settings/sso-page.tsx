@@ -6,6 +6,8 @@ import { ApiError, errorMessage } from '@/api/client'
 import { api } from '@/api/endpoints'
 import { qk } from '@/api/queries'
 import type { Role, SsoConfig, SsoTestResult } from '@/api/types'
+import { BrandPicker } from '@/components/brand/brand-picker'
+import { SsoProviderIcon } from '@/components/brand/sso-icon'
 import { CopyField } from '@/components/common/copy-button'
 import { Field, FormError } from '@/components/common/field'
 import { CardsSkeleton, ErrorState } from '@/components/common/states'
@@ -215,24 +217,15 @@ export function SsoPage({ org }: { org: string }) {
       {!owner && <p className="rounded-md border bg-muted/50 px-3 py-2 text-[13px] text-muted-foreground">Only owners can change single sign-on.</p>}
       <FormError message={error} />
       <SettingsCard title="Provider" description="Choose a preset to fill in typical values.">
-        <div className="mb-4 flex flex-wrap gap-2" role="radiogroup" aria-label="Provider preset">
-          {Object.entries(PRESETS).map(([k, p]) => (
-            <button
-              key={k}
-              type="button"
-              role="radio"
-              aria-checked={preset === k}
-              disabled={!owner}
-              onClick={() => applyPreset(k)}
-              className={cn(
-                'rounded-md border px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-accent disabled:opacity-60',
-                preset === k && 'border-brand bg-brand-soft text-brand-text',
-              )}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <BrandPicker
+          label="Provider preset"
+          layout="chips"
+          className="mb-4"
+          value={preset}
+          onChange={applyPreset}
+          disabled={!owner}
+          options={Object.entries(PRESETS).map(([k, p]) => ({ value: k, label: p.label, icon: <SsoProviderIcon name={k} size="sm" decorative /> }))}
+        />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Button label" hint={`Shown on the sign-in page as “Continue with ${form.provider_name || 'SSO'}”.`}>
             {(p) => <Input {...p} value={form.provider_name} disabled={!owner} onChange={(e) => set('provider_name', e.target.value)} />}

@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { KeyRound, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { ApiError, errorMessage } from '@/api/client'
 import { api } from '@/api/endpoints'
 import { orgAuthConfigQuery, qk, sessionQuery } from '@/api/queries'
+import { SsoProviderIcon } from '@/components/brand/sso-icon'
 import { Field, FormError } from '@/components/common/field'
 import { ErrorState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
@@ -68,7 +69,7 @@ export function LoginPage({ next, ssoError, org }: { next?: string; ssoError?: s
               {config.data.sso.map((p) => (
                 <Button key={p.id} variant="outline" className="h-9 w-full" asChild>
                   <a href={api.auth.ssoStartUrl(p.id, safeNext)}>
-                    <KeyRound /> Continue with {p.name}
+                    <SsoProviderIcon name={p.name} size="sm" decorative /> Continue with {p.name}
                   </a>
                 </Button>
               ))}

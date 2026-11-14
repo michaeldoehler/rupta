@@ -21,6 +21,7 @@ import { errorMessage } from '@/api/client'
 import { api } from '@/api/endpoints'
 import { qk, useSession } from '@/api/queries'
 import type { Activity } from '@/api/types'
+import { BrandIcon } from '@/components/brand/brand-icon'
 import { UserAvatar } from '@/components/common/avatar'
 import { ErrorState, ListSkeleton } from '@/components/common/states'
 import { RelativeTime } from '@/components/common/time'
@@ -30,12 +31,15 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 const Markdown = lazy(() => import('./markdown'))
 
-/** "OPS-42 in Jira" as a link, from ticket activity data. */
+/** "OPS-42 in Jira" as a link with the tracker's mark, from ticket activity data. */
 function ticketRef(d: Record<string, unknown>) {
   const key = String(d.external_key ?? d.key ?? d.external_id ?? 'a ticket')
-  const where = d.integration_name ?? (d.integration as { name?: string } | undefined)?.name
+  // The server sends the integration's name as `integration`; older entries carry `integration_name`.
+  const where = d.integration_name ?? (typeof d.integration === 'string' ? d.integration : (d.integration as { name?: string } | undefined)?.name)
+  const kind = typeof d.kind === 'string' ? d.kind : null
   const label = (
     <>
+      {kind && <BrandIcon kind={kind} size="xs" className="mr-1 align-[-3px]" />}
       <span className="font-mono">{key}</span>
       {where ? ` in ${String(where)}` : ''}
     </>

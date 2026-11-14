@@ -15,12 +15,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { Tip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { BrandPicker } from '@/components/brand/brand-picker'
 import { kindMeta, TrackerIcon } from './kinds'
 
 const Markdown = lazy(() => import('@/features/issue-detail/markdown'))
@@ -156,22 +156,20 @@ export function TicketDialog({
                   </TabsTrigger>
                 </TabsList>
                 <div className="mt-3 grid gap-4">
-                  <Field label="Tracker">
-                    {(p) => (
-                      <Select value={integrationId} onValueChange={setIntegrationId}>
-                        <SelectTrigger id={p.id} className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {enabled.map((i) => (
-                            <SelectItem key={i.id} value={i.id}>
-                              <TrackerIcon kind={i.kind} className="size-5 text-[9px]" /> {i.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </Field>
+                  <div className="grid gap-1.5">
+                    <span className="text-[13px] leading-none font-medium">Tracker</span>
+                    <BrandPicker
+                      label="Tracker"
+                      value={integrationId}
+                      onChange={setIntegrationId}
+                      options={enabled.map((i) => ({
+                        value: i.id,
+                        label: i.name,
+                        description: kindMeta(i.kind).label,
+                        icon: <TrackerIcon kind={i.kind} size="lg" decorative />,
+                      }))}
+                    />
+                  </div>
                   <TabsContent value="create" className="mt-0 grid gap-4">
                     {projectDefault ? (
                       <p className="text-xs text-muted-foreground">
@@ -290,7 +288,7 @@ export function LinkedTickets({ org, issueId, projectSlug }: { org: string; issu
           {q.data.map((l) => (
             <li key={l.id} className={cn('group rounded-md border bg-background/40 px-2.5 py-1.5', l.status === 'deleted' && 'opacity-70')}>
               <div className="flex items-center gap-2">
-                <TrackerIcon kind={l.integration.kind} className="size-5 text-[9px]" />
+                <TrackerIcon kind={l.integration.kind} size="sm" />
                 <a
                   href={l.url}
                   target="_blank"

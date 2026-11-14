@@ -1,5 +1,6 @@
 import type { IntegrationKind } from '@/api/integrations'
-import { cn } from '@/lib/utils'
+import { BrandIcon } from '@/components/brand/brand-icon'
+import type { TileSize } from '@/components/brand/brand-tile'
 
 const DOCS = 'https://github.com/michaeldoehler/rupta/blob/main/docs/integrations.md'
 
@@ -15,8 +16,8 @@ export interface KindMeta {
   kind: IntegrationKind
   label: string
   short: string
-  /** Badge colours (on the dark surfaces). */
-  tone: string
+  /** One line for the tracker picker. */
+  description: string
   fields: KindField[]
   tokenLabel: string
   tokenHint: string
@@ -34,7 +35,7 @@ export const KINDS: KindMeta[] = [
     kind: 'jira_cloud',
     label: 'Jira Cloud',
     short: 'Jira',
-    tone: 'bg-[#1d3a66] text-[#9cc2ff]',
+    description: 'Atlassian’s hosted Jira on atlassian.net.',
     fields: [
       { key: 'base_url', label: 'Site URL', placeholder: 'https://acme.atlassian.net', required: true },
       { key: 'email', label: 'Account email', placeholder: 'rupta-bot@acme.io', required: true, hint: 'The Atlassian account the API token belongs to.' },
@@ -62,7 +63,7 @@ export const KINDS: KindMeta[] = [
     kind: 'jira_server',
     label: 'Jira Data Center',
     short: 'Jira DC',
-    tone: 'bg-[#1d3a66] text-[#9cc2ff]',
+    description: 'Self-managed Jira Data Center or Server, 8.14 and later.',
     fields: [
       { key: 'base_url', label: 'Base URL', placeholder: 'https://jira.example.com', required: true },
       { key: 'resolve_transition', label: 'Resolve transition', placeholder: 'Done', hint: 'Optional, see the Jira Cloud defaults.' },
@@ -80,7 +81,7 @@ export const KINDS: KindMeta[] = [
     kind: 'linear',
     label: 'Linear',
     short: 'Linear',
-    tone: 'bg-[#2c2a5c] text-[#b9b4ff]',
+    description: 'Issues in a Linear team, with workflow states.',
     fields: [
       { key: 'resolve_state', label: 'Resolve state', placeholder: 'Done', hint: 'Optional. Default: the team’s first completed state.' },
       { key: 'reopen_state', label: 'Reopen state', placeholder: 'Todo', hint: 'Optional. Default: the first unstarted state.' },
@@ -97,7 +98,7 @@ export const KINDS: KindMeta[] = [
     kind: 'github',
     label: 'GitHub',
     short: 'GitHub',
-    tone: 'bg-[#2a2e26] text-[#e8ecdf]',
+    description: 'Issues in a repository, also GitHub Enterprise Server.',
     fields: [{ key: 'base_url', label: 'API URL', placeholder: 'https://api.github.com', hint: 'Only for GitHub Enterprise Server: https://<host>/api/v3.' }],
     tokenLabel: 'Personal access token',
     tokenHint: 'Fine-grained token with Issues: Read and write on the repositories (or a classic token with repo).',
@@ -110,7 +111,7 @@ export const KINDS: KindMeta[] = [
     kind: 'gitlab',
     label: 'GitLab',
     short: 'GitLab',
-    tone: 'bg-[#4a2a1c] text-[#ffb08a]',
+    description: 'Issues in a project on gitlab.com or self-managed.',
     fields: [{ key: 'base_url', label: 'GitLab URL', placeholder: 'https://gitlab.com', hint: 'Self-managed: https://gitlab.example.com.' }],
     tokenLabel: 'Access token (api scope)',
     tokenHint: 'Project or group access token (Reporter or higher), or a personal access token, with the api scope.',
@@ -125,18 +126,19 @@ export function kindMeta(kind: IntegrationKind): KindMeta {
   return KINDS.find((k) => k.kind === kind) ?? KINDS[0]
 }
 
-const INITIALS: Record<IntegrationKind, string> = { jira_cloud: 'J', jira_server: 'J', linear: 'L', github: 'GH', gitlab: 'GL' }
-
-/** A small badge for a tracker (no vendor logos). */
-export function TrackerIcon({ kind, className }: { kind: IntegrationKind; className?: string }) {
-  const m = kindMeta(kind)
-  return (
-    <span
-      className={cn('inline-flex size-6 shrink-0 items-center justify-center rounded-md font-mono text-[10px] font-semibold', m.tone, className)}
-      aria-label={m.label}
-      role="img"
-    >
-      {INITIALS[kind]}
-    </span>
-  )
+/** The tracker's mark on a tile (see components/brand). */
+export function TrackerIcon({
+  kind,
+  size = 'md',
+  label,
+  decorative,
+  className,
+}: {
+  kind: IntegrationKind
+  size?: TileSize
+  label?: string
+  decorative?: boolean
+  className?: string
+}) {
+  return <BrandIcon kind={kind} size={size} label={label} decorative={decorative} className={className} />
 }

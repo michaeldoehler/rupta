@@ -1,11 +1,13 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BellRing, Globe, Hash, Mail, MessagesSquare, Pencil, Plus, ScrollText, Send, Siren, Trash2, Webhook } from 'lucide-react'
+import { BellRing, Pencil, Plus, ScrollText, Send, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { errorMessage } from '@/api/client'
 import { api } from '@/api/endpoints'
 import { qk, useApiMutation, useMembers } from '@/api/queries'
 import type { Channel, ChannelKind } from '@/api/types'
+import { BrandIcon } from '@/components/brand/brand-icon'
+import { BrandPicker } from '@/components/brand/brand-picker'
 import { UserAvatar } from '@/components/common/avatar'
 import { Field, FormError } from '@/components/common/field'
 import { EmptyState, ErrorState, ListSkeleton } from '@/components/common/states'
@@ -189,31 +191,32 @@ export function AuditLogPage({ org }: { org: string }) {
 const CHANNEL_KINDS: {
   kind: ChannelKind
   label: string
-  icon: React.ComponentType<{ className?: string }>
+  /** One line for the channel type picker. */
+  description: string
   fields: { key: string; label: string; placeholder: string; secret?: boolean; hint?: string; options?: { value: string; label: string }[] }[]
 }[] = [
   {
     kind: 'slack',
     label: 'Slack',
-    icon: Hash,
+    description: 'A channel through an incoming webhook.',
     fields: [{ key: 'webhook_url', label: 'Incoming webhook URL', placeholder: 'https://hooks.slack.com/services/…', secret: true }],
   },
   {
     kind: 'teams',
     label: 'Microsoft Teams',
-    icon: MessagesSquare,
+    description: 'A channel through a Workflows webhook.',
     fields: [{ key: 'webhook_url', label: 'Workflow webhook URL', placeholder: 'https://…webhook.office.com/…', secret: true }],
   },
   {
     kind: 'email',
     label: 'Email',
-    icon: Mail,
+    description: 'Messages to a list of addresses.',
     fields: [{ key: 'to', label: 'Recipients', placeholder: 'oncall@example.com, team@example.com', hint: 'Separate addresses with commas (up to 50).' }],
   },
   {
     kind: 'webhook',
     label: 'Webhook',
-    icon: Webhook,
+    description: 'A JSON POST to your endpoint, optionally signed.',
     fields: [
       { key: 'url', label: 'URL', placeholder: 'https://example.com/hooks/rupta' },
       {
@@ -228,7 +231,7 @@ const CHANNEL_KINDS: {
   {
     kind: 'pagerduty',
     label: 'PagerDuty',
-    icon: Siren,
+    description: 'Incidents through the Events API v2.',
     fields: [
       {
         key: 'routing_key',
@@ -252,7 +255,7 @@ const CHANNEL_KINDS: {
   {
     kind: 'opsgenie',
     label: 'Opsgenie',
-    icon: Siren,
+    description: 'Alerts for a team through its API integration.',
     fields: [
       { key: 'api_key', label: 'API key', placeholder: 'GenieKey', secret: true, hint: 'From an API integration of a team (create and update alerts).' },
       {
@@ -314,29 +317,29 @@ function ChannelDialog({ org, channel, open, onOpenChange }: { org: string; chan
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <form onSubmit={submit} className="grid gap-4" noValidate>
-          <DialogHeader>
-            <DialogTitle>{channel ? 'Edit channel' : 'Add notification channel'}</DialogTitle>
-            <DialogDescription>Alert rules send notifications to channels.</DialogDescription>
+          <DialogHeader className="flex-row items-center gap-3">
+            <BrandIcon kind={kind} size="xl" />
+            <div className="grid gap-1.5 text-left">
+              <DialogTitle>{channel ? 'Edit channel' : 'Add notification channel'}</DialogTitle>
+              <DialogDescription>{channel ? `${def.label}: ` : ''}Alert rules send notifications to channels.</DialogDescription>
+            </div>
           </DialogHeader>
           <FormError message={error} />
           {!channel && (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" role="radiogroup" aria-label="Channel type">
-              {CHANNEL_KINDS.map((k) => (
-                <button
-                  key={k.kind}
-                  type="button"
-                  role="radio"
-                  aria-checked={kind === k.kind}
-                  onClick={() => {
-                    setKind(k.kind)
-                    setConfig({})
-                  }}
-                  className={`flex flex-col items-center gap-1.5 rounded-md border px-2 py-2.5 text-xs font-medium hover:bg-accent ${kind === k.kind ? 'border-brand bg-brand-soft text-brand-text' : ''}`}
-                >
-                  <k.icon className="size-4" /> {k.label}
-                </button>
-              ))}
-            </div>
+            <BrandPicker
+              label="Channel type"
+              value={kind}
+              onChange={(k) => {
+                setKind(k)
+                setConfig({})
+              }}
+              options={CHANNEL_KINDS.map((k) => ({
+                value: k.kind,
+                label: k.label,
+                description: k.description,
+                icon: <BrandIcon kind={k.kind} size="lg" decorative />,
+              }))}
+            />
           )}
           <Field label="Name">
             {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder={kind === 'slack' ? '#alerts-prod' : 'On-call'} />}
@@ -437,7 +440,6 @@ export function ChannelsPage({ org }: { org: string }) {
         <ul className="divide-y rounded-lg border bg-card">
           {q.data.map((c) => {
             const def = CHANNEL_KINDS.find((k) => k.kind === c.kind)
-            const Icon = def?.icon ?? Globe
             const cfg = c.config as Record<string, unknown>
             const target = Array.isArray(cfg.to)
               ? cfg.to.join(', ')
@@ -450,9 +452,7 @@ export function ChannelsPage({ org }: { org: string }) {
                     : ''
             return (
               <li key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <Icon className="size-4" />
-                </span>
+                <BrandIcon kind={c.kind} size="lg" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 font-medium">
                     {c.name} <Badge variant="outline">{def?.label ?? c.kind}</Badge>

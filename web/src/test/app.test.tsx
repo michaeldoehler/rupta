@@ -77,6 +77,8 @@ describe('authentication', () => {
     const email = await screen.findByLabelText('Email')
     expect(router.state.location.pathname).toBe('/login')
     expect(screen.getByRole('link', { name: 'Continue with Zitadel' })).toHaveAttribute('href', '/auth/sso/zitadel/start?next=%2Facme%2Fissues')
+    // The provider is named Zitadel, so the button carries the ZITADEL mark.
+    expect(screen.getByRole('link', { name: 'Continue with Zitadel' }).querySelector('linearGradient')).not.toBeNull()
     await user.type(email, 'jane@acme.dev')
     await user.type(screen.getByLabelText('Password'), 'wrong')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
