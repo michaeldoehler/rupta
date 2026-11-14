@@ -59,7 +59,7 @@ test('setup, sign out and in, triage an issue, read its details and change setti
   }
   const sections = page.getByRole('navigation', { name: 'Issue sections' })
   await sections.getByRole('link', { name: 'Tags' }).click()
-  await expect(page.getByRole('link', { name: 'environment' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('link', { name: 'environment' }).first()).toBeVisible()
   await sections.getByRole('link', { name: /^Activity/ }).click()
   await page.getByLabel('Comment', { exact: true }).fill('Looking into this now.')
   await page.getByRole('button', { name: 'Comment' }).click()

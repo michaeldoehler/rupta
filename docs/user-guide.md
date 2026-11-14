@@ -84,7 +84,8 @@ since you ignored it.
 ![Issue details](images/issue-detail.png)
 
 The header shows level, status, counts, title and culprit, a bookmark, a
-link to copy and a menu (copy as text or Markdown, delete). The page has two
+link to copy and a menu (copy as text or Markdown, create or link a ticket,
+delete). The page has two
 columns: the tabs below on the left, and a context panel on the right that
 stays in view while you scroll (below the header on narrow screens):
 
@@ -93,6 +94,10 @@ stays in view while you scroll (below the header on narrow screens):
 - **Volume:** events and affected users with a chart of the last 24 hours
   or 30 days.
 - **Seen:** first and last seen with their releases.
+- **Linked tickets:** tickets in a connected issue tracker (Jira, Linear,
+  GitHub, GitLab) with their key, status, assignee and when rupta last read
+  them. **Refresh** reads a ticket again, **Unlink** removes the link (the
+  ticket stays in the tracker). See [Issue trackers](#issue-trackers).
 - **Trace & replay** of the event shown in Details.
 - **Top tags** with their most common value and a distribution bar.
 - **This event:** browser, OS, runtime, device, environment and user.
@@ -133,7 +138,9 @@ Below are tabs:
 - **Tags** shows how values are distributed for each tag; a tag's page
   lists all its values.
 - **Activity** has the history (first seen, assignments, status changes,
-  regressions) and comments. Comments support Markdown; you can edit and
+  regressions, linked and unlinked tickets, status changes of tickets,
+  failed and successful updates of tickets, and issues resolved or reopened
+  because their ticket changed) and comments. Comments support Markdown; you can edit and
   delete your own.
 - **User feedback** shows what users wrote about this error.
 
@@ -156,8 +163,44 @@ Below are tabs:
   when **any** of its triggers holds (new issue, regression, an ignored
   issue reappears, more than N events or users in an interval) and **all**
   of its filters match (level, environment, tag), and then emails members
-  or teams or notifies a channel, at most once per issue within the chosen
-  time.
+  or teams, notifies a channel or creates a ticket in an issue tracker, at
+  most once per issue within the chosen time. A ticket action uses the
+  project's defaults for the tracker unless the rule names a target.
+
+## Issue trackers
+
+![Linked tickets in the context panel](images/linked-tickets.png)
+
+Admins connect trackers under **Settings → Integrations**: Jira Cloud, Jira
+Data Center, Linear, GitHub and GitLab. The dialog asks for the fields of
+the tracker (site URL and account email for Jira Cloud, an API URL only for
+GitHub Enterprise or self-managed GitLab) and a token; where to create the
+token is written under the field and in `docs/integrations.md`, which
+**Setup** opens. By default the server checks the token with the tracker
+before saving and shows the tracker's refusal. Tokens are write-only: the
+list shows only their last characters.
+
+After connecting, a dialog shows the webhook URL and the webhook secret
+(Linear creates its own secret, which you paste into the form instead).
+The secret is shown only then; **New secret** replaces it and shows the
+new one once. Each tracker in the list has a switch to disable it, **Test**
+(signs in to the tracker and shows the account or the error), edit and
+remove, and shows the last error the server met when updating a ticket.
+
+Under **project settings → Integrations** you choose per tracker where new
+tickets go (Jira project, Linear team, repository or GitLab project, read
+from the tracker; type it if the tracker cannot be reached), the Jira issue
+type, the Linear project, labels, and three switches: resolve and reopen
+issues when the ticket changes (needs the webhook), move tickets when the
+issue is resolved or reopened, and comment on tickets.
+
+On an issue, **Create ticket** opens a dialog with title and Markdown
+description filled in by the server (with a preview); the ticket goes to
+the project's default target, or to one you enter when the project has
+none. **Link existing** takes a key or URL (`OPS-42`, `owner/repo#17`, the
+ticket's URL). The dialog explains a ticket that is already linked, a
+reference the tracker does not know and errors from the tracker. Both are
+also in the issue's menu and in the split view preview.
 
 ## Performance and traces
 
@@ -291,8 +334,15 @@ the server lists the replay's issues without times.
   sent yet); deploy notifications only in the browser.
 - **Organization:** name and slug, members and invitations with roles
   (owner, admin, member, viewer), teams, single sign-on, API tokens,
-  notification channels (Slack, Microsoft Teams, email, webhook, each with
-  a test button) and the audit log.
+  issue trackers (see [Issue trackers](#issue-trackers)), notification
+  channels and the audit log.
+- **Notification channels:** Slack, Microsoft Teams, email, webhook,
+  PagerDuty (integration key, US or EU region) and Opsgenie (API key, US or
+  EU region), each with a test button. PagerDuty and Opsgenie keys are
+  write-only; the list says whether one is stored. The server refuses Slack,
+  Teams and webhook addresses on loopback or private networks unless it is
+  started with `RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS=true`; the form and
+  the test show its message.
 - **Single sign-on** connects an OpenID Connect provider. Presets fill in
   typical values (Zitadel, Keycloak, Microsoft Entra ID). Map role or group
   names from the ID token to rupta roles, choose a default role, whether
@@ -415,6 +465,8 @@ custom tags are not suggested yet.
   charts.
 - The span explorer, trace view and transaction summary show what was
   sampled; counts are not extrapolated.
+- Ticket statuses in the context panel are as of the last read (webhook,
+  sync or **Refresh**); without a webhook they change only on refresh.
 - Session replays load all recording segments before playing; very long
   sessions take a moment to open. Canvas recordings and mobile video
   replays are not played.
