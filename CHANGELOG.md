@@ -33,6 +33,39 @@ changelog says when and how to migrate.
 - `docs/event-fields.md`: the fields of the event document.
 - `GET /api/v1/projects/{org}/{project}/alert-fires`: the recent firings of
   a project's alert rules (rule, issue, time), newest first, paginated.
+- `RUPTA_OIDC_DEFAULT_ROLE=none`, and *No access (refuse sign-in)*
+  (`default_role: "none"`) for organization providers: users whose claims
+  map to no role are refused at single sign-on, no account is created for
+  them, and existing members without a mapped role cannot sign in through
+  single sign-on. Owners still sign in. The login page explains the refusal
+  (`/login?error=sso_no_access`), and the audit log entry names the
+  organization, subject and email. `none` needs a role mapping. Earlier
+  versions read a stored `none` as `member`: change the setting before
+  downgrading.
+- `RUPTA_OIDC_ALLOWED_AUDIENCES`: the audiences besides the client id that
+  ID tokens of the instance provider may carry.
+- `GET /api/v1/orgs/{org}/sso/instance` (admins and owners): the
+  instance-wide provider from the `RUPTA_OIDC_*` variables, read-only and
+  without the client secret. The organization's *Single sign-on* settings
+  page shows it first; the organization's own provider is an optional,
+  collapsible section below it, with an explanation of how the two work
+  together.
+
+### Fixed
+
+- Single sign-on refused ZITADEL ID tokens with `aud = [client id,
+  project id]` (`... is not a trusted audience`). Additional audiences are
+  now accepted (or only those in `RUPTA_OIDC_ALLOWED_AUDIENCES`), and, as
+  OpenID Connect Core 1.0 section 3.1.3.7 requires, tokens with several
+  audiences must carry `azp` equal to the client id; a present `azp` must
+  always be the client id. Organization providers follow the same rules
+  without a list of allowed audiences.
+- The organization *Single sign-on* page no longer says "Not configured"
+  when the instance provider is active.
+- The Zitadel preset of the organization settings asked for the scope
+  `urn:zitadel:iam:org:projects:roles`; it now uses
+  `urn:zitadel:iam:org:project:roles`, like the `RUPTA_OIDC_SCOPES`
+  default and the role claim it reads.
 
 ## [0.1.1] - 2026-11-14
 

@@ -28,14 +28,35 @@ There are two kinds of providers:
    `{RUPTA_PUBLIC_URL}/auth/sso/{provider}/callback`. rupta checks the state,
    exchanges the code (with the client secret, if one is configured, and the
    PKCE verifier), and validates the ID token: signature against the
-   provider's published keys, issuer, audience, expiry and nonce.
+   provider's published keys, issuer, audience and authorized party (see
+   [Audiences](#audiences)), expiry and nonce.
 4. Claims are read from the ID token. If the email or the role claim is
    missing there, rupta also asks the user info endpoint (and checks that its
    `sub` matches).
 5. The user is found or created (below), gets a session, and is sent to the
    target path. Only local paths are followed. On any failure the browser
-   goes to `/login?error=sso_failed` and the reason is written to the server
+   goes to `/login?error=sso_failed` (or `/login?error=sso_no_access` when
+   the user has no role, see below) and the reason is written to the server
    log and the audit log (`auth.sso_login_failed`).
+
+## Audiences
+
+The ID token's `aud` claim must contain the client id. Some providers add
+more audiences: ZITADEL, for example, issues `aud = [client id, project
+id]`. rupta follows OpenID Connect Core 1.0, section 3.1.3.7:
+
+- Audiences other than the client id are accepted. With
+  `RUPTA_OIDC_ALLOWED_AUDIENCES` (comma-separated) set, each of them must
+  be in that list, otherwise the token is refused (`... is not a trusted
+  audience`). The client id itself never needs to be listed.
+- When `aud` has more than one entry, the token must carry `azp`
+  (authorized party) equal to the client id.
+- When `azp` is present, it must equal the client id, also with a single
+  audience.
+
+Organization providers follow the same rules, but have no list of allowed
+audiences: any additional audience is accepted as long as `azp` is the
+client id.
 
 The HTTP client used for the provider follows no redirects and times out
 after 10 seconds.
@@ -60,6 +81,27 @@ after 10 seconds.
   never demoted by single sign-on (owner is managed in rupta), and when no
   role name maps, a new member gets `RUPTA_OIDC_DEFAULT_ROLE` while an
   existing member keeps the role they have.
+- **Default role `none`**: with `RUPTA_OIDC_DEFAULT_ROLE=none` (or
+  *No access (refuse sign-in)* for an organization provider), a user whose
+  claims map to no role is refused:
+  - no user, identity or membership is created, even with just-in-time
+    provisioning on;
+  - an existing member whose claims no longer map to any role cannot sign
+    in through single sign-on. The membership itself is kept, and so are
+    sessions that already exist, API tokens and, unless single sign-on is
+    enforced, password login. Remove the member or disable the user in rupta
+    to end access completely;
+  - **owners still sign in**, because single sign-on never changes an
+    owner's role. Remove the owner role in rupta to apply the rule to them.
+
+  The browser goes to `/login?error=sso_no_access`, and the login page says
+  that the account has no role that gives access. The audit log entry
+  `auth.sso_login_failed` carries the organization, the provider, the
+  subject, the email, the reason and, for an existing user, the user as
+  target, so it appears in the organization's audit log. `none` needs a
+  role mapping (`RUPTA_OIDC_ROLE_MAPPING`; for organization providers a
+  role claim and at least one mapping), otherwise only owners could sign
+  in.
 - Role changes made this way are recorded in the audit log
   (`member.join`, `member.role_change` with `"via": "oidc"`).
 - Disabled users cannot sign in.
@@ -75,11 +117,35 @@ after 10 seconds.
 | `RUPTA_OIDC_SCOPES` | `openid email profile urn:zitadel:iam:org:project:roles` | Scopes |
 | `RUPTA_OIDC_ROLE_CLAIM` | `urn:zitadel:iam:org:project:roles` | Claim with role names |
 | `RUPTA_OIDC_ROLE_MAPPING` | empty | e.g. `rupta-admin:admin,rupta-viewer:viewer` |
-| `RUPTA_OIDC_DEFAULT_ROLE` | `member` | Role when nothing maps |
+| `RUPTA_OIDC_DEFAULT_ROLE` | `member` | Role when nothing maps; `none` refuses the sign-in |
 | `RUPTA_OIDC_JIT` | `true` | Create users at their first sign-in |
+| `RUPTA_OIDC_ALLOWED_AUDIENCES` | empty (any) | Audiences besides the client id that ID tokens may carry, comma-separated |
 | `RUPTA_LOCAL_LOGIN` | `true` | `false` hides and refuses password login |
 
 Redirect URI to register: `{RUPTA_PUBLIC_URL}/auth/sso/oidc/callback`.
+
+The instance provider is shown read-only on every organization's
+*Settings → Single sign-on* page (admins and owners), with its name,
+issuer, client id, whether a client secret is set (never the secret),
+scopes, role claim and mapping, default role, just-in-time provisioning,
+allowed audiences, redirect URI, the organization its users join and
+whether password login is enabled. The same is available from
+`GET /api/v1/orgs/{org}/sso/instance`:
+
+```json
+{"local_login": true,
+ "provider": {"provider_id": "oidc", "provider_name": "Zitadel", "issuer": "https://auth.example.com",
+   "client_id": "2930...@rupta", "has_client_secret": true,
+   "scopes": "openid email profile urn:zitadel:iam:org:project:roles",
+   "role_claim": "urn:zitadel:iam:org:project:roles",
+   "role_mapping": {"rupta-admin": "admin"}, "default_role": "viewer", "jit_provisioning": true,
+   "allowed_audiences": [], "redirect_uri": "https://errors.example.com/auth/sso/oidc/callback",
+   "default_org": "default"}}
+```
+
+`provider` is `null` when `RUPTA_OIDC_ISSUER` is not set. The values can
+only be changed in the deployment's `RUPTA_OIDC_*` variables (and a
+restart).
 
 ## Organization providers
 
@@ -105,6 +171,13 @@ curl -X PUT -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: applicatio
 
 - The issuer's discovery document is fetched before saving; an unreachable
   or invalid issuer is refused (`422`).
+- `default_role` is `viewer`, `member` (default), `admin` or `none`.
+  `none` refuses users whose claims map to no role (see
+  [Users and roles](#users-and-roles)) and needs `role_claim` and at least
+  one `role_mapping` entry (`422` otherwise).
+- ID tokens with additional audiences are accepted when `azp` is the client
+  id; there is no list of allowed audiences for organization providers (see
+  [Audiences](#audiences)).
 - The client secret is encrypted with XChaCha20-Poly1305 under a key
   derived from `RUPTA_SECRET_KEY` (HKDF-SHA256) and bound to the
   organization. It is never returned (`has_client_secret` tells whether one
@@ -119,6 +192,28 @@ curl -X PUT -H "Authorization: Bearer $OWNER_TOKEN" -H 'Content-Type: applicatio
   `?org={slug}` (`GET /api/v1/auth/config?org={slug}`). Providers of other
   organizations are not listed, so the login page does not reveal which
   organizations exist.
+
+## Instance and organization providers together
+
+Both kinds can be configured at the same time. They are separate
+providers with separate identities:
+
+- The sign-in page always shows the instance provider. An organization's
+  provider is shown next to it when the page is opened with `?org={slug}`.
+- Each provider changes memberships only in its own organization: the
+  instance provider in `RUPTA_DEFAULT_ORG`, an organization provider in
+  its organization. When `RUPTA_DEFAULT_ORG` is the same organization,
+  the role a member has is the one set by the provider they signed in with
+  last.
+- *Require single sign-on* (`enforce`) of an organization refuses password
+  login for its members. A session from either provider is a normal rupta
+  session, so members can still sign in with the instance provider.
+- With `RUPTA_LOCAL_LOGIN=false`, password login is off for the whole
+  instance, whatever the organization settings say.
+
+On the settings page, the organization's own provider is an optional
+section below the instance provider; it is collapsed while no
+organization provider is configured.
 
 ## Testing the connection
 
@@ -217,11 +312,21 @@ The steps refer to the Zitadel console (cloud or self-hosted). Replace
    RUPTA_OIDC_DEFAULT_ROLE=viewer
    ```
 
-   The scope `urn:zitadel:iam:org:project:roles` asks for the roles claim.
+   The reserved scope `urn:zitadel:iam:org:project:roles` asks for the
+   roles of the project the application belongs to; Zitadel returns them in
+   the claim of the same name, which is the default `RUPTA_OIDC_ROLE_CLAIM`.
+   The organization settings' Zitadel preset uses the same scope and claim.
+   (`urn:zitadel:iam:org:projects:roles`, with `projects`, asks for the
+   roles of all projects in the audience; they arrive in the same claim.)
    To limit roles to one project when the client belongs to several, use
    `urn:zitadel:iam:org:project:id:{project id}:aud` as an extra scope;
    Zitadel's per-project claim `urn:zitadel:iam:org:project:{project id}:roles`
    can be used as `RUPTA_OIDC_ROLE_CLAIM` as well.
+
+   Zitadel's ID tokens carry the project id as a second audience and the
+   client id as `azp`; rupta accepts that (see [Audiences](#audiences)). To
+   accept only your project, set
+   `RUPTA_OIDC_ALLOWED_AUDIENCES={project id}`.
 9. **Try it.** Open the login page, click *Zitadel*, sign in. The first
    sign-in creates the user (if JIT is on) and the membership in
    `RUPTA_DEFAULT_ORG` with the mapped role. Check *Organization settings →
@@ -229,7 +334,11 @@ The steps refer to the Zitadel console (cloud or self-hosted). Replace
 
 Troubleshooting: the server log names the failing step (`discovery failed`,
 `token exchange failed`, `the ID token is invalid: ...`, `no matching user
-and just-in-time provisioning is off`, ...). A common cause is a redirect URI
+and just-in-time provisioning is off`, `no role is mapped for the user's
+claims and the default role is none`, ...). `Invalid audiences: ... is not
+a trusted audience` means an additional audience is missing from
+`RUPTA_OIDC_ALLOWED_AUDIENCES`; `no authorized party (azp)` means the
+provider sent several audiences without `azp`. A common cause is a redirect URI
 that differs from the one registered, or `RUPTA_PUBLIC_URL` not matching the
 URL users open.
 

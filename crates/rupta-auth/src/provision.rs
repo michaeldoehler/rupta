@@ -12,6 +12,12 @@
 //! sign-in, except that owners are never demoted this way; without a
 //! mapped role, new members get the default role and existing members keep
 //! theirs.
+//!
+//! With the default role `none` (`Policy::default_role` is `None`), users
+//! whose claims map to no role are refused: no user, identity or
+//! membership is created, and an existing member keeps the membership but
+//! cannot sign in through this provider. Owners still sign in, because
+//! single sign-on never changes an owner's role.
 
 use rupta_core::role::Role;
 use rupta_store::Result;
@@ -27,6 +33,10 @@ pub enum Provisioned {
     User { user_id: i64, created: bool, linked: bool, role: Role, role_change: Option<(Option<Role>, Role)> },
     /// Refused, with the reason for the log.
     Refused(&'static str),
+    /// Refused because the claims map to no role and the default role is
+    /// `none`. `user_id` is the existing user, if there is one. Nothing was
+    /// written.
+    NoRole { user_id: Option<i64> },
 }
 
 /// Provider settings that matter for provisioning.
@@ -36,7 +46,8 @@ pub struct Policy<'a> {
     pub provider_key: &'a str,
     pub org_id: i64,
     pub role_mapping: &'a [(String, Role)],
-    pub default_role: Role,
+    /// `None`: refuse users whose claims map to no role.
+    pub default_role: Option<Role>,
     pub jit_provisioning: bool,
 }
 
@@ -49,6 +60,7 @@ pub fn provision(conn: &Connection, policy: &Policy<'_>, identity: &Identity) ->
         )?
         .map(|r| r.get(0));
     let email = identity.email.as_deref().and_then(users::normalize_email);
+    let asserted = map_roles(&identity.roles, policy.role_mapping);
     let (user_id, created, linked) = match linked_user {
         Some(id) => (id, false, false),
         None => {
@@ -61,6 +73,9 @@ pub fn provision(conn: &Connection, policy: &Policy<'_>, identity: &Identity) ->
                 None => {
                     if !policy.jit_provisioning {
                         return Ok(Provisioned::Refused("no matching user and just-in-time provisioning is off"));
+                    }
+                    if asserted.is_none() && policy.default_role.is_none() {
+                        return Ok(Provisioned::NoRole { user_id: None });
                     }
                     let Some(e) = &email else {
                         return Ok(Provisioned::Refused("the provider sent no email address"));
@@ -91,12 +106,13 @@ pub fn provision(conn: &Connection, policy: &Policy<'_>, identity: &Identity) ->
         return Ok(Provisioned::Refused("the user is disabled"));
     }
     let current = users::membership(&txn, policy.org_id, user_id)?;
-    let asserted = map_roles(&identity.roles, policy.role_mapping);
-    let role = match (current, asserted) {
-        (Some(Role::Owner), _) => Role::Owner,
-        (_, Some(r)) => r,
-        (Some(c), None) => c,
-        (None, None) => policy.default_role,
+    let role = match (current, asserted, policy.default_role) {
+        (Some(Role::Owner), _, _) => Role::Owner,
+        (_, Some(r), _) => r,
+        // Dropping the transaction rolls back a newly linked identity.
+        (_, None, None) => return Ok(Provisioned::NoRole { user_id: Some(user_id) }),
+        (Some(c), None, Some(_)) => c,
+        (None, None, Some(d)) => d,
     };
     let role_change = if current != Some(role) {
         users::set_member(&txn, policy.org_id, user_id, role)?;
@@ -144,7 +160,7 @@ mod tests {
             provider_key: "oidc",
             org_id: org,
             role_mapping: &m,
-            default_role: Role::Member,
+            default_role: Some(Role::Member),
             jit_provisioning: true,
         };
         let first = provision(&conn, &policy, &identity("s1", "Ada@x.org", true, &["rupta-admin"])).unwrap();
@@ -176,7 +192,7 @@ mod tests {
             provider_key: "oidc",
             org_id: org,
             role_mapping: &m,
-            default_role: Role::Member,
+            default_role: Some(Role::Member),
             jit_provisioning: true,
         };
         let p = provision(&conn, &policy, &identity("s1", "ada@x.org", false, &[])).unwrap();
@@ -203,7 +219,7 @@ mod tests {
             provider_key: "oidc",
             org_id: org,
             role_mapping: &m,
-            default_role: Role::Member,
+            default_role: Some(Role::Member),
             jit_provisioning: false,
         };
         assert!(matches!(
@@ -213,6 +229,43 @@ mod tests {
         let uid = users::create(&conn, "boss@x.org", "Boss", None, false).unwrap();
         users::set_member(&conn, org, uid, Role::Owner).unwrap();
         let p = provision(&conn, &policy, &identity("s2", "boss@x.org", true, &["rupta-viewer"])).unwrap();
+        assert!(matches!(p, Provisioned::User { role: Role::Owner, role_change: None, .. }), "{p:?}");
+    }
+
+    #[test]
+    fn default_role_none_refuses_users_without_a_mapped_role() {
+        let (store, org) = setup();
+        let conn = store.connect();
+        let m = mapping();
+        let policy =
+            Policy { provider_key: "oidc", org_id: org, role_mapping: &m, default_role: None, jit_provisioning: true };
+        let count = |sql: &str| -> i64 { conn.query_one(sql, &[]).unwrap().get(0) };
+
+        // A new user without a mapped role: nothing is created.
+        let p = provision(&conn, &policy, &identity("s1", "new@x.org", true, &["other"])).unwrap();
+        assert_eq!(p, Provisioned::NoRole { user_id: None });
+        assert_eq!(count("SELECT count(*) FROM users"), 0);
+
+        // With a mapped role the user is created.
+        let p = provision(&conn, &policy, &identity("s1", "new@x.org", true, &["rupta-viewer"])).unwrap();
+        let Provisioned::User { user_id, created: true, role: Role::Viewer, .. } = p else { panic!("{p:?}") };
+
+        // The role is removed at the provider: refused, membership kept.
+        let p = provision(&conn, &policy, &identity("s1", "new@x.org", true, &[])).unwrap();
+        assert_eq!(p, Provisioned::NoRole { user_id: Some(user_id) });
+        assert_eq!(users::membership(&conn, org, user_id).unwrap(), Some(Role::Viewer));
+
+        // An existing user linked by email: refused, and no identity is linked.
+        let uid = users::create(&conn, "ada@x.org", "Ada", None, false).unwrap();
+        let p = provision(&conn, &policy, &identity("s2", "ada@x.org", true, &[])).unwrap();
+        assert_eq!(p, Provisioned::NoRole { user_id: Some(uid) });
+        assert_eq!(count("SELECT count(*) FROM identities WHERE subject = 's2'"), 0);
+        assert_eq!(users::membership(&conn, org, uid).unwrap(), None);
+
+        // Owners keep signing in.
+        let boss = users::create(&conn, "boss@x.org", "Boss", None, false).unwrap();
+        users::set_member(&conn, org, boss, Role::Owner).unwrap();
+        let p = provision(&conn, &policy, &identity("s3", "boss@x.org", true, &[])).unwrap();
         assert!(matches!(p, Provisioned::User { role: Role::Owner, role_change: None, .. }), "{p:?}");
     }
 
@@ -227,7 +280,7 @@ mod tests {
             provider_key: "oidc",
             org_id: org,
             role_mapping: &m,
-            default_role: Role::Member,
+            default_role: Some(Role::Member),
             jit_provisioning: true,
         };
         assert!(matches!(

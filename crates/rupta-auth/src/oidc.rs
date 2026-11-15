@@ -10,7 +10,14 @@
 //! (`urn:zitadel:iam:org:project:roles`) is an object whose keys are the
 //! role names; arrays of strings and single strings work as well. Role
 //! names are mapped to rupta roles; the highest mapped role wins, and
-//! users without a mapped role get the default role.
+//! users without a mapped role get the default role, or are refused when
+//! the default role is `none`.
+//!
+//! Audiences: the client id must be in `aud`. Other audiences (Zitadel adds
+//! the project id) are accepted, or only those in `allowed_audiences` when
+//! that list is not empty. With more than one audience the ID token must
+//! carry `azp` equal to the client id, and a present `azp` must always
+//! equal the client id (OpenID Connect Core 1.0, section 3.1.3.7).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -27,6 +34,21 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::crypto::Keys;
+
+/// The value of a default role setting that refuses users whose claims
+/// map to no role.
+pub const NO_ACCESS: &str = "none";
+
+/// Parses a default role setting: a role, or `none` (`Some(None)`).
+/// `None` for anything else.
+pub fn parse_default_role(s: &str) -> Option<Option<Role>> {
+    if s.trim().eq_ignore_ascii_case(NO_ACCESS) { Some(None) } else { Role::parse(s).map(Some) }
+}
+
+/// The stored or displayed form of a default role setting.
+pub fn default_role_str(role: Option<Role>) -> &'static str {
+    role.map(Role::as_str).unwrap_or(NO_ACCESS)
+}
 
 /// Id of the provider configured by environment variables.
 pub const INSTANCE_PROVIDER_ID: &str = "oidc";
@@ -51,9 +73,13 @@ pub struct OidcSettings {
     pub role_claim: Option<String>,
     /// Provider role name → rupta role.
     pub role_mapping: Vec<(String, Role)>,
-    pub default_role: Role,
+    /// Role for users whose claims map to no role; `None` refuses them.
+    pub default_role: Option<Role>,
     /// Create users on first sign-in.
     pub jit_provisioning: bool,
+    /// Audiences besides the client id that ID tokens may carry; empty =
+    /// any.
+    pub allowed_audiences: Vec<String>,
 }
 
 impl std::fmt::Debug for OidcSettings {
@@ -69,6 +95,7 @@ impl std::fmt::Debug for OidcSettings {
             .field("role_mapping", &self.role_mapping)
             .field("default_role", &self.default_role)
             .field("jit_provisioning", &self.jit_provisioning)
+            .field("allowed_audiences", &self.allowed_audiences)
             .finish()
     }
 }
@@ -332,10 +359,16 @@ impl OidcClient {
             .map_err(|e| OidcError::Token(error_chain(&e)))?;
         let id_token =
             token.id_token().ok_or_else(|| OidcError::IdToken("the provider returned no ID token".into()))?;
-        let verifier = client.id_token_verifier();
+        let allowed = settings.allowed_audiences.clone();
+        let verifier = client
+            .id_token_verifier()
+            .set_other_audience_verifier_fn(move |aud| other_audience_allowed(&allowed, aud.as_str()));
         let claims = id_token
             .claims(&verifier, &Nonce::new(state.n.clone()))
             .map_err(|e| OidcError::IdToken(error_chain(&e)))?;
+        let audiences: Vec<&str> = claims.audiences().iter().map(|a| a.as_str()).collect();
+        check_authorized_party(&audiences, claims.authorized_party().map(|a| a.as_str()), &settings.client_id)
+            .map_err(OidcError::IdToken)?;
         // The signature is verified; read every claim from the payload.
         let raw = serde_json::to_value(id_token).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
         let payload: Value = raw
@@ -406,6 +439,28 @@ fn error_chain(e: &dyn std::error::Error) -> String {
     s
 }
 
+/// Whether an audience other than the client id is trusted: any, unless
+/// a list of allowed audiences is configured.
+pub fn other_audience_allowed(allowed: &[String], audience: &str) -> bool {
+    allowed.is_empty() || allowed.iter().any(|a| a == audience)
+}
+
+/// Steps 4 and 5 of ID token validation (OpenID Connect Core 1.0, section
+/// 3.1.3.7), which the OpenID library leaves to the client: with several
+/// audiences `azp` must be present, and a present `azp` must be the client
+/// id.
+pub fn check_authorized_party(audiences: &[&str], azp: Option<&str>, client_id: &str) -> Result<(), String> {
+    match azp {
+        Some(azp) if azp != client_id => {
+            Err(format!("authorized party (azp) {azp:?} is not the client id {client_id:?}"))
+        }
+        None if audiences.len() > 1 => {
+            Err("the ID token has several audiences but no authorized party (azp)".to_string())
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Role names in a claim value: the keys of an object (Zitadel), the
 /// strings of an array, or a single string.
 pub fn roles_from_claim(value: Option<&Value>) -> Vec<String> {
@@ -438,6 +493,30 @@ mod tests {
         assert_eq!(roles_from_claim(Some(&json!(["a", "b"]))), vec!["a", "b"]);
         assert_eq!(roles_from_claim(Some(&json!("a b"))), vec!["a", "b"]);
         assert!(roles_from_claim(None).is_empty());
+    }
+
+    #[test]
+    fn extra_audiences_and_the_authorized_party() {
+        assert!(other_audience_allowed(&[], "project"));
+        let allowed = vec!["project".to_string()];
+        assert!(other_audience_allowed(&allowed, "project"));
+        assert!(!other_audience_allowed(&allowed, "other"));
+
+        assert_eq!(check_authorized_party(&["client"], None, "client"), Ok(()));
+        assert_eq!(check_authorized_party(&["client"], Some("client"), "client"), Ok(()));
+        assert!(check_authorized_party(&["client"], Some("other"), "client").is_err());
+        assert_eq!(check_authorized_party(&["client", "project"], Some("client"), "client"), Ok(()));
+        assert!(check_authorized_party(&["client", "project"], None, "client").is_err());
+        assert!(check_authorized_party(&["client", "project"], Some("project"), "client").is_err());
+    }
+
+    #[test]
+    fn default_roles_include_none() {
+        assert_eq!(parse_default_role("None"), Some(None));
+        assert_eq!(parse_default_role("viewer"), Some(Some(Role::Viewer)));
+        assert_eq!(parse_default_role("root"), None);
+        assert_eq!(default_role_str(None), "none");
+        assert_eq!(default_role_str(Some(Role::Member)), "member");
     }
 
     #[test]

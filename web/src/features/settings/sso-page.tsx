@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleCheck, CircleX, Loader2, Plus, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ChevronDown, CircleCheck, CircleX, ExternalLink, Loader2, Plus, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ApiError, errorMessage } from '@/api/client'
 import { api } from '@/api/endpoints'
 import { qk } from '@/api/queries'
-import type { Role, SsoConfig, SsoTestResult } from '@/api/types'
+import type { InstanceSso, Role, SsoConfig, SsoDefaultRole, SsoTestResult } from '@/api/types'
 import { BrandPicker } from '@/components/brand/brand-picker'
 import { SsoProviderIcon } from '@/components/brand/sso-icon'
 import { CopyField } from '@/components/common/copy-button'
@@ -13,6 +13,7 @@ import { Field, FormError } from '@/components/common/field'
 import { CardsSkeleton, ErrorState } from '@/components/common/states'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -28,7 +29,7 @@ type Form = {
   scopes: string
   role_claim: string
   mapping: [string, Role][]
-  default_role: Role
+  default_role: SsoDefaultRole
   jit_provisioning: boolean
   enforce: boolean
   owner_local_login: boolean
@@ -38,7 +39,9 @@ const PRESETS: Record<string, Partial<Form> & { label: string; issuerHint: strin
   zitadel: {
     label: 'Zitadel',
     provider_name: 'Zitadel',
-    scopes: 'openid email profile urn:zitadel:iam:org:projects:roles',
+    // The reserved scope that asks for the roles of the requested project; the
+    // roles then arrive in the claim of the same name (RUPTA_OIDC_SCOPES default).
+    scopes: 'openid email profile urn:zitadel:iam:org:project:roles',
     role_claim: 'urn:zitadel:iam:org:project:roles',
     mapping: [
       ['rupta-admin', 'admin'],
@@ -75,6 +78,23 @@ const PRESETS: Record<string, Partial<Form> & { label: string; issuerHint: strin
 
 const ROLES: Role[] = ['owner', 'admin', 'member', 'viewer']
 
+const DEFAULT_ROLES: { value: SsoDefaultRole; label: string }[] = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'member', label: 'Member' },
+  { value: 'viewer', label: 'Viewer' },
+  { value: 'none', label: 'No access (refuse sign-in)' },
+]
+
+const ROLE_LABELS: Record<string, string> = {
+  owner: 'Owner',
+  admin: 'Admin',
+  member: 'Member',
+  viewer: 'Viewer',
+  none: 'No access (refuse sign-in)',
+}
+
+export const SSO_DOCS = 'https://github.com/michaeldoehler/rupta/blob/main/docs/sso.md'
+
 function toForm(c: SsoConfig | null): Form {
   return {
     provider_name: c?.provider_name ?? '',
@@ -92,9 +112,11 @@ function toForm(c: SsoConfig | null): Form {
 }
 
 export function SsoPage({ org }: { org: string }) {
-  const q = useQuery({ queryKey: qk.sso(org), queryFn: () => api.orgs.sso(org) })
+  const q = useQuery({ queryKey: qk.sso(org), queryFn: () => api.orgs.sso(org), retry: (n, e) => !(e instanceof ApiError && e.status === 403) && n < 2 })
+  const iq = useQuery({ queryKey: qk.instanceSso(org), queryFn: () => api.orgs.instanceSso(org), retry: false })
   const qc = useQueryClient()
   const owner = useRole('owner').can
+  const [orgOpen, setOrgOpen] = useState<boolean | null>(null)
   const [form, setForm] = useState<Form>(() => toForm(null))
   const [preset, setPreset] = useState<string>('zitadel')
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -143,6 +165,10 @@ export function SsoPage({ org }: { org: string }) {
     if (!form.client_id.trim()) e.client_id = 'Required.'
     if (!form.client_secret && !q.data?.has_client_secret) e.client_secret = 'Required.'
     if (!form.scopes.split(/\s+/).includes('openid')) e.scopes = 'Must include “openid”.'
+    if (form.default_role === 'none') {
+      if (!form.role_claim.trim()) e.role_claim = 'Required when users without a matching role are refused.'
+      if (!form.mapping.some(([k]) => k.trim())) e.mapping = 'Add at least one mapping when users without a matching role are refused.'
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -190,30 +216,27 @@ export function SsoPage({ org }: { org: string }) {
     }
   }
 
-  if (q.isPending)
+  if (q.isPending || iq.isPending)
     return (
       <SettingsPage title="Single sign-on">
         <CardsSkeleton count={3} />
       </SettingsPage>
     )
-  if (q.isError) return <ErrorState error={q.error} />
-  const redirect = q.data?.redirect_uri ?? `${location.origin}/auth/sso/${org}/callback`
+  // Admins may see the instance provider but not the organization's settings.
+  const orgForbidden = q.isError && q.error instanceof ApiError && q.error.status === 403
+  if (q.isError && !orgForbidden) return <ErrorState error={q.error} />
+  const instance = iq.data?.provider ?? null
+  const localLogin = iq.data?.local_login ?? true
+  const redirect = q.data?.redirect_uri ?? `${location.origin}/auth/sso/org-${org}/callback`
   const configured = Boolean(q.data)
+  const open = orgOpen ?? (configured || !instance)
 
-  return (
-    <SettingsPage
-      title="Single sign-on"
-      description="Let members sign in with your OpenID Connect identity provider. Roles can be taken from a claim of the ID token."
-      actions={
-        configured ? (
-          <Badge variant="success">
-            <ShieldCheck /> Configured
-          </Badge>
-        ) : (
-          <Badge variant="outline">Not configured</Badge>
-        )
-      }
-    >
+  const orgSection = orgForbidden ? (
+    <p className="rounded-md border bg-muted/50 px-3 py-2 text-[13px] text-muted-foreground">
+      Only owners can see and change this organization's own provider.
+    </p>
+  ) : (
+    <>
       {!owner && <p className="rounded-md border bg-muted/50 px-3 py-2 text-[13px] text-muted-foreground">Only owners can change single sign-on.</p>}
       <FormError message={error} />
       <SettingsCard title="Provider" description="Choose a preset to fill in typical values.">
@@ -284,7 +307,7 @@ export function SsoPage({ org }: { org: string }) {
 
       <SettingsCard title="Roles" description="Map role or group names from the ID token to rupta roles. The highest matching role wins.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Role claim" optional hint="Claim with roles or groups. Nested claims use dots.">
+          <Field label="Role claim" optional error={errors.role_claim} hint="Claim with roles or groups. Nested claims use dots.">
             {(p) => (
               <Input
                 {...p}
@@ -296,16 +319,23 @@ export function SsoPage({ org }: { org: string }) {
               />
             )}
           </Field>
-          <Field label="Default role" hint="For users without a matching role.">
+          <Field
+            label="Default role"
+            hint={
+              form.default_role === 'none'
+                ? 'Users without a matching role cannot sign in, and no account is created for them. Owners can always sign in.'
+                : 'For new members without a matching role; existing members keep their role.'
+            }
+          >
             {(p) => (
-              <Select value={form.default_role} onValueChange={(v) => set('default_role', v as Role)} disabled={!owner}>
-                <SelectTrigger id={p.id} className="w-full capitalize">
+              <Select value={form.default_role} onValueChange={(v) => set('default_role', v as SsoDefaultRole)} disabled={!owner}>
+                <SelectTrigger id={p.id} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROLES.filter((r) => r !== 'owner').map((r) => (
-                    <SelectItem key={r} value={r} className="capitalize">
-                      {r}
+                  {DEFAULT_ROLES.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -375,6 +405,7 @@ export function SsoPage({ org }: { org: string }) {
           <Button variant="ghost" size="sm" disabled={!owner} onClick={() => set('mapping', [...form.mapping, ['', 'member']])}>
             <Plus /> Add mapping
           </Button>
+          {errors.mapping && <p className="text-xs text-destructive">{errors.mapping}</p>}
         </div>
       </SettingsCard>
 
@@ -443,7 +474,130 @@ export function SsoPage({ org }: { org: string }) {
           {saving && <Loader2 className="animate-spin" />} Save
         </Button>
       </div>
+    </>
+  )
+
+  return (
+    <SettingsPage
+      title="Single sign-on"
+      description="Let members sign in with an OpenID Connect identity provider. Roles can be taken from a claim of the ID token."
+      actions={
+        configured || instance ? (
+          <Badge variant="success">
+            <ShieldCheck /> Configured
+          </Badge>
+        ) : (
+          <Badge variant="outline">Not configured</Badge>
+        )
+      }
+    >
+      {instance && <InstanceSsoCard instance={instance} localLogin={localLogin} org={org} />}
+      {instance ? (
+        <Collapsible open={open} onOpenChange={setOrgOpen} className="space-y-6">
+          <section className="rounded-lg border bg-card">
+            <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+              <div className="max-w-2xl">
+                <h2 className="text-sm font-semibold">Use a different identity provider for this organization (optional)</h2>
+                <div className="mt-1 space-y-1 text-[13px] text-muted-foreground">
+                  <p>
+                    The sign-in page always shows the instance provider. This organization's provider appears next to it when the sign-in page is opened with{' '}
+                    <code className="font-mono text-xs">?org={org}</code>.
+                  </p>
+                  <p>
+                    Each provider sets roles only in its own organization: the instance provider in{' '}
+                    <span className="font-mono text-xs">{instance.default_org}</span>, this one in this organization. If both apply to the same organization,
+                    the provider a member signed in with last sets their role.
+                  </p>
+                  <p>“Require single sign-on” below refuses passwords for this organization's members; signing in with the instance provider still works.</p>
+                </div>
+              </div>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" size="sm" aria-expanded={open}>
+                  <ChevronDown className={cn('transition-transform', open && 'rotate-180')} />
+                  {open ? 'Hide' : configured ? 'Show organization provider' : 'Set up organization provider'}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+          </section>
+          <CollapsibleContent className="space-y-6">{orgSection}</CollapsibleContent>
+        </Collapsible>
+      ) : (
+        orgSection
+      )}
     </SettingsPage>
+  )
+}
+
+/** The provider from the deployment's RUPTA_OIDC_* variables, read-only. */
+function InstanceSsoCard({ instance, localLogin, org }: { instance: InstanceSso; localLogin: boolean; org: string }) {
+  const mapping = Object.entries(instance.role_mapping)
+  const rows: [string, ReactNode][] = [
+    ['Button label', instance.provider_name],
+    ['Issuer URL', <span className="font-mono text-[13px] break-all">{instance.issuer}</span>],
+    ['Client ID', <span className="font-mono text-[13px] break-all">{instance.client_id}</span>],
+    ['Client secret', instance.has_client_secret ? 'Set' : 'Not set (public client)'],
+    ['Scopes', <span className="font-mono text-[13px] break-all">{instance.scopes}</span>],
+    ['Role claim', instance.role_claim ? <span className="font-mono text-[13px] break-all">{instance.role_claim}</span> : 'None (no role mapping)'],
+    [
+      'Role mapping',
+      mapping.length ? (
+        <ul className="space-y-0.5">
+          {mapping.map(([k, v]) => (
+            <li key={k}>
+              <span className="font-mono text-[13px]">{k}</span> → {ROLE_LABELS[v] ?? v}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        'None'
+      ),
+    ],
+    ['Default role', ROLE_LABELS[instance.default_role] ?? instance.default_role],
+    ['Create accounts on first sign-in', instance.jit_provisioning ? 'On' : 'Off'],
+    [
+      'Additional audiences',
+      instance.allowed_audiences.length ? (
+        <span className="font-mono text-[13px]">{instance.allowed_audiences.join(', ')}</span>
+      ) : (
+        'Any (the client ID must be one of them)'
+      ),
+    ],
+    ['Members join', instance.default_org === org ? 'This organization' : <span className="font-mono text-[13px]">{instance.default_org}</span>],
+    ['Password login', localLogin ? 'Enabled' : 'Disabled for this instance'],
+  ]
+  return (
+    <section className="rounded-lg border bg-card" aria-label="Single sign-on for this instance">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3">
+        <div>
+          <h2 className="text-sm font-semibold">Single sign-on for this instance</h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">Configured by environment variables of the deployment.</p>
+        </div>
+        <Badge variant="success">
+          <ShieldCheck /> Configured
+        </Badge>
+      </div>
+      <div className="p-4">
+        <dl className="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-[12rem_1fr]">
+          {rows.map(([k, v]) => (
+            <div key={k} className="contents">
+              <dt className="text-muted-foreground">{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="mt-4">
+          <p className="mb-1.5 text-[13px] font-medium">Redirect URI</p>
+          <CopyField value={instance.redirect_uri} label="Copy instance redirect URI" />
+        </div>
+        <p className="mt-4 text-xs text-muted-foreground">
+          These settings are read-only here. Change them in the deployment's <code className="font-mono">RUPTA_OIDC_*</code> environment variables and restart
+          rupta.{' '}
+          <a href={SSO_DOCS} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 underline underline-offset-2">
+            Single sign-on documentation <ExternalLink className="size-3" />
+          </a>
+        </p>
+      </div>
+    </section>
   )
 }
 

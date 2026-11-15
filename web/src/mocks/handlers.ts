@@ -967,6 +967,11 @@ export const handlers = [
     if ('error' in r) return r.error
     return json((world.sso.get(r.org.id) ?? null) as unknown as JsonBodyType)
   }),
+  http.get(`${BASE}/orgs/:org/sso/instance`, ({ params }) => {
+    const r = withOrg(params)
+    if ('error' in r) return r.error
+    return json(world.instanceSso as unknown as JsonBodyType)
+  }),
   http.put(`${BASE}/orgs/:org/sso`, async ({ params, request }) => {
     const r = withOrg(params)
     if ('error' in r) return r.error

@@ -17,6 +17,7 @@ import { AuthLayout } from './auth-layout'
 const SSO_ERRORS: Record<string, string> = {
   sso_failed: 'Single sign-on failed. Try again or contact your administrator.',
   sso_denied: 'The identity provider did not allow the sign-in.',
+  sso_no_access: 'Your account at the identity provider has no role that gives access to rupta. Ask your administrator to grant you a role.',
   not_invited: 'Your account is not a member of this organization yet. Ask an administrator for an invitation.',
   disabled: 'Your account is disabled.',
 }

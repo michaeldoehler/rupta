@@ -869,8 +869,9 @@ async fn authentication_is_required_and_advertised() {
         scopes: vec!["openid".into()],
         role_claim: None,
         role_mapping: Vec::new(),
-        default_role: Role::Member,
+        default_role: Some(Role::Member),
         jit_provisioning: true,
+        allowed_audiences: vec![],
     });
     let sso = ApiState::new(Store::open_in_memory().unwrap(), cfg);
     let r = rupta_mcp::router(sso, true)

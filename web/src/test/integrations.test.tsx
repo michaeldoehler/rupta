@@ -220,6 +220,8 @@ describe('service marks', () => {
   })
 
   it('shows the ZITADEL mark on the Zitadel preset', async () => {
+    // Without an instance provider the organization form is open.
+    getWorld().instanceSso = { local_login: true, provider: null }
     renderApp('/acme/settings/sso')
     const presets = await screen.findByRole('radiogroup', { name: 'Provider preset' })
     const zitadel = within(presets).getByRole('radio', { name: 'Zitadel' })

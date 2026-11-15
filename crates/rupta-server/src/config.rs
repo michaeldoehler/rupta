@@ -59,8 +59,12 @@ pub struct OidcConfig {
     pub role_claim: String,
     /// IdP role name → rupta role name.
     pub role_mapping: Vec<(String, String)>,
+    /// A role, or `none` to refuse users whose claims map to no role.
     pub default_role: String,
     pub jit_provisioning: bool,
+    /// `RUPTA_OIDC_ALLOWED_AUDIENCES`: audiences besides the client id that
+    /// ID tokens may carry; empty = any.
+    pub allowed_audiences: Vec<String>,
 }
 
 impl std::fmt::Debug for OidcConfig {
@@ -75,6 +79,7 @@ impl std::fmt::Debug for OidcConfig {
             .field("role_mapping", &self.role_mapping)
             .field("default_role", &self.default_role)
             .field("jit_provisioning", &self.jit_provisioning)
+            .field("allowed_audiences", &self.allowed_audiences)
             .finish()
     }
 }
@@ -272,8 +277,14 @@ impl Config {
                     })
                     .collect::<Result<Vec<_>>>()?;
                 let default_role = r.string("RUPTA_OIDC_DEFAULT_ROLE", "member").to_ascii_lowercase();
-                if rupta_core::role::Role::parse(&default_role).is_none() {
-                    bail!("RUPTA_OIDC_DEFAULT_ROLE: unknown role {default_role:?}");
+                match rupta_auth::oidc::parse_default_role(&default_role) {
+                    None => bail!(
+                        "RUPTA_OIDC_DEFAULT_ROLE: unknown role {default_role:?} (owner, admin, member, viewer, none)"
+                    ),
+                    Some(None) if role_mapping.is_empty() => bail!(
+                        "RUPTA_OIDC_DEFAULT_ROLE=none needs RUPTA_OIDC_ROLE_MAPPING, or only owners could sign in"
+                    ),
+                    Some(_) => {}
                 }
                 Some(OidcConfig {
                     name: r.string("RUPTA_OIDC_NAME", "Single sign-on"),
@@ -289,6 +300,7 @@ impl Config {
                     role_mapping,
                     default_role,
                     jit_provisioning: r.bool("RUPTA_OIDC_JIT", true)?,
+                    allowed_audiences: r.list("RUPTA_OIDC_ALLOWED_AUDIENCES"),
                 })
             }
         };
@@ -493,6 +505,33 @@ mod tests {
             vec![("rupta-admin".into(), "admin".into()), ("rupta-viewer".into(), "viewer".into())]
         );
         assert!(!format!("{oidc:?}").contains("secret\""));
+        assert_eq!(oidc.default_role, "member");
+        assert!(oidc.allowed_audiences.is_empty());
+    }
+
+    #[test]
+    fn oidc_allowed_audiences_and_default_role_none() {
+        let base = [
+            KEY,
+            ("RUPTA_OIDC_ISSUER", "https://auth.example.com"),
+            ("RUPTA_OIDC_CLIENT_ID", "123@rupta"),
+            ("RUPTA_OIDC_CLIENT_SECRET", "secret"),
+        ];
+        let with = |extra: &[(&'static str, &'static str)]| {
+            Config::from_env(&env(&[&base[..], extra].concat())).map(|c| c.oidc.unwrap())
+        };
+        let oidc = with(&[
+            ("RUPTA_OIDC_ALLOWED_AUDIENCES", "2930, 3141 ,"),
+            ("RUPTA_OIDC_ROLE_MAPPING", "rupta-admin:admin"),
+            ("RUPTA_OIDC_DEFAULT_ROLE", "None"),
+        ])
+        .unwrap();
+        assert_eq!(oidc.allowed_audiences, vec!["2930", "3141"]);
+        assert_eq!(oidc.default_role, "none");
+        let err = with(&[("RUPTA_OIDC_DEFAULT_ROLE", "none")]).unwrap_err().to_string();
+        assert!(err.contains("RUPTA_OIDC_ROLE_MAPPING"), "{err}");
+        let err = with(&[("RUPTA_OIDC_DEFAULT_ROLE", "nobody")]).unwrap_err().to_string();
+        assert!(err.contains("RUPTA_OIDC_DEFAULT_ROLE"), "{err}");
     }
 
     #[test]

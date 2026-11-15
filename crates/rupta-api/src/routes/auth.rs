@@ -431,8 +431,11 @@ pub(crate) fn load_provider(state: &ApiState, conn: &Connection, id: &str) -> Ap
             scopes: row.get::<String>(5).split_whitespace().map(str::to_string).collect(),
             role_claim: row.get::<Option<String>>(6).filter(|s| !s.is_empty()),
             role_mapping,
-            default_role: Role::parse(&row.get::<String>(8)).unwrap_or(Role::Member),
+            default_role: rupta_auth::oidc::parse_default_role(&row.get::<String>(8)).unwrap_or(Some(Role::Member)),
             jit_provisioning: row.get(9),
+            // Organization providers accept any additional audience; the
+            // authorized party (azp) check still applies.
+            allowed_audiences: Vec::new(),
         },
         provider_key: format!("org:{org_id}"),
         org_id: Some(org_id),
@@ -487,7 +490,7 @@ async fn sso_start(
 /// Completes single sign-on and redirects into the app.
 #[utoipa::path(get, path = "/auth/sso/{provider}/callback", tag = "auth",
     params(("provider" = String, Path, description = "`oidc` or `org-{slug}`")),
-    responses((status = 302, description = "into the app, or to `/login?error=sso_failed`")))]
+    responses((status = 302, description = "into the app; on failure to `/login?error=sso_no_access` when the user's claims map to no role and the default role is `none`, else to `/login?error=sso_failed`")))]
 async fn sso_callback(
     State(state): State<ApiState>,
     Path(provider): Path<String>,
@@ -503,25 +506,36 @@ async fn sso_callback(
     let result = sso_finish(&state, &provider, &ip, &headers, &query, cookie.as_deref()).await;
     let (location, session_cookie) = match result {
         Ok((next, token)) => (next, Some(token)),
-        Err(reason) => {
+        Err(failure) => {
             ApiMetrics::inc(&state.metrics.sso_failures);
+            let SsoFailure { reason, error, org_id, user_id, subject, email } = failure;
             tracing::warn!(provider, reason, "single sign-on failed");
             let ipv = ip.string();
             let provider2 = provider.clone();
+            let mut data = json!({ "provider": provider2, "reason": reason });
+            if let Some(s) = subject {
+                data["subject"] = json!(s);
+            }
+            if let Some(e) = email {
+                data["email"] = json!(e);
+            }
             let _ = state
                 .db(move |c| {
                     Ok(audit::record(
                         c,
                         &audit::Entry {
+                            org_id,
                             action: action::SSO_LOGIN_FAILED,
-                            data: json!({ "provider": provider2, "reason": reason }),
+                            target_type: user_id.map(|_| "user"),
+                            target_id: user_id.map(|u| u.to_string()),
+                            data,
                             ip: ipv,
                             ..Default::default()
                         },
                     )?)
                 })
                 .await;
-            ("/login?error=sso_failed".to_string(), None)
+            (format!("/login?error={error}"), None)
         }
     };
     let mut resp = Redirect::to(&location).into_response();
@@ -536,7 +550,25 @@ async fn sso_callback(
     resp
 }
 
-/// Returns (next path, session token) or the reason for the log.
+/// Why a single sign-on callback failed, for the log, the audit log and
+/// the login page.
+struct SsoFailure {
+    reason: String,
+    /// `error` query parameter of the login page.
+    error: &'static str,
+    org_id: Option<i64>,
+    user_id: Option<i64>,
+    subject: Option<String>,
+    email: Option<String>,
+}
+
+impl From<String> for SsoFailure {
+    fn from(reason: String) -> SsoFailure {
+        SsoFailure { reason, error: "sso_failed", org_id: None, user_id: None, subject: None, email: None }
+    }
+}
+
+/// Returns (next path, session token) or why it failed.
 async fn sso_finish(
     state: &ApiState,
     provider: &str,
@@ -544,7 +576,7 @@ async fn sso_finish(
     headers: &HeaderMap,
     query: &HashMap<String, String>,
     cookie: Option<&str>,
-) -> Result<(String, String), String> {
+) -> Result<(String, String), SsoFailure> {
     let st = state.clone();
     let id = provider.to_string();
     let info = state
@@ -578,7 +610,15 @@ async fn sso_finish(
                 jit_provisioning: info.settings.jit_provisioning,
             };
             match provision::provision(c, &policy, &identity)? {
-                Provisioned::Refused(reason) => Ok(Err(reason.to_string())),
+                Provisioned::Refused(reason) => Ok(Err(SsoFailure::from(reason.to_string()))),
+                Provisioned::NoRole { user_id } => Ok(Err(SsoFailure {
+                    reason: "no role is mapped for the user's claims and the default role is none".to_string(),
+                    error: "sso_no_access",
+                    org_id: Some(org_id),
+                    user_id,
+                    subject: Some(identity.subject.clone()),
+                    email: identity.email.clone(),
+                })),
                 Provisioned::User { user_id, created, linked, role, role_change } => {
                     if let Some((old, new)) = role_change {
                         audit::record(
@@ -613,7 +653,7 @@ async fn sso_finish(
             }
         })
         .await
-        .map_err(|e| e.message)??;
+        .map_err(|e| SsoFailure::from(e.message))??;
     ApiMetrics::inc(&state.metrics.sso_logins);
     Ok((next, token))
 }

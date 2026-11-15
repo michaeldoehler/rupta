@@ -167,8 +167,10 @@ fn api_config(config: &Config) -> rupta_api::ApiConfig {
         scopes: o.scopes.clone(),
         role_claim: Some(o.role_claim.clone()).filter(|c| !c.is_empty()),
         role_mapping: o.role_mapping.iter().filter_map(|(idp, r)| Some((idp.clone(), Role::parse(r)?))).collect(),
-        default_role: Role::parse(&o.default_role).unwrap_or(Role::Member),
+        // Validated when the configuration is read.
+        default_role: rupta_auth::oidc::parse_default_role(&o.default_role).unwrap_or(Some(Role::Member)),
         jit_provisioning: o.jit_provisioning,
+        allowed_audiences: o.allowed_audiences.clone(),
     });
     rupta_api::ApiConfig {
         oidc,

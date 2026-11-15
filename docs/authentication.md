@@ -38,6 +38,9 @@ A superuser acts as owner of every organization and sees all of them.
   with a password (`403 sso_required`, with the provider id in
   `details.provider`). Owners keep password login as break-glass access
   unless the organization turns that off too.
+- Single sign-on with the default role `none` refuses users whose claims
+  map to no role (`/login?error=sso_no_access`); owners are not affected.
+  See [single sign-on](sso.md#users-and-roles).
 - Changing the password (`PATCH /api/v1/user` with `current_password` and
   `new_password`) ends all other sessions of the user. Accounts created
   through single sign-on have no password until they set one.
@@ -138,7 +141,9 @@ details and client IP, and shown to admins at
 `GET /api/v1/orgs/{org}/audit-log` (filter with `?action=`):
 
 - `auth.setup`, `auth.login`, `auth.login_failed`, `auth.login_locked`,
-  `auth.logout`, `auth.sso_login`, `auth.sso_login_failed`
+  `auth.logout`, `auth.sso_login`, `auth.sso_login_failed` (with the
+  reason; a sign-in refused because no role maps also names the
+  organization, the subject and the email)
 - `user.password_change`
 - `org.create`, `org.update`, `org.delete`
 - `member.invite`, `member.invite_cancel`, `member.join`,

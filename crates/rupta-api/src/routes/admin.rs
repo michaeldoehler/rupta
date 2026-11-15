@@ -4,6 +4,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
 use rupta_auth::audit::{self, action};
+use rupta_auth::oidc::{INSTANCE_PROVIDER_ID, default_role_str, parse_default_role};
 use rupta_auth::rbac::Permission;
 use rupta_core::ids::Id;
 use rupta_core::role::Role;
@@ -21,7 +22,10 @@ use crate::routes::orgs::check_name;
 use crate::state::ApiState;
 
 pub fn routes() -> OpenApiRouter<ApiState> {
-    OpenApiRouter::new().routes(routes!(audit_log)).routes(routes!(get_sso, put_sso, delete_sso))
+    OpenApiRouter::new()
+        .routes(routes!(audit_log))
+        .routes(routes!(get_sso, put_sso, delete_sso))
+        .routes(routes!(get_instance_sso))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -115,6 +119,8 @@ pub struct SsoConfig {
     pub role_claim: Option<String>,
     /// Provider role name → rupta role.
     pub role_mapping: BTreeMap<String, String>,
+    /// Role for users whose claims map to no role: `viewer`, `member`,
+    /// `admin`, or `none` to refuse their sign-in.
     pub default_role: String,
     pub jit_provisioning: bool,
     /// Members must use single sign-on; password login is refused.
@@ -191,6 +197,9 @@ pub struct PutSso {
     pub role_claim: Option<String>,
     #[serde(default)]
     pub role_mapping: BTreeMap<String, String>,
+    /// Role for users whose claims map to no role: `viewer`, `member`
+    /// (default) or `admin`; `none` refuses their sign-in (needs a role
+    /// claim and a role mapping). Owners always sign in.
     #[serde(default = "default_role")]
     pub default_role: String,
     #[serde(default = "yes")]
@@ -229,15 +238,23 @@ async fn put_sso(
         return Err(ApiError::invalid("issuer", "must be an http(s) URL"));
     }
     let client_id = check_name("client_id", &req.client_id, 255)?;
-    let default_role =
-        Role::parse(&req.default_role).ok_or_else(|| ApiError::invalid("default_role", "unknown role"))?;
-    if default_role == Role::Owner {
+    let default_role = parse_default_role(&req.default_role)
+        .ok_or_else(|| ApiError::invalid("default_role", "unknown role (viewer, member, admin or none)"))?;
+    if default_role == Some(Role::Owner) {
         return Err(ApiError::invalid("default_role", "the default role cannot be owner"));
     }
     let mut mapping = serde_json::Map::new();
     for (k, v) in &req.role_mapping {
         let r = Role::parse(v).ok_or_else(|| ApiError::invalid("role_mapping", format!("unknown role {v:?}")))?;
         mapping.insert(k.clone(), json!(r.as_str()));
+    }
+    if default_role.is_none() {
+        if req.role_claim.as_deref().is_none_or(|c| c.trim().is_empty()) {
+            return Err(ApiError::invalid("role_claim", "required when the default role is none"));
+        }
+        if mapping.is_empty() {
+            return Err(ApiError::invalid("role_mapping", "required when the default role is none"));
+        }
     }
     let scopes = req.scopes.clone().unwrap_or_else(|| "openid email profile".into());
     if !scopes.split_whitespace().any(|s| s == "openid") {
@@ -256,6 +273,7 @@ async fn put_sso(
         role_mapping: vec![],
         default_role,
         jit_provisioning: false,
+        allowed_audiences: vec![],
     };
     // The server fetches this issuer at every login of the organization's
     // members: refuse internal addresses, as the connection test does.
@@ -294,7 +312,7 @@ async fn put_sso(
                    jit_provisioning = excluded.jit_provisioning, enforce = excluded.enforce,
                    owner_local_login = excluded.owner_local_login, updated_at = now()",
                 &[
-                    &o.id, &name, &issuer, &client_id, &secret_enc, &scopes, &role_claim, &mapping, &default_role.as_str(),
+                    &o.id, &name, &issuer, &client_id, &secret_enc, &scopes, &role_claim, &mapping, &default_role_str(default_role),
                     &req.jit_provisioning, &req.enforce, &req.owner_local_login,
                 ],
             )?;
@@ -335,4 +353,73 @@ async fn delete_sso(State(state): State<ApiState>, auth: Auth, Path(org): Path<S
         })
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// The instance-wide single sign-on provider (`RUPTA_OIDC_*`), read-only.
+#[derive(Serialize, ToSchema)]
+pub struct InstanceSso {
+    /// Provider id for `/auth/sso/{id}/start`: always `oidc`.
+    pub provider_id: String,
+    /// Label of the login button (`RUPTA_OIDC_NAME`).
+    pub provider_name: String,
+    pub issuer: String,
+    pub client_id: String,
+    /// Whether a client secret is set; the secret is never returned.
+    pub has_client_secret: bool,
+    /// Space-separated scopes.
+    pub scopes: String,
+    pub role_claim: Option<String>,
+    /// Provider role name → rupta role.
+    pub role_mapping: BTreeMap<String, String>,
+    /// Role for users whose claims map to no role, or `none` (refused).
+    pub default_role: String,
+    pub jit_provisioning: bool,
+    /// Audiences besides the client id that ID tokens may carry
+    /// (`RUPTA_OIDC_ALLOWED_AUDIENCES`); empty = any.
+    pub allowed_audiences: Vec<String>,
+    /// Register this URI at the provider.
+    pub redirect_uri: String,
+    /// Slug of the organization users join when they sign in with this
+    /// provider (`RUPTA_DEFAULT_ORG`).
+    pub default_org: String,
+}
+
+/// Instance-wide sign-in settings as far as an organization's settings
+/// page needs them.
+#[derive(Serialize, ToSchema)]
+pub struct InstanceSsoInfo {
+    /// Email and password login is enabled (`RUPTA_LOCAL_LOGIN`).
+    pub local_login: bool,
+    /// The provider configured by environment variables; `null` if none.
+    pub provider: Option<InstanceSso>,
+}
+
+/// The instance-wide single sign-on provider configured by environment
+/// variables, read-only. Admins and owners. Changes are made in the
+/// deployment's `RUPTA_OIDC_*` variables.
+#[utoipa::path(get, path = "/api/v1/orgs/{org}/sso/instance", tag = "orgs", params(("org" = String, Path)),
+    responses((status = 200, body = InstanceSsoInfo), (status = 403, body = crate::error::ErrorBody)))]
+async fn get_instance_sso(
+    State(state): State<ApiState>,
+    auth: Auth,
+    Path(org): Path<String>,
+) -> ApiResult<axum::Json<InstanceSsoInfo>> {
+    state.org(&auth, &org, Permission::ManageOrg).await?;
+    let cfg = &state.config;
+    let provider = cfg.oidc.as_ref().map(|o| InstanceSso {
+        provider_id: INSTANCE_PROVIDER_ID.to_string(),
+        provider_name: o.name.clone(),
+        issuer: o.issuer.clone(),
+        client_id: o.client_id.clone(),
+        has_client_secret: o.client_secret.as_deref().is_some_and(|s| !s.is_empty()),
+        scopes: o.scopes.join(" "),
+        role_claim: o.role_claim.clone(),
+        role_mapping: o.role_mapping.iter().map(|(k, r)| (k.clone(), r.as_str().to_string())).collect(),
+        default_role: default_role_str(o.default_role).to_string(),
+        jit_provisioning: o.jit_provisioning,
+        allowed_audiences: o.allowed_audiences.clone(),
+        redirect_uri: format!("{}/auth/sso/{INSTANCE_PROVIDER_ID}/callback", cfg.public_url),
+        default_org: cfg.default_org.clone(),
+    });
+    Ok(axum::Json(InstanceSsoInfo { local_login: cfg.local_login, provider }))
 }

@@ -170,8 +170,9 @@ fn settings(idp: &Idp) -> OidcSettings {
         scopes: vec!["openid".into(), "email".into(), "profile".into(), "urn:zitadel:iam:org:project:roles".into()],
         role_claim: Some("urn:zitadel:iam:org:project:roles".into()),
         role_mapping: vec![("rupta-admin".into(), Role::Admin), ("rupta-viewer".into(), Role::Viewer)],
-        default_role: Role::Member,
+        default_role: Some(Role::Member),
         jit_provisioning: true,
+        allowed_audiences: vec![],
     }
 }
 
@@ -402,4 +403,226 @@ async fn organization_providers_on_internal_addresses_are_refused_by_default() {
     assert!(r.body.to_string().contains("RUPTA_SSO_ALLOW_PRIVATE_ISSUERS"), "{}", r.body);
     let stored: i64 = app.conn().query_one("SELECT count(*) FROM sso_configs", &[]).unwrap().get(0);
     assert_eq!(stored, 0);
+}
+
+fn location(r: &common::Resp) -> String {
+    r.headers.get(header::LOCATION).unwrap().to_str().unwrap().to_string()
+}
+
+const SIGNED_IN: &str = "/organizations/default/issues";
+const FAILED: &str = "/login?error=sso_failed";
+const NO_ACCESS: &str = "/login?error=sso_no_access";
+
+/// The last `auth.sso_login_failed` entry: (org id, target id, data).
+fn last_sso_failure(app: &TestApp) -> (Option<i64>, Option<String>, Value) {
+    let r = app
+        .conn()
+        .query_one(
+            "SELECT org_id, target_id, data FROM audit_log WHERE action = 'auth.sso_login_failed' ORDER BY id DESC LIMIT 1",
+            &[],
+        )
+        .unwrap();
+    (r.get(0), r.get(1), r.get(2))
+}
+
+#[tokio::test]
+async fn zitadel_project_audiences_need_the_authorized_party() {
+    let idp = start_idp().await;
+    let s = settings(&idp);
+    let app = TestApp::with_config(|c| c.oidc = Some(s));
+    let claims = |sub: &str, aud: Value, azp: Option<&str>| {
+        let mut c = json!({"sub": sub, "email": format!("{sub}@example.com"), "email_verified": true, "aud": aud,
+                           "urn:zitadel:iam:org:project:roles": {}});
+        if let Some(azp) = azp {
+            c["azp"] = json!(azp);
+        }
+        c
+    };
+    let both = json!(["rupta-client", "2930413377723"]);
+
+    let r = sign_in(&app, &idp, "oidc", claims("u1", both.clone(), Some("rupta-client")), json!({}), false).await;
+    assert_eq!(location(&r), SIGNED_IN, "client id and project id, azp = client id");
+    assert!(cookie(&r, "rupta_session").is_some());
+
+    let r = sign_in(&app, &idp, "oidc", claims("u2", both.clone(), None), json!({}), false).await;
+    assert_eq!(location(&r), FAILED, "several audiences without azp");
+    assert!(last_sso_failure(&app).2["reason"].as_str().unwrap().contains("azp"));
+
+    let r = sign_in(&app, &idp, "oidc", claims("u3", both.clone(), Some("2930413377723")), json!({}), false).await;
+    assert_eq!(location(&r), FAILED, "azp is not the client id");
+
+    let r = sign_in(&app, &idp, "oidc", claims("u4", json!("rupta-client"), Some("other")), json!({}), false).await;
+    assert_eq!(location(&r), FAILED, "azp with a single audience must be the client id as well");
+
+    let r = sign_in(&app, &idp, "oidc", claims("u5", json!(["2930413377723"]), Some("rupta-client")), json!({}), false)
+        .await;
+    assert_eq!(location(&r), FAILED, "the client id must be an audience");
+
+    let r = sign_in(&app, &idp, "oidc", claims("u6", json!("rupta-client"), None), json!({}), false).await;
+    assert_eq!(location(&r), SIGNED_IN, "a single audience needs no azp");
+    let users: i64 = app.conn().query_one("SELECT count(*) FROM users", &[]).unwrap().get(0);
+    assert_eq!(users, 2);
+}
+
+#[tokio::test]
+async fn allowed_audiences_limit_the_additional_audiences() {
+    let idp = start_idp().await;
+    let mut s = settings(&idp);
+    s.allowed_audiences = vec!["2930413377723".into()];
+    let app = TestApp::with_config(|c| c.oidc = Some(s));
+    let claims = |sub: &str, project: &str| {
+        json!({"sub": sub, "email": format!("{sub}@example.com"), "email_verified": true,
+               "aud": ["rupta-client", project], "azp": "rupta-client", "urn:zitadel:iam:org:project:roles": {}})
+    };
+    let r = sign_in(&app, &idp, "oidc", claims("u1", "9999999999999"), json!({}), false).await;
+    assert_eq!(location(&r), FAILED, "an audience that is not listed");
+    let reason = last_sso_failure(&app).2["reason"].as_str().unwrap().to_string();
+    assert!(reason.contains("9999999999999") && reason.contains("not a trusted audience"), "{reason}");
+    let r = sign_in(&app, &idp, "oidc", claims("u2", "2930413377723"), json!({}), false).await;
+    assert_eq!(location(&r), SIGNED_IN, "a listed audience");
+}
+
+#[tokio::test]
+async fn default_role_none_refuses_users_without_a_mapped_role() {
+    let idp = start_idp().await;
+    let mut s = settings(&idp);
+    s.default_role = None;
+    let app = TestApp::with_config(|c| c.oidc = Some(s));
+    let roles = "urn:zitadel:iam:org:project:roles";
+    let claims = |sub: &str, email: &str, role: Option<&str>| {
+        let mut c = json!({"sub": sub, "email": email, "email_verified": true, roles: {}});
+        if let Some(r) = role {
+            c[roles] = json!({r: {"1": "acme"}});
+        }
+        c
+    };
+    let count = |sql: &str| -> i64 { app.conn().query_one(sql, &[]).unwrap().get(0) };
+
+    // A new user without a mapped role: refused, nothing created.
+    let r = sign_in(&app, &idp, "oidc", claims("n1", "nora@example.com", Some("other")), json!({}), false).await;
+    assert_eq!(location(&r), NO_ACCESS);
+    assert!(cookie(&r, "rupta_session").is_none());
+    assert_eq!(count("SELECT count(*) FROM users"), 0);
+    assert_eq!(count("SELECT count(*) FROM identities"), 0);
+    let org: i64 = app.conn().query_one("SELECT id FROM organizations WHERE slug = 'default'", &[]).unwrap().get(0);
+    let (audit_org, target, data) = last_sso_failure(&app);
+    assert_eq!(audit_org, Some(org), "the failure shows in the organization's audit log");
+    assert_eq!(target, None);
+    assert_eq!(data["provider"], "oidc");
+    assert_eq!(data["email"], "nora@example.com");
+    assert!(data["reason"].as_str().unwrap().contains("default role is none"), "{data}");
+
+    // With a mapped role the user is created; once the role is gone, refused.
+    let r = sign_in(&app, &idp, "oidc", claims("n1", "nora@example.com", Some("rupta-viewer")), json!({}), false).await;
+    assert_eq!(location(&r), SIGNED_IN);
+    let uid: i64 = app.conn().query_one("SELECT id FROM users WHERE email = 'nora@example.com'", &[]).unwrap().get(0);
+    let r = sign_in(&app, &idp, "oidc", claims("n1", "nora@example.com", None), json!({}), false).await;
+    assert_eq!(location(&r), NO_ACCESS, "an existing member whose claims no longer map");
+    assert_eq!(last_sso_failure(&app).1, Some(uid.to_string()));
+    let role: String = app.conn().query_one("SELECT role FROM members WHERE user_id = $1", &[&uid]).unwrap().get(0);
+    assert_eq!(role, "viewer", "the membership is kept");
+
+    // Owners sign in without a mapped role.
+    let (boss, _) = app.member(org, "boss@example.com", Role::Owner);
+    let r = sign_in(&app, &idp, "oidc", claims("b1", "boss@example.com", None), json!({}), false).await;
+    assert_eq!(location(&r), SIGNED_IN, "owners are never refused by the role mapping");
+    let linked: i64 = app.conn().query_one("SELECT user_id FROM identities WHERE subject = 'b1'", &[]).unwrap().get(0);
+    assert_eq!(linked, boss);
+}
+
+#[tokio::test]
+async fn organization_providers_accept_project_audiences_and_default_role_none() {
+    let idp = start_idp().await;
+    let app = TestApp::with_config(|c| c.sso_allow_private_issuers = true);
+    let org = app.org("acme");
+    let (_, owner) = app.member(org, "owner@example.com", Role::Owner);
+    let base = json!({"provider_name": "Acme IdP", "issuer": idp.issuer, "client_id": "rupta-client",
+                      "client_secret": "org-secret", "default_role": "none"});
+    let r = app.put("/api/v1/orgs/acme/sso", &owner, base.clone()).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "none needs a role claim");
+    assert!(r.body.to_string().contains("role_claim"), "{}", r.body);
+    let mut body = base.clone();
+    body["role_claim"] = json!("groups");
+    let r = app.put("/api/v1/orgs/acme/sso", &owner, body.clone()).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "none needs a role mapping");
+    assert!(r.body.to_string().contains("role_mapping"), "{}", r.body);
+    body["default_role"] = json!("nobody");
+    assert_eq!(app.put("/api/v1/orgs/acme/sso", &owner, body.clone()).await.status, StatusCode::UNPROCESSABLE_ENTITY);
+    body["default_role"] = json!("none");
+    body["role_mapping"] = json!({"rupta-admins": "admin"});
+    let r = app.put("/api/v1/orgs/acme/sso", &owner, body).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    assert_eq!(r.body["default_role"], "none");
+    assert_eq!(app.get("/api/v1/orgs/acme/sso", &owner).await.body["default_role"], "none");
+    let stored: String = app.conn().query_one("SELECT default_role FROM sso_configs", &[]).unwrap().get(0);
+    assert_eq!(stored, "none");
+
+    let claims = |sub: &str, groups: Value, azp: Option<&str>| {
+        let mut c = json!({"sub": sub, "email": format!("{sub}@example.com"), "email_verified": true,
+                           "groups": groups, "aud": ["rupta-client", "2930413377723"]});
+        if let Some(azp) = azp {
+            c["azp"] = json!(azp);
+        }
+        c
+    };
+    let r =
+        sign_in(&app, &idp, "org-acme", claims("c1", json!(["staff"]), Some("rupta-client")), json!({}), false).await;
+    assert_eq!(location(&r), NO_ACCESS);
+    assert_eq!(last_sso_failure(&app).0, Some(org));
+    let users: i64 = app.conn().query_one("SELECT count(*) FROM users", &[]).unwrap().get(0);
+    assert_eq!(users, 1, "only the owner");
+    let r = sign_in(&app, &idp, "org-acme", claims("c1", json!(["rupta-admins"]), None), json!({}), false).await;
+    assert_eq!(location(&r), FAILED, "several audiences without azp");
+    let r =
+        sign_in(&app, &idp, "org-acme", claims("c1", json!(["rupta-admins"]), Some("rupta-client")), json!({}), false)
+            .await;
+    assert_eq!(location(&r), SIGNED_IN);
+    let who = As { cookie: cookie(&r, "rupta_session"), ..As::default() };
+    assert_eq!(app.get("/api/v1/auth/session", &who).await.body["orgs"][0]["role"], "admin");
+}
+
+#[tokio::test]
+async fn the_instance_provider_is_shown_read_only_to_admins() {
+    let idp = start_idp().await;
+    let mut s = settings(&idp);
+    s.default_role = None;
+    s.allowed_audiences = vec!["2930413377723".into()];
+    let app = TestApp::with_config(|c| {
+        c.oidc = Some(s);
+        c.local_login = false;
+    });
+    let org = app.org("acme");
+    let (_, admin) = app.member(org, "admin@example.com", Role::Admin);
+    let (_, member) = app.member(org, "member@example.com", Role::Member);
+    let r = app.get("/api/v1/orgs/acme/sso/instance", &admin).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    assert_eq!(
+        r.body,
+        json!({
+            "local_login": false,
+            "provider": {
+                "provider_id": "oidc",
+                "provider_name": "Zitadel",
+                "issuer": idp.issuer,
+                "client_id": "rupta-client",
+                "has_client_secret": true,
+                "scopes": "openid email profile urn:zitadel:iam:org:project:roles",
+                "role_claim": "urn:zitadel:iam:org:project:roles",
+                "role_mapping": {"rupta-admin": "admin", "rupta-viewer": "viewer"},
+                "default_role": "none",
+                "jit_provisioning": true,
+                "allowed_audiences": ["2930413377723"],
+                "redirect_uri": "http://rupta.test/auth/sso/oidc/callback",
+                "default_org": "default",
+            }
+        })
+    );
+    assert!(!r.body.to_string().contains("client-secret"));
+    assert_eq!(app.get("/api/v1/orgs/acme/sso/instance", &member).await.status, StatusCode::FORBIDDEN);
+
+    let plain = TestApp::new();
+    let org = plain.org("acme");
+    let (_, owner) = plain.member(org, "owner@example.com", Role::Owner);
+    let r = plain.get("/api/v1/orgs/acme/sso/instance", &owner).await;
+    assert_eq!(r.body, json!({"local_login": true, "provider": null}));
 }

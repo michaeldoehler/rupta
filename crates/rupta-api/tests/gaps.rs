@@ -191,8 +191,9 @@ async fn sso_connection_test() {
             scopes: vec!["openid".into()],
             role_claim: None,
             role_mapping: vec![],
-            default_role: Role::Member,
+            default_role: Some(Role::Member),
             jit_provisioning: true,
+            allowed_audiences: vec![],
         })
     });
     let org = instance.org("acme");

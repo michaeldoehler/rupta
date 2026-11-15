@@ -30,6 +30,7 @@ export const qk = {
   teams: (org: string) => ['orgs', org, 'teams'] as const,
   audit: (org: string, filters: object) => ['orgs', org, 'audit', filters] as const,
   sso: (org: string) => ['orgs', org, 'sso'] as const,
+  instanceSso: (org: string) => ['orgs', org, 'sso', 'instance'] as const,
   orgTokens: (org: string) => ['orgs', org, 'tokens'] as const,
   channels: (org: string) => ['orgs', org, 'channels'] as const,
   environments: (org: string, projects: string[]) => ['orgs', org, 'environments', projects] as const,

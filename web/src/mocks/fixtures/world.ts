@@ -12,6 +12,7 @@ import type {
   Checkin,
   CheckinStatus,
   Feedback,
+  InstanceSsoInfo,
   IssueStatus,
   IssueSubstatus,
   Level,
@@ -140,6 +141,8 @@ export interface World {
   userTokens: (ApiToken & { user_id: string })[]
   savedSearches: (SavedSearch & { org_id: string; user_id: string | null })[]
   sso: Map<string, SsoConfig>
+  /** The instance-wide provider (RUPTA_OIDC_*); `provider: null` when not configured. */
+  instanceSso: InstanceSsoInfo
   bundles: (ArtifactBundle & { project_id: string })[]
   nextId: number
 }
@@ -960,6 +963,24 @@ export function createWorld(opts: { seed?: number; scale?: number; now?: number 
     userTokens,
     savedSearches,
     sso: new Map(),
+    instanceSso: {
+      local_login: true,
+      provider: {
+        provider_id: 'oidc',
+        provider_name: 'Zitadel',
+        issuer: 'https://auth.acme.dev',
+        client_id: '2930413377723@rupta',
+        has_client_secret: true,
+        scopes: 'openid email profile urn:zitadel:iam:org:project:roles',
+        role_claim: 'urn:zitadel:iam:org:project:roles',
+        role_mapping: { 'rupta-admin': 'admin', 'rupta-member': 'member', 'rupta-viewer': 'viewer' },
+        default_role: 'viewer',
+        jit_provisioning: true,
+        allowed_audiences: [],
+        redirect_uri: 'https://errors.acme.dev/auth/sso/oidc/callback',
+        default_org: 'acme',
+      },
+    },
     bundles,
     nextId,
   }

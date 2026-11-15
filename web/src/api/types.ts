@@ -134,13 +134,40 @@ export interface SsoConfig {
   scopes: string
   role_claim: string | null
   role_mapping: Record<string, Role>
-  default_role: Role
+  default_role: SsoDefaultRole
   jit_provisioning: boolean
   enforce: boolean
   redirect_uri: string
   provider_id?: string
   /** Owners may still use their password while SSO is enforced. */
   owner_local_login?: boolean
+}
+
+/** Role for users whose claims map to no role; `none` refuses their sign-in. */
+export type SsoDefaultRole = Exclude<Role, 'owner'> | 'none'
+
+/** The instance-wide provider from the deployment's RUPTA_OIDC_* variables (read-only). */
+export interface InstanceSso {
+  provider_id: string
+  provider_name: string
+  issuer: string
+  client_id: string
+  has_client_secret: boolean
+  scopes: string
+  role_claim: string | null
+  role_mapping: Record<string, Role>
+  default_role: SsoDefaultRole | 'owner'
+  jit_provisioning: boolean
+  allowed_audiences: string[]
+  redirect_uri: string
+  /** Organization that users of the instance provider join. */
+  default_org: string
+}
+
+export interface InstanceSsoInfo {
+  /** Email and password login is enabled for the instance. */
+  local_login: boolean
+  provider: InstanceSso | null
 }
 
 export interface SsoTestResult {

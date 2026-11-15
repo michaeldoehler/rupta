@@ -35,6 +35,7 @@ import type {
   Channel,
   EventSummary,
   Id,
+  InstanceSsoInfo,
   IssueQueryParams,
   IssueUpdate,
   Org,
@@ -191,6 +192,7 @@ export const api = {
         if (err.status === 404) return null
         throw err
       }),
+    instanceSso: (org: string) => request<InstanceSsoInfo>(`/orgs/${e(org)}/sso/instance`),
     saveSso: (org: string, body: Partial<SsoConfig>) => request<SsoConfig>(`/orgs/${e(org)}/sso`, { method: 'PUT', body }),
     deleteSso: (org: string) => request<void>(`/orgs/${e(org)}/sso`, { method: 'DELETE' }),
     /** Server-side discovery check of the issuer (the page falls back to a browser check on servers without it). */

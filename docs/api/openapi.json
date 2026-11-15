@@ -4638,6 +4638,45 @@
         }
       }
     },
+    "/api/v1/orgs/{org}/sso/instance": {
+      "get": {
+        "tags": [
+          "orgs"
+        ],
+        "summary": "The instance-wide single sign-on provider configured by environment\nvariables, read-only. Admins and owners. Changes are made in the\ndeployment's `RUPTA_OIDC_*` variables.",
+        "operationId": "get_instance_sso",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceSsoInfo"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/orgs/{org}/sso/test": {
       "post": {
         "tags": [
@@ -6549,7 +6588,7 @@
         ],
         "responses": {
           "302": {
-            "description": "into the app, or to `/login?error=sso_failed`"
+            "description": "into the app; on failure to `/login?error=sso_no_access` when the user's claims map to no role and the default role is `none`, else to `/login?error=sso_failed`"
           }
         }
       }
@@ -7994,6 +8033,110 @@
             "type": "number",
             "format": "double",
             "description": "Lower bound in milliseconds (inclusive)."
+          }
+        }
+      },
+      "InstanceSso": {
+        "type": "object",
+        "description": "The instance-wide single sign-on provider (`RUPTA_OIDC_*`), read-only.",
+        "required": [
+          "provider_id",
+          "provider_name",
+          "issuer",
+          "client_id",
+          "has_client_secret",
+          "scopes",
+          "role_mapping",
+          "default_role",
+          "jit_provisioning",
+          "allowed_audiences",
+          "redirect_uri",
+          "default_org"
+        ],
+        "properties": {
+          "allowed_audiences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Audiences besides the client id that ID tokens may carry\n(`RUPTA_OIDC_ALLOWED_AUDIENCES`); empty = any."
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "default_org": {
+            "type": "string",
+            "description": "Slug of the organization users join when they sign in with this\nprovider (`RUPTA_DEFAULT_ORG`)."
+          },
+          "default_role": {
+            "type": "string",
+            "description": "Role for users whose claims map to no role, or `none` (refused)."
+          },
+          "has_client_secret": {
+            "type": "boolean",
+            "description": "Whether a client secret is set; the secret is never returned."
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "jit_provisioning": {
+            "type": "boolean"
+          },
+          "provider_id": {
+            "type": "string",
+            "description": "Provider id for `/auth/sso/{id}/start`: always `oidc`."
+          },
+          "provider_name": {
+            "type": "string",
+            "description": "Label of the login button (`RUPTA_OIDC_NAME`)."
+          },
+          "redirect_uri": {
+            "type": "string",
+            "description": "Register this URI at the provider."
+          },
+          "role_claim": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role_mapping": {
+            "type": "object",
+            "description": "Provider role name → rupta role.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "scopes": {
+            "type": "string",
+            "description": "Space-separated scopes."
+          }
+        }
+      },
+      "InstanceSsoInfo": {
+        "type": "object",
+        "description": "Instance-wide sign-in settings as far as an organization's settings\npage needs them.",
+        "required": [
+          "local_login"
+        ],
+        "properties": {
+          "local_login": {
+            "type": "boolean",
+            "description": "Email and password login is enabled (`RUPTA_LOCAL_LOGIN`)."
+          },
+          "provider": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InstanceSso",
+                "description": "The provider configured by environment variables; `null` if none."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -11093,7 +11236,8 @@
             "description": "Omit to keep the stored secret; empty string for a public client."
           },
           "default_role": {
-            "type": "string"
+            "type": "string",
+            "description": "Role for users whose claims map to no role: `viewer`, `member`\n(default) or `admin`; `none` refuses their sign-in (needs a role\nclaim and a role mapping). Owners always sign in."
           },
           "enforce": {
             "type": "boolean"
@@ -12092,7 +12236,8 @@
             "type": "string"
           },
           "default_role": {
-            "type": "string"
+            "type": "string",
+            "description": "Role for users whose claims map to no role: `viewer`, `member`,\n`admin`, or `none` to refuse their sign-in."
           },
           "enforce": {
             "type": "boolean",
