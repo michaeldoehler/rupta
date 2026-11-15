@@ -44,7 +44,7 @@ export function AlertsPage() {
         </div>
         <FilterBar showEnvironment={false} showPeriod={false} />
       </div>
-      <div className="mx-auto max-w-5xl px-3 py-4 sm:px-5">
+      <div className="max-w-6xl px-3 py-4 sm:px-5">
         {pending ? (
           <ListSkeleton rows={5} />
         ) : error ? (

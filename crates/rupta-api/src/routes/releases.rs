@@ -34,6 +34,8 @@ pub struct ReleaseProject {
     pub id: Id,
     pub slug: String,
     pub name: String,
+    /// The project's platform, e.g. `javascript-react`.
+    pub platform: Option<String>,
     pub new_issues: i64,
 }
 
@@ -188,14 +190,14 @@ fn decorate(c: &Connection, rows: &[Row], projects: &[i64]) -> ApiResult<Vec<Rel
         let rp: Vec<ReleaseProject> = c
             .query(
                 &format!(
-                    "SELECT p.id, p.slug, p.name, rp.new_issues FROM release_projects rp JOIN projects p ON p.id = rp.project_id
+                    "SELECT p.id, p.slug, p.name, rp.new_issues, p.platform FROM release_projects rp JOIN projects p ON p.id = rp.project_id
                      WHERE rp.release_id = $1 AND p.id IN ({}) ORDER BY p.slug",
                     id_list(projects)
                 ),
                 &[&id],
             )?
             .iter()
-            .map(|x| ReleaseProject { id: Id(x.get(0)), slug: x.get(1), name: x.get(2), new_issues: x.get(3) })
+            .map(|x| ReleaseProject { id: Id(x.get(0)), slug: x.get(1), name: x.get(2), platform: x.get(4), new_issues: x.get(3) })
             .collect();
         let hrow = c.query_one(
             &format!(

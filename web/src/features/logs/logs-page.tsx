@@ -422,7 +422,7 @@ export function LogsPage({
         }
       >
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="shrink-0 lg:hidden" onClick={() => setFacetsOpen(true)} aria-label="Show attribute facets">
+          <Button variant="outline" size="icon" className="size-10 shrink-0 lg:hidden" onClick={() => setFacetsOpen(true)} aria-label="Show attribute facets">
             <Filter />
           </Button>
           <SearchBar

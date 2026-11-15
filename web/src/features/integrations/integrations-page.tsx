@@ -187,7 +187,7 @@ function IntegrationDialog({
                     value={config[f.key] ?? ''}
                     placeholder={f.placeholder}
                     onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
-                    className={f.key === 'base_url' || f.key === 'email' ? 'font-mono text-[13px]' : undefined}
+                    className={f.key === 'base_url' ? 'font-mono text-[13px]' : undefined}
                     autoComplete="off"
                   />
                 )}
@@ -300,11 +300,11 @@ function IntegrationCard({
           <div className="flex flex-wrap items-center gap-2 font-medium">
             {i.name}
             <Badge variant="outline">{m.label}</Badge>
-            {!i.enabled && <Badge variant="secondary">disabled</Badge>}
+            {!i.enabled && <Badge variant="secondary">Disabled</Badge>}
             {i.last_error && (
               <Tip content={i.last_error_at ? `Last failure ${new Date(i.last_error_at).toLocaleString()}` : 'Last failure'}>
                 <Badge variant="destructive">
-                  <CircleAlert /> error
+                  <CircleAlert /> Error
                 </Badge>
               </Tip>
             )}
@@ -342,7 +342,12 @@ function IntegrationCard({
           )}
         </div>
       </div>
-      {i.last_error && <p className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">{i.last_error}</p>}
+      {i.last_error && !test && (
+        <p className="mt-2 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-1.5 text-xs text-destructive">
+          <CircleAlert className="size-3.5 shrink-0" />
+          {i.last_error}
+        </p>
+      )}
       {test && (
         <p
           className={cn(
@@ -357,7 +362,7 @@ function IntegrationCard({
             : `${test.error ?? 'The test failed.'}${test.reason ? ` (${test.reason})` : ''}`}
         </p>
       )}
-      <div className="mt-2.5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <div className="mt-2.5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_22rem] sm:items-center">
         <CopyField value={i.webhook_url} label={`Copy webhook URL of ${i.name}`} />
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <KeyRound className="size-3.5" />

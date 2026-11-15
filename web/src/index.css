@@ -209,3 +209,19 @@
     transform: translateX(300%);
   }
 }
+
+/* Scrolls sideways without showing a scrollbar (tab rows on small screens). */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Fades the right edge of a sideways-scrolling row on small screens, so it
+   is clear that more follows. */
+@utility scroll-fade-x {
+  @media (width < 40rem) {
+    mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent);
+  }
+}

@@ -113,7 +113,7 @@ export function TopBar({ org, onOpenMenu }: { org: string; onOpenMenu: () => voi
       <Link
         to="/$org/issues"
         params={{ org }}
-        className="mr-1 rounded-md px-1 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="mr-1 flex h-8 items-center rounded-md px-1 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         aria-label="rupta home"
       >
         <Logo />

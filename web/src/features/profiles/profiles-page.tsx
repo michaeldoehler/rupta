@@ -26,7 +26,7 @@ const PROFILE_TABS = (org: string) => [
   { to: '/$org/profiles/transactions' as const, params: { org }, label: 'By transaction' },
 ]
 
-const COLS = 'grid grid-cols-[minmax(0,1fr)_80px_90px] items-center gap-3 px-4 md:grid-cols-[minmax(0,1fr)_120px_90px_110px_120px_100px] sm:px-6'
+const COLS = 'grid grid-cols-[minmax(0,1fr)_80px_90px] items-center gap-3 px-4 md:grid-cols-[minmax(0,1fr)_120px_90px_110px_136px_100px] md:gap-5 sm:px-6'
 
 function ProfileListRow({ p, org, project, focused }: { p: ProfileRow; org: string; project?: { slug: string; platform: string | null }; focused: boolean }) {
   return (
@@ -36,7 +36,7 @@ function ProfileListRow({ p, org, project, focused }: { p: ProfileRow; org: stri
       className={cn(COLS, 'h-full border-b text-[13px] hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none', focused && 'bg-row-selected')}
     >
       <span className="flex min-w-0 items-center gap-2" role="gridcell">
-        <PlatformIcon platform={p.platform ?? project?.platform} size="sm" />
+        <PlatformIcon platform={project?.platform ?? p.platform} size="sm" />
         <span className="truncate font-mono font-medium">{p.transaction_name ?? 'Continuous profile'}</span>
         {p.kind === 'continuous' && <Badge variant="outline">continuous</Badge>}
       </span>
@@ -194,7 +194,7 @@ export function ProfileTransactionsPage() {
                   search={(prev: Record<string, unknown>) => ({ ...prev, transaction: g.name, tx_project: g.project_id })}
                   className="flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-row-hover sm:px-6"
                 >
-                  <PlatformIcon platform={g.platform} size="sm" />
+                  <PlatformIcon platform={projectList?.find((x) => x.id === g.project_id)?.platform ?? g.platform} size="sm" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-mono font-medium">{g.name}</span>
                     <span className="text-xs text-muted-foreground">

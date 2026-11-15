@@ -72,7 +72,7 @@ function Highlights({ event, org }: { event: RuptaEvent; org: string }) {
   return (
     <dl className="grid grid-cols-2 overflow-hidden rounded-lg border bg-card sm:grid-cols-3 lg:grid-cols-4">
       {items.map(([k, v]) => (
-        <div key={k} className="-mt-px -ml-px min-w-0 border-t border-l px-3 py-2">
+        <div key={k} className="-mr-px -mb-px min-w-0 border-r border-b px-3 py-2">
           <dt className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{k.replace('_', ' ')}</dt>
           <dd className="mt-0.5 flex min-w-0 items-center gap-1 text-[13px]">
             {k === 'release' ? (

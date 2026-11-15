@@ -166,7 +166,7 @@ export const api = {
     list: () => requestList<Org>('/orgs'),
     create: (body: { name: string; slug?: string }) => request<Org>('/orgs', { method: 'POST', body }),
     get: (org: string) => request<Org>(`/orgs/${e(org)}`),
-    update: (org: string, body: { name?: string; slug?: string }) => request<Org>(`/orgs/${e(org)}`, { method: 'PATCH', body }),
+    update: (org: string, body: { name?: string; slug?: string; domain?: string }) => request<Org>(`/orgs/${e(org)}`, { method: 'PATCH', body }),
     remove: (org: string) => request<void>(`/orgs/${e(org)}`, { method: 'DELETE' }),
 
     members: (org: string) => requestList<unknown>(`/orgs/${e(org)}/members`, { query: { limit: 100 } }).then((l) => l.map(normMember)),

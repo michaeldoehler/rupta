@@ -62,6 +62,14 @@ require authentication and enforce roles.
   trusted. The same applies to SSO issuers (`RUPTA_SSO_ALLOW_PRIVATE_ISSUERS`).
 - Slack, Teams and generic webhook notification channels go through the
   same guarded client, so their URLs are subject to the same check.
+- The favicon of an organization's website is fetched through the same
+  client when an admin saves the domain. Redirects are followed by hand,
+  at most five, and each target is checked again; the image may be at most
+  256 KiB and must be a PNG, ICO, GIF, JPEG, WebP or SVG file by its
+  content. It is served from `/api/v1/orgs/{org}/icon` to members of the
+  organization only, with `Content-Security-Policy: default-src 'none';
+  style-src 'unsafe-inline'; sandbox` and `nosniff`, so scripts in an SVG
+  do not run.
 - Incoming tracker webhooks are verified with a per-integration secret
   (HMAC-SHA256 signatures for Jira, Linear and GitHub, a token for GitLab)
   and answer 401 otherwise.

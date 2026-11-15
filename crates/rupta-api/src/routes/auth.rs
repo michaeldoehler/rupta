@@ -98,6 +98,8 @@ pub struct SessionOrg {
     pub slug: String,
     pub name: String,
     pub role: String,
+    /// URL of the organization's icon, when it has one.
+    pub icon_url: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -112,13 +114,13 @@ pub(crate) fn session_info(conn: &Connection, user_id: i64, csrf_token: Option<S
     let user = users::get(conn, user_id)?.ok_or_else(ApiError::unauthorized)?;
     let orgs = if user.is_superuser {
         conn.query(
-            "SELECT o.id, o.slug, o.name, coalesce(m.role, 'owner') FROM organizations o
+            "SELECT o.id, o.slug, o.name, coalesce(m.role, 'owner'), o.icon_updated_at FROM organizations o
              LEFT JOIN members m ON m.org_id = o.id AND m.user_id = $1 ORDER BY o.name, o.id",
             &[&user_id],
         )?
     } else {
         conn.query(
-            "SELECT o.id, o.slug, o.name, m.role FROM members m JOIN organizations o ON o.id = m.org_id
+            "SELECT o.id, o.slug, o.name, m.role, o.icon_updated_at FROM members m JOIN organizations o ON o.id = m.org_id
              WHERE m.user_id = $1 ORDER BY o.name, o.id",
             &[&user_id],
         )?
@@ -134,7 +136,16 @@ pub(crate) fn session_info(conn: &Connection, user_id: i64, csrf_token: Option<S
         csrf_token,
         orgs: orgs
             .iter()
-            .map(|r| SessionOrg { id: Id(r.get(0)), slug: r.get(1), name: r.get(2), role: r.get(3) })
+            .map(|r| {
+                let slug: String = r.get(1);
+                SessionOrg {
+                    id: Id(r.get(0)),
+                    icon_url: crate::routes::orgs::icon_url(&slug, r.get(4)),
+                    slug,
+                    name: r.get(2),
+                    role: r.get(3),
+                }
+            })
             .collect(),
     })
 }

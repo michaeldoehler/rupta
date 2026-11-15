@@ -1335,7 +1335,7 @@
         "tags": [
           "orgs"
         ],
-        "summary": "Renames an organization or changes its slug.",
+        "summary": "Renames an organization, changes its slug, or sets its website domain\nand with it the icon. A domain whose icon cannot be fetched is refused\n(422) and nothing is changed.",
         "operationId": "update_org",
         "parameters": [
           {
@@ -1363,6 +1363,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Org"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -2029,6 +2038,42 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/icon": {
+      "get": {
+        "tags": [
+          "orgs"
+        ],
+        "summary": "The organization's icon, as fetched from its website. SVG icons are\nserved with a policy that keeps scripts in them from running.",
+        "operationId": "get_org_icon",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image",
+            "content": {
+              "image/*": {}
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -9550,6 +9595,20 @@
             "type": "string",
             "format": "date-time"
           },
+          "domain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Website domain the icon was taken from."
+          },
+          "icon_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL of the organization's icon (its website's favicon), when it has one."
+          },
           "id": {
             "type": "string"
           },
@@ -11493,6 +11552,13 @@
             "type": "integer",
             "format": "int64"
           },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The project's platform, e.g. `javascript-react`."
+          },
           "slug": {
             "type": "string"
           }
@@ -11924,6 +11990,13 @@
           "role"
         ],
         "properties": {
+          "icon_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL of the organization's icon, when it has one."
+          },
           "id": {
             "type": "string"
           },
@@ -13045,6 +13118,13 @@
       "UpdateOrg": {
         "type": "object",
         "properties": {
+          "domain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Website domain (for example `example.com`). Setting it fetches the\nsite's favicon as the organization's icon; an empty string removes\nthe domain and the icon. Setting the same domain again fetches the\nicon anew."
+          },
           "name": {
             "type": [
               "string",

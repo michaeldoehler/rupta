@@ -181,9 +181,9 @@ export function IssueContextPanel({ d, org, act }: { d: IssueDetail; org: string
     <aside className="min-w-0 xl:sticky xl:top-0 xl:max-h-[calc(100svh-3rem)] xl:overflow-y-auto" aria-label="Issue context" data-testid="issue-context">
       <div className="xl:border-l">
         <PanelSection title="Status">
-          <div className="flex flex-wrap items-center gap-2">
-            <ResolveButton resolved={d.status === 'resolved'} onAction={act} currentRelease={d.last_release?.version} />
-            <IgnoreButton ignored={d.status === 'ignored'} onAction={act} />
+          <div className="grid grid-cols-2 gap-2">
+            <ResolveButton resolved={d.status === 'resolved'} onAction={act} currentRelease={d.last_release?.version} stretch />
+            <IgnoreButton ignored={d.status === 'ignored'} onAction={act} stretch />
           </div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <AssigneePicker

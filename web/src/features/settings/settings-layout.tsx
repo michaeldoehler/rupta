@@ -1,5 +1,5 @@
-import { Link } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { Link, useRouterState } from '@tanstack/react-router'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useProjects } from '@/api/queries'
 import { PlatformIcon } from '@/components/common/platform-icon'
 import { cn } from '@/lib/utils'
@@ -30,17 +30,26 @@ const SECTIONS = [
 
 export function SettingsLayout({ org, children }: { org: string; children: ReactNode }) {
   const projects = useProjects(org)
+  const nav = useRef<HTMLElement>(null)
+  const path = useRouterState({ select: (s) => s.location.pathname })
+  // On small screens the navigation is one sideways-scrolling row: keep the
+  // current page in view.
+  useEffect(() => {
+    const el = nav.current
+    if (!el || el.scrollWidth <= el.clientWidth) return
+    el.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' })
+  }, [path, projects.data])
   const linkCls =
-    'block shrink-0 rounded-md px-2 py-1.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+    'block shrink-0 rounded-md px-2 py-1.5 text-[13px] whitespace-nowrap text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
   return (
     <div className="flex flex-col md:flex-row">
       <aside
         className="shrink-0 border-b md:sticky md:top-0 md:h-[calc(100svh-3rem)] md:w-56 md:overflow-y-auto md:border-r md:border-b-0"
         aria-label="Settings navigation"
       >
-        <nav className="flex gap-1 overflow-x-auto p-2 md:flex-col md:gap-4 md:p-3">
+        <nav ref={nav} className="no-scrollbar flex gap-1 overflow-x-auto p-2 md:flex-col md:gap-4 md:p-3">
           {SECTIONS.map((s) => (
-            <div key={s.title} className="flex gap-1 md:block md:space-y-0.5">
+            <div key={s.title} className="flex shrink-0 gap-1 md:block md:space-y-0.5">
               <p className="hidden px-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase md:block">{s.title}</p>
               {s.items.map((i) => (
                 <Link
@@ -56,7 +65,7 @@ export function SettingsLayout({ org, children }: { org: string; children: React
               ))}
             </div>
           ))}
-          <div className="flex gap-1 md:block md:space-y-0.5">
+          <div className="flex shrink-0 gap-1 md:block md:space-y-0.5">
             <p className="hidden px-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase md:block">Projects</p>
             <Link
               to="/$org/settings/projects"
@@ -89,7 +98,7 @@ export function SettingsLayout({ org, children }: { org: string; children: React
 
 export function SettingsPage({ title, description, actions, children }: { title: string; description?: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">{title}</h1>

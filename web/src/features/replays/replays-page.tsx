@@ -404,7 +404,15 @@ export function ReplayPage({ project, replayId }: { project: string; replayId: s
                     )}
                   >
                     <span className="w-10 shrink-0 text-[11px] text-muted-foreground tabular">{clock(c.offset)}</span>
-                    <span className="w-12 shrink-0 text-[11px] uppercase">{c.level}</span>
+                    <span
+                      className={cn(
+                        'w-16 shrink-0 text-[11px] uppercase',
+                        c.level === 'error' && 'text-destructive',
+                        (c.level === 'warning' || c.level === 'warn') && 'text-warning',
+                      )}
+                    >
+                      {c.level}
+                    </span>
                     <span className="min-w-0 flex-1 break-words">{c.message}</span>
                   </button>
                 )}

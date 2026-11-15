@@ -37,6 +37,8 @@ export interface OrgRef {
   slug: string
   name: string
   role: Role
+  /** The organization's icon (its website's favicon), when it has one. */
+  icon_url: string | null
 }
 
 export interface Session {
@@ -82,6 +84,9 @@ export interface Org {
   name: string
   created_at: Iso
   settings: Record<string, unknown>
+  /** Website domain the icon was taken from. */
+  domain: string | null
+  icon_url: string | null
 }
 
 export interface Member {

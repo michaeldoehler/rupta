@@ -14,7 +14,20 @@ export const CHECKIN_COLOR: Record<CheckinStatus, string> = {
 export const CHECKIN_LABEL: Record<CheckinStatus, string> = { ok: 'OK', error: 'Failed', missed: 'Missed', timeout: 'Timed out', in_progress: 'In progress' }
 
 /** Check-ins as ticks, oldest left. `checkins` come newest first. */
-export function CheckinTimeline({ checkins, max = 40, className, tall = false }: { checkins: Checkin[]; max?: number; className?: string; tall?: boolean }) {
+export function CheckinTimeline({
+  checkins,
+  max = 40,
+  className,
+  tall = false,
+  muted = false,
+}: {
+  checkins: Checkin[]
+  max?: number
+  className?: string
+  tall?: boolean
+  /** Grey bars, for a disabled monitor. */
+  muted?: boolean
+}) {
   const list = checkins.slice(0, max).reverse()
   const pad = Math.max(0, max - list.length)
   return (
@@ -40,7 +53,7 @@ export function CheckinTimeline({ checkins, max = 40, className, tall = false }:
             className={cn(
               'w-1.5 rounded-[1px]',
               tall ? 'h-6' : 'h-4',
-              CHECKIN_COLOR[c.status],
+              muted ? 'bg-muted-foreground/40' : CHECKIN_COLOR[c.status],
               c.status !== 'ok' && 'opacity-100',
               c.status === 'ok' && 'opacity-80',
             )}

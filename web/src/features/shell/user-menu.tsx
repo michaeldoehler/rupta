@@ -41,11 +41,11 @@ export function UserMenu({ org, compact = false }: { org: string; compact?: bool
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className={cn('justify-start gap-2', compact ? 'size-8 rounded-full p-0' : 'h-9 w-full px-1.5')}
+          className={cn('gap-2', compact ? 'size-8 shrink-0 justify-center rounded-full p-0' : 'h-9 w-full justify-start px-1.5')}
           aria-label={compact ? `Account menu (${user.email})` : undefined}
           title="Account menu"
         >
-          <UserAvatar name={user.name || user.email} src={user.avatar_url} />
+          <UserAvatar name={user.name || user.email} src={user.avatar_url} className={compact ? 'size-7' : undefined} />
           {!compact && (
             <span className="min-w-0 flex-1 text-left">
               <span className="block truncate text-[13px] leading-tight font-medium">{user.name || user.email}</span>

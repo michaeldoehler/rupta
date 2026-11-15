@@ -88,12 +88,12 @@ export const SHORTCUTS: { group: string; items: [string, string][] }[] = [
 export function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Keyboard shortcuts</DialogTitle>
           <DialogDescription>Single-key shortcuts work when no text field has focus.</DialogDescription>
         </DialogHeader>
-        <div className="grid max-h-[70vh] gap-6 overflow-y-auto sm:grid-cols-3">
+        <div className="grid max-h-[70vh] gap-6 overflow-y-auto pb-2 sm:grid-cols-3">
           {SHORTCUTS.map((g) => (
             <section key={g.group}>
               <h3 className="mb-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{g.group}</h3>

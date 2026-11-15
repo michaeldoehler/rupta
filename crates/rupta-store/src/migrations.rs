@@ -23,6 +23,7 @@ pub(crate) const MIGRATIONS: &[(i64, &str, &str)] = &[
     (3000, "telemetry", include_str!("../migrations/3000_telemetry.sql")),
     (4000, "api_gaps", include_str!("../migrations/4000_api_gaps.sql")),
     (5000, "integrations", include_str!("../migrations/5000_integrations.sql")),
+    (6000, "org_icons", include_str!("../migrations/6000_org_icons.sql")),
 ];
 
 pub(crate) fn apply(conn: &Connection) -> Result<()> {

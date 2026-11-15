@@ -24,7 +24,7 @@ import { Rng } from './rng'
 import { buildEvent, eventIds, eventSummary } from './fixtures/events'
 import { integrationHandlers, seedIntegrations } from './integrations-handlers'
 import { telemetryHandlers } from './telemetry-handlers'
-import { createWorld, DAY, HOUR, iso, issueSeries, type DbIssue, type DbOrg, type DbProject, type World } from './fixtures/world'
+import { createWorld, DAY, HOUR, iso, issueSeries, mockFavicon, type DbIssue, type DbOrg, type DbProject, type World } from './fixtures/world'
 
 const BASE = '/api/v1'
 
@@ -143,7 +143,7 @@ function session(): Session | null {
       .filter((m) => m.user_id === u.id)
       .map((m) => {
         const o = world.orgs.find((x) => x.id === m.org_id)!
-        return { id: o.id, slug: o.slug, name: o.name, role: m.role }
+        return { id: o.id, slug: o.slug, name: o.name, role: m.role, icon_url: o.icon_url }
       }),
   }
 }
@@ -509,7 +509,7 @@ function releaseOut(r: World['releases'][number], projectFilter: string[]) {
     first_event: iso(r.date_created + HOUR),
     last_event: iso(Math.min(world.now, r.date_created + 10 * DAY)),
     short_version: r.version.slice(r.version.indexOf('@') + 1),
-    projects: projects.map((p) => ({ id: p.id, slug: p.slug, name: p.name, new_issues: r.new_issues })),
+    projects: projects.map((p) => ({ id: p.id, slug: p.slug, name: p.name, platform: p.platform, new_issues: r.new_issues })),
     new_issues: r.new_issues,
     // server shape: health object
     health: {
@@ -789,7 +789,7 @@ export const handlers = [
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
     if (world.orgs.some((o) => o.slug === slug)) return err(409, 'conflict', 'An organization with this slug exists.', { fields: { slug: 'Already taken.' } })
-    const o = { id: nid(), slug, name: body.name, created_at: iso(Date.now()), settings: {} }
+    const o = { id: nid(), slug, name: body.name, created_at: iso(Date.now()), settings: {}, domain: null, icon_url: null }
     world.orgs.push(o)
     world.members.push({ org_id: o.id, user_id: auth.userId!, role: 'owner', created_at: o.created_at, sso: false })
     return json(o, 201)
@@ -801,7 +801,24 @@ export const handlers = [
   http.patch(`${BASE}/orgs/:org`, async ({ params, request }) => {
     const r = withOrg(params)
     if ('error' in r) return r.error
-    const body = (await request.json()) as { name?: string; slug?: string; settings?: Record<string, unknown> }
+    const body = (await request.json()) as { name?: string; slug?: string; domain?: string; settings?: Record<string, unknown> }
+    if (body.domain !== undefined) {
+      const d = body.domain
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/[/?#].*$/, '')
+      if (d === '') {
+        r.org.domain = null
+        r.org.icon_url = null
+      } else if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d) || d.endsWith('.invalid')) {
+        return err(422, 'validation_failed', `domain: could not fetch an icon from ${d}: no icon found on ${d}`, { field: 'domain' })
+      } else {
+        await wait()
+        r.org.domain = d
+        r.org.icon_url = mockFavicon(d)
+      }
+    }
     if (body.name) r.org.name = body.name
     if (body.slug) r.org.slug = body.slug
     if (body.settings) r.org.settings = { ...r.org.settings, ...body.settings }

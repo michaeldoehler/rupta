@@ -59,7 +59,7 @@ export function FeedbackPage() {
           description="Enable the feedback widget or the crash-report dialog of the SDK to let users tell you what happened."
         />
       ) : (
-        <ul className="mx-auto max-w-4xl divide-y">
+        <ul className="max-w-5xl divide-y">
           {items.map((f) => (
             <FeedbackItem key={f.id} f={f} org={org} />
           ))}

@@ -8,6 +8,7 @@ pub mod bootstrap;
 pub mod compat;
 pub mod error;
 pub mod extract;
+pub mod favicon;
 pub mod integrations;
 pub mod mail;
 pub mod maintenance;

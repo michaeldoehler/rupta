@@ -19,7 +19,7 @@ export function JsonDialog({ event, open, onOpenChange }: { event: RuptaEvent; o
   const json = useMemo(() => (open ? JSON.stringify(event, null, 2) : ''), [event, open])
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-4xl">
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-4xl" onOpenAutoFocus={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Event JSON</DialogTitle>
           <DialogDescription className="font-mono text-xs">{event.event_id}</DialogDescription>

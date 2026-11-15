@@ -241,7 +241,7 @@ async fn zitadel_style_sign_in_provisions_and_maps_roles() {
     assert_eq!(s.body["user"]["name"], "Ada Lovelace");
     assert_eq!(
         s.body["orgs"],
-        json!([{"id": s.body["orgs"][0]["id"], "slug": "default", "name": "default", "role": "admin"}]),
+        json!([{"id": s.body["orgs"][0]["id"], "slug": "default", "name": "default", "role": "admin", "icon_url": null}]),
         "highest role wins"
     );
 

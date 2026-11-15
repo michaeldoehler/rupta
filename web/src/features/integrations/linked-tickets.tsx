@@ -33,7 +33,7 @@ export function openTicketDialog(mode: 'create' | 'link') {
 const sentence = (t: string) => (/[.!?]$/.test(t) ? t : `${t}.`)
 
 function StatusBadge({ link }: { link: IssueLink }) {
-  if (link.status === 'deleted') return <Badge variant="destructive">deleted</Badge>
+  if (link.status === 'deleted') return <Badge variant="destructive">Deleted</Badge>
   return (
     <Badge variant={link.status_category === 'done' ? 'success' : 'palm'} title={`Status category: ${link.status_category}`}>
       {link.status ?? link.status_category}
@@ -165,7 +165,8 @@ export function TicketDialog({
                       options={enabled.map((i) => ({
                         value: i.id,
                         label: i.name,
-                        description: kindMeta(i.kind).label,
+                        // The kind, unless the name is exactly that.
+                        description: i.name.trim().toLowerCase() === kindMeta(i.kind).label.toLowerCase() ? undefined : kindMeta(i.kind).label,
                         icon: <TrackerIcon kind={i.kind} size="lg" decorative />,
                       }))}
                     />

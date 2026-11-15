@@ -3,6 +3,7 @@
 
 import { Mail, Plug, Webhook, type LucideIcon } from 'lucide-react'
 import { github, gitlab, jira, linear, opsgenie, pagerduty, type Mark } from './marks'
+import { slack, teams } from './platform-marks'
 
 /** Services the UI refers to: issue trackers and notification channels. */
 export type BrandKind = 'jira_cloud' | 'jira_server' | 'linear' | 'github' | 'gitlab' | 'pagerduty' | 'opsgenie' | 'slack' | 'teams' | 'webhook' | 'email'
@@ -22,15 +23,13 @@ export type Brand = { label: string } & (
 export const BRANDS: Record<BrandKind, Brand> = {
   jira_cloud: { label: 'Jira Cloud', tile: 'light', mark: jira },
   jira_server: { label: 'Jira Data Center', tile: 'light', mark: jira },
-  linear: { label: 'Linear', tile: 'solid', mark: linear },
+  linear: { label: 'Linear', tile: 'light', mark: linear },
   github: { label: 'GitHub', tile: 'light', mark: github },
   gitlab: { label: 'GitLab', tile: 'light', mark: gitlab },
-  pagerduty: { label: 'PagerDuty', tile: 'solid', mark: pagerduty },
+  pagerduty: { label: 'PagerDuty', tile: 'light', mark: pagerduty },
   opsgenie: { label: 'Opsgenie', tile: 'light', mark: opsgenie },
-  // Slack's brand terms and Microsoft's trademark guidelines do not permit
-  // their logos here, so both get a monogram in the brand colour.
-  slack: { label: 'Slack', tile: 'monogram', letter: 'S', color: '#4A154B' },
-  teams: { label: 'Microsoft Teams', tile: 'monogram', letter: 'T', color: '#5059C9' },
+  slack: { label: 'Slack', tile: 'light', mark: slack },
+  teams: { label: 'Microsoft Teams', tile: 'light', mark: teams },
   webhook: { label: 'Webhook', tile: 'neutral', icon: Webhook },
   email: { label: 'Email', tile: 'neutral', icon: Mail },
 }

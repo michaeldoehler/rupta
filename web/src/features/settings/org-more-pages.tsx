@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BellRing, Pencil, Plus, ScrollText, Send, Trash2 } from 'lucide-react'
 import { useState } from 'react'
@@ -216,7 +217,7 @@ const CHANNEL_KINDS: {
   {
     kind: 'webhook',
     label: 'Webhook',
-    description: 'A JSON POST to your endpoint, optionally signed.',
+    description: 'A JSON POST to your URL, optionally signed.',
     fields: [
       { key: 'url', label: 'URL', placeholder: 'https://example.com/hooks/rupta' },
       {
@@ -315,7 +316,7 @@ function ChannelDialog({ org, channel, open, onOpenChange }: { org: string; chan
   }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={channel ? undefined : 'sm:max-w-2xl'}>
         <form onSubmit={submit} className="grid gap-4" noValidate>
           <DialogHeader className="flex-row items-center gap-3">
             <BrandIcon kind={kind} size="xl" />
@@ -457,7 +458,14 @@ export function ChannelsPage({ org }: { org: string }) {
                   <div className="flex items-center gap-2 font-medium">
                     {c.name} <Badge variant="outline">{def?.label ?? c.kind}</Badge>
                   </div>
-                  <div className="truncate font-mono text-xs text-muted-foreground">{target}</div>
+                  <div
+                    className={cn(
+                      'truncate text-xs text-muted-foreground',
+                      (typeof cfg.url === 'string' || typeof cfg.webhook_url === 'string') && 'font-mono',
+                    )}
+                  >
+                    {target}
+                  </div>
                 </div>
                 <div className="flex gap-1">
                   <Button variant="outline" size="xs" onClick={() => void test(c)} disabled={testing === c.id}>

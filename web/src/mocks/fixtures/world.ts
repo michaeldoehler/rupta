@@ -48,6 +48,20 @@ export interface DbOrg {
   name: string
   created_at: string
   settings: Record<string, unknown>
+  domain: string | null
+  icon_url: string | null
+}
+
+/**
+ * Stands in for a fetched favicon in the mock: a small mark drawn from the
+ * domain, as a data URL, so the demo works offline.
+ */
+export function mockFavicon(domain: string): string {
+  let h = 0
+  for (const c of domain) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  const hue = h % 360
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="12" cy="16" r="9" fill="hsl(${hue} 70% 45%)"/><rect x="14" y="7" width="13" height="18" rx="4" fill="hsl(${(hue + 40) % 360} 80% 55%)" fill-opacity=".85"/></svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
 export interface DbMember {
@@ -273,8 +287,10 @@ export function createWorld(opts: { seed?: number; scale?: number; now?: number 
       name: 'Acme',
       created_at: iso(now - 400 * DAY),
       settings: { require_2fa: false, allow_join_requests: false, default_role: 'member', events_member_admin: true },
+      domain: 'acme.dev',
+      icon_url: mockFavicon('acme.dev'),
     },
-    { id: '2', slug: 'studio', name: 'Side Studio', created_at: iso(now - 120 * DAY), settings: {} },
+    { id: '2', slug: 'studio', name: 'Side Studio', created_at: iso(now - 120 * DAY), settings: {}, domain: null, icon_url: null },
   ]
   const roles: Role[] = [
     'owner',

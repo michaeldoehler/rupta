@@ -647,12 +647,12 @@ function FunctionTable({
         <thead className="sticky top-0 bg-muted/90 text-[11px] tracking-wide text-muted-foreground uppercase backdrop-blur">
           <tr>
             <th className="px-2 py-1.5 text-right font-medium">
-              <button type="button" className={cn('hover:text-foreground', sort === 'self' && 'text-foreground')} onClick={() => setSort('self')}>
+              <button type="button" className={cn('uppercase hover:text-foreground', sort === 'self' && 'text-foreground')} onClick={() => setSort('self')}>
                 Self
               </button>
             </th>
             <th className="px-2 py-1.5 text-right font-medium">
-              <button type="button" className={cn('hover:text-foreground', sort === 'total' && 'text-foreground')} onClick={() => setSort('total')}>
+              <button type="button" className={cn('uppercase hover:text-foreground', sort === 'total' && 'text-foreground')} onClick={() => setSort('total')}>
                 Total
               </button>
             </th>

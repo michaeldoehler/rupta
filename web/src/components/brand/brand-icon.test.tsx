@@ -1,3 +1,4 @@
+import { slack as slackMark, teams as teamsMark } from './platform-marks'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
@@ -17,8 +18,8 @@ describe('BrandIcon', () => {
     ['gitlab', 'GitLab', 'GitLab'],
     ['pagerduty', 'PagerDuty', 'PagerDuty'],
     ['opsgenie', 'Opsgenie', 'Opsgenie'],
-    ['slack', 'Slack', null],
-    ['teams', 'Microsoft Teams', null],
+    ['slack', 'Slack', 'Slack'],
+    ['teams', 'Microsoft Teams', 'Microsoft Teams'],
     ['webhook', 'Webhook', null],
     ['email', 'Email', null],
   ])('draws %s with its name', (kind, name, mark) => {
@@ -38,12 +39,11 @@ describe('BrandIcon', () => {
     expect(tile.querySelector('path')).toHaveAttribute('d', github.path)
   })
 
-  it('draws a white glyph on a tile in the brand colour', () => {
+  it('draws every service mark in its brand colour on a light tile', () => {
     render(<BrandIcon kind="pagerduty" />)
     const tile = screen.getByRole('img', { name: 'PagerDuty' })
-    expect(tile).toHaveAttribute('data-brand-tile', 'solid')
-    expect(tile.style.backgroundColor).toBe('rgb(6, 172, 56)')
-    expect(tile.querySelector('svg')).toHaveAttribute('fill', 'currentColor')
+    expect(tile).toHaveAttribute('data-brand-tile', 'light')
+    expect(tile.querySelector('svg')).toHaveAttribute('fill', pagerduty.hex)
     expect(tile.querySelector('path')).toHaveAttribute('d', pagerduty.path)
   })
 
@@ -58,16 +58,19 @@ describe('BrandIcon', () => {
     expect(paths).toEqual([jira.path, jira.path])
   })
 
-  it('draws a monogram for Slack and Microsoft Teams, which have no permissive logo', () => {
+  it('draws the Slack and Microsoft Teams marks', () => {
     render(
       <>
         <BrandIcon kind="slack" />
         <BrandIcon kind="teams" />
       </>,
     )
-    expect(screen.getByRole('img', { name: 'Slack' }).querySelector('[data-monogram]')).toHaveTextContent('S')
-    expect(screen.getByRole('img', { name: 'Microsoft Teams' }).querySelector('[data-monogram]')).toHaveTextContent('T')
-    expect(screen.getByRole('img', { name: 'Slack' }).style.backgroundColor).toBe('rgb(74, 21, 75)')
+    const slack = screen.getByRole('img', { name: 'Slack' })
+    expect(slack.querySelector('[data-monogram]')).toBeNull()
+    expect(slack.querySelector('path')).toHaveAttribute('d', slackMark.path)
+    expect(slack).toHaveAttribute('data-brand-tile', 'light')
+    expect(slack.querySelector('svg')).toHaveAttribute('fill', slackMark.hex)
+    expect(screen.getByRole('img', { name: 'Microsoft Teams' }).querySelector('path')).toHaveAttribute('d', teamsMark.path)
   })
 
   it('falls back to a generic icon named after an unknown kind', () => {

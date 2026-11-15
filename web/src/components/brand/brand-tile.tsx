@@ -16,8 +16,8 @@ const TILE: Record<TileSize, string> = {
  * icons (menus, buttons) do not resize it.
  */
 export const GLYPH: Record<TileSize, string> = {
-  xs: 'size-2.5',
-  sm: 'size-3',
+  xs: 'size-3',
+  sm: 'size-3.5',
   md: 'size-3.5',
   lg: 'size-[18px]',
   xl: 'size-[22px]',
@@ -26,7 +26,7 @@ export const GLYPH: Record<TileSize, string> = {
 /**
  * The rounded tile every service mark sits on, so marks of different shapes
  * line up. `tone` picks the surface: light (for dark or brand-coloured
- * glyphs), solid (the brand colour, given in `background`) or neutral.
+ * glyphs), dark (for light brand colours), solid (the brand colour, given in `background`) or neutral.
  */
 export function BrandTile({
   label,
@@ -41,7 +41,7 @@ export function BrandTile({
   /** Next to text that already names the service: hidden from assistive technology. */
   decorative?: boolean
   size?: TileSize
-  tone: 'light' | 'solid' | 'neutral'
+  tone: 'light' | 'dark' | 'solid' | 'neutral'
   background?: string
   className?: string
   children: React.ReactNode
@@ -59,6 +59,7 @@ export function BrandTile({
         // A light tile keeps the brand colours of the glyph; a thin edge
         // separates the dark brand colours from the olive surfaces.
         tone === 'light' && 'bg-foreground ring-1 ring-black/10 ring-inset',
+        tone === 'dark' && 'bg-[#1b1b18] ring-1 ring-white/10 ring-inset',
         tone === 'solid' && 'text-white ring-1 ring-white/15 ring-inset',
         tone === 'neutral' && 'border border-border-strong bg-secondary text-foreground',
         TILE[size],

@@ -1,3 +1,4 @@
+import { OrgIcon } from '@/components/common/org-icon'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { MailPlus, Plus, Search, UserMinus, Users, X } from 'lucide-react'
@@ -55,15 +56,18 @@ export function OrgGeneralPage({ org }: { org: string }) {
   const owner = useRole('owner').can
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
+  const [domain, setDomain] = useState('')
   const [confirm, setConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
   useEffect(() => {
     if (q.data) {
       setName(q.data.name)
       setSlug(q.data.slug)
+      setDomain(q.data.domain ?? '')
     }
   }, [q.data])
-  const save = useApiMutation(() => api.orgs.update(org, { name, slug }), {
+  const domainChanged = q.data ? domain.trim() !== (q.data.domain ?? '') : false
+  const save = useApiMutation(() => api.orgs.update(org, { name, slug, ...(domainChanged ? { domain: domain.trim() } : {}) }), {
     invalidate: [qk.org(org), qk.session],
     success: 'Organization saved',
     onSuccess: (o) => {
@@ -82,8 +86,12 @@ export function OrgGeneralPage({ org }: { org: string }) {
       <SettingsCard
         title="Organization"
         footer={
-          <Button size="sm" disabled={!can || save.isPending || (name === q.data.name && slug === q.data.slug)} onClick={() => save.mutate(undefined)}>
-            Save
+          <Button
+            size="sm"
+            disabled={!can || save.isPending || (name === q.data.name && slug === q.data.slug && !domainChanged)}
+            onClick={() => save.mutate(undefined)}
+          >
+            {save.isPending && domainChanged ? 'Fetching icon…' : 'Save'}
           </Button>
         }
       >
@@ -98,6 +106,32 @@ export function OrgGeneralPage({ org }: { org: string }) {
                 onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
                 className="font-mono"
               />
+            )}
+          </Field>
+          <Field
+            label="Website"
+            hint={
+              q.data.icon_url && !domainChanged
+                ? `The favicon of ${q.data.domain} is the organization's icon. Save the same domain again to fetch it anew; clear it to remove the icon.`
+                : "Its favicon becomes the organization's icon, shown in the organization menu. Fetched once when you save."
+            }
+            className="sm:col-span-2"
+          >
+            {(p) => (
+              <div className="flex items-center gap-2">
+                <OrgIcon name={name || q.data.name} iconUrl={domainChanged ? null : q.data.icon_url} className="size-8 text-sm" />
+                <Input
+                  {...p}
+                  value={domain}
+                  disabled={!can}
+                  placeholder="example.com"
+                  inputMode="url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(e) => setDomain(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
             )}
           </Field>
         </div>

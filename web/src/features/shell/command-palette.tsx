@@ -85,7 +85,7 @@ export function CommandPalette({ open, onOpenChange, initial = '' }: { open: boo
               value={`goto-trace ${q}`}
               onSelect={run(() => void navigate({ to: '/$org/traces/$traceId', params: { org, traceId: q.replace(/-/g, '').toLowerCase() } }))}
             >
-              <RouteIcon /> Open trace <span className="font-mono font-medium">{q.slice(0, 12)}…</span>
+              <RouteIcon /> Open trace <span className="min-w-0 truncate font-mono font-medium">{q}</span>
             </CommandItem>
             <CommandItem
               value={`trace-logs ${q}`}

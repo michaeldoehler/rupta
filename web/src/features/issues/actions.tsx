@@ -38,6 +38,7 @@ export function ResolveButton({
   size = 'sm',
   count = 1,
   disabled,
+  stretch,
   currentRelease,
 }: {
   resolved: boolean
@@ -45,22 +46,30 @@ export function ResolveButton({
   size?: 'sm' | 'xs'
   count?: number
   disabled?: boolean
+  /** Fill the width of the container (context panel). */
+  stretch?: boolean
   currentRelease?: string | null
 }) {
   const noun = count === 1 ? 'Issue' : `${count} issues`
   if (resolved)
     return (
-      <Button variant="outline" size={size} disabled={disabled} onClick={() => onAction({ status: 'unresolved' }, `${noun} marked unresolved`)}>
+      <Button
+        variant="outline"
+        size={size}
+        disabled={disabled}
+        className={cn(stretch && 'w-full')}
+        onClick={() => onAction({ status: 'unresolved' }, `${noun} marked unresolved`)}
+      >
         <RotateCcw /> Unresolve
       </Button>
     )
   return (
-    <div className="inline-flex">
+    <div className={cn('inline-flex', stretch && 'flex w-full')}>
       <Tip content="Resolve (e)">
         <Button
           variant="outline"
           size={size}
-          className="rounded-r-none border-r-0"
+          className={cn('rounded-r-none border-r-0', stretch && 'flex-1')}
           disabled={disabled}
           onClick={() => onAction({ status: 'resolved' }, `${noun} resolved`, { undo: { status: 'unresolved' } })}
         >
@@ -118,28 +127,37 @@ export function IgnoreButton({
   size = 'sm',
   count = 1,
   disabled,
+  stretch,
 }: {
   ignored: boolean
   onAction: ActionHandler
   size?: 'sm' | 'xs'
   count?: number
   disabled?: boolean
+  /** Fill the width of the container (context panel). */
+  stretch?: boolean
 }) {
   const noun = count === 1 ? 'Issue' : `${count} issues`
   if (ignored)
     return (
-      <Button variant="outline" size={size} disabled={disabled} onClick={() => onAction({ status: 'unresolved' }, `${noun} restored`)}>
+      <Button
+        variant="outline"
+        size={size}
+        disabled={disabled}
+        className={cn(stretch && 'w-full')}
+        onClick={() => onAction({ status: 'unresolved' }, `${noun} restored`)}
+      >
         <RotateCcw /> Unignore
       </Button>
     )
   const ignore = (u: IssueUpdate, what: string) => onAction({ status: 'ignored', ...u }, `${noun} ignored ${what}`, { undo: { status: 'unresolved' } })
   return (
-    <div className="inline-flex">
+    <div className={cn('inline-flex', stretch && 'flex w-full')}>
       <Tip content="Ignore until it escalates (i)">
         <Button
           variant="outline"
           size={size}
-          className="rounded-r-none border-r-0"
+          className={cn('rounded-r-none border-r-0', stretch && 'flex-1')}
           disabled={disabled}
           onClick={() => ignore({ substatus: 'archived_until_escalating' }, 'until it escalates')}
         >

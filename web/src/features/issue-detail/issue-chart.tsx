@@ -5,7 +5,7 @@ import { api } from '@/api/endpoints'
 import { qk } from '@/api/queries'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { absolute, thousands } from '@/lib/format'
+import { absolute, thousands, plural } from '@/lib/format'
 
 export function IssueChart({ issueId }: { issueId: string }) {
   const [period, setPeriod] = useState<'24h' | '30d'>('24h')
@@ -16,7 +16,7 @@ export function IssueChart({ issueId }: { issueId: string }) {
     <div className="min-w-0">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-          {thousands(total)} events · last {period === '24h' ? '24 hours' : '30 days'}
+          {thousands(total)} {plural(total, 'event')} · last {period === '24h' ? '24 hours' : '30 days'}
         </span>
         <ToggleGroup type="single" value={period} onValueChange={(v) => v && setPeriod(v as '24h' | '30d')} aria-label="Chart period" className="h-6">
           <ToggleGroupItem value="24h" className="px-1.5 text-[11px]">

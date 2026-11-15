@@ -29,7 +29,7 @@ export function ExploreHeader({
 }) {
   return (
     <div className={cn('space-y-3 border-b px-3 pt-3 sm:px-5', tabs ? 'pb-0' : 'pb-3', className)}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
           {description && <p className="text-[13px] text-muted-foreground">{description}</p>}
@@ -151,7 +151,7 @@ export function SortButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'inline-flex items-center gap-1 rounded-sm hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+        'inline-flex items-center gap-1 rounded-sm uppercase hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
         active && 'text-foreground',
         className,
       )}

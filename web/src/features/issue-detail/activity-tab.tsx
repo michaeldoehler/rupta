@@ -237,7 +237,7 @@ export function ActivityTab({ issueId }: { issueId: string }) {
   })
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-5 sm:px-6">
+    <div className="max-w-3xl px-4 py-5 sm:px-6">
       <form
         className="mb-6 rounded-lg border bg-card"
         onSubmit={(e) => {
@@ -283,7 +283,7 @@ export function ActivityTab({ issueId }: { issueId: string }) {
       ) : q.isError ? (
         <ErrorState error={q.error} retry={() => q.refetch()} />
       ) : (
-        <ol className="relative before:absolute before:top-2 before:bottom-2 before:left-[13px] before:w-px before:bg-border">
+        <ol className="relative before:absolute before:top-2 before:bottom-6 before:left-[13px] before:w-px before:bg-border">
           {q.data.map((a) => {
             if (a.kind === 'comment') return <Comment key={a.id} a={a} issueId={issueId} mine={a.user?.id === session?.user.id} />
             const { icon, text: label } = describe(a)

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
-import { Bookmark, ChevronRight, Ellipsis, Link2, Share2, Ticket, Trash2 } from 'lucide-react'
+import { Bookmark, ChevronRight, Copy, Ellipsis, FileText, Link2, Share2, Ticket, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api } from '@/api/endpoints'
 import { qk, useDeleteIssues, useIssue, useSession, useUpdateIssues } from '@/api/queries'
@@ -25,7 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tip } from '@/components/ui/tooltip'
 import { copyText } from '@/hooks/use-copy'
 import { useHotkeys } from '@/hooks/use-hotkeys'
-import { compact, shortVersion, thousands } from '@/lib/format'
+import { compact, shortVersion, thousands, plural } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { type ActionHandler } from '@/features/issues/actions'
 import { StatusBadge } from '@/features/issues/issue-row'
@@ -109,7 +109,7 @@ export function IssueLayout({ org, issueId }: { org: string; issueId: string }) 
   return (
     <div className="flex min-h-full flex-col">
       {!d ? <HeaderSkeleton /> : <Header d={d} org={org} act={act} permalink={permalink} onDelete={() => setConfirmDelete(true)} />}
-      <nav aria-label="Issue sections" className="flex gap-1 overflow-x-auto border-b px-3 sm:px-5">
+      <nav aria-label="Issue sections" className="no-scrollbar flex gap-1 overflow-x-auto border-b scroll-fade-x px-3 sm:px-5">
         {(
           [
             ['/$org/issues/$issueId', 'Details', undefined],
@@ -207,10 +207,14 @@ function Header({ d, org, act, permalink, onDelete }: { d: IssueDetail; org: str
                 <Link2 /> Link existing ticket…
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void copyText(d.title, 'Title copied')}>Copy title</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void copyText(`[${d.short_id}] ${d.title}\n${permalink}`, 'Copied as text')}>Copy as text</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void copyText(d.title, 'Title copied')}>
+                <Copy /> Copy title
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void copyText(`[${d.short_id}] ${d.title}\n${permalink}`, 'Copied as text')}>
+                <FileText /> Copy as text
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => void copyText(`[${d.short_id}: ${d.title}](${permalink})`, 'Markdown link copied')}>
-                Copy as Markdown link
+                <Link2 /> Copy as Markdown link
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onSelect={onDelete}>
@@ -231,7 +235,7 @@ function Header({ d, org, act, permalink, onDelete }: { d: IssueDetail; org: str
             </span>
           )}
           <span className="text-xs text-muted-foreground tabular">
-            {thousands(d.count)} events · {thousands(d.user_count)} users
+            {thousands(d.count)} {plural(d.count, 'event')} · {thousands(d.user_count)} {plural(d.user_count, 'user')}
           </span>
         </div>
         <h1 className="text-xl leading-tight font-semibold tracking-tight break-words">

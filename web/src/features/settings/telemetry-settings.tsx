@@ -180,7 +180,9 @@ export function ProjectTelemetryPage({ org, project }: { org: string; project: s
                     <div className="text-xs text-muted-foreground">
                       {sk === 'logs'
                         ? 'Logs with a trace id follow their trace; others are kept at random.'
-                        : 'By trace id, so a trace is kept or dropped as a whole. Applies after the SDK’s own sample rate.'}
+                        : sk === 'transactions'
+                          ? 'By trace id, so a trace is kept or dropped as a whole. Applies after the SDK’s own sample rate.'
+                          : 'Spans sent on their own, outside a transaction, by trace id like transactions, so they stay with their trace.'}
                     </div>
                   </div>
                   <SamplingInput

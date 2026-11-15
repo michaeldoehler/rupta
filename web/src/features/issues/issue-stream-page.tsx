@@ -336,7 +336,7 @@ export function IssueStreamPage({ query, sort }: { query: string; sort: IssueSor
           <FilterBar />
         </div>
         <SearchBar ref={searchRef} org={org} projects={projects} value={query} onSubmit={(q) => setSearch({ query: q })} />
-        <nav aria-label="Issue status" className="-mb-px flex gap-1 overflow-x-auto">
+        <nav aria-label="Issue status" className="-mb-px no-scrollbar flex gap-1 overflow-x-auto scroll-fade-x">
           {TABS.map((t) => (
             <button
               key={t.id}

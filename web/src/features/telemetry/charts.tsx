@@ -119,7 +119,7 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
     )
   const common = {
     data: rows,
-    margin: { top: 6, right: 4, bottom: 0, left: 0 },
+    margin: { top: 10, right: 4, bottom: 0, left: 0 },
   }
   const axes = (
     <>
@@ -129,13 +129,14 @@ export const TimeSeriesChart = memo(function TimeSeriesChart({
         type="number"
         scale="time"
         domain={['dataMin', 'dataMax']}
+        padding={{ left: 12, right: 12 }}
         tickFormatter={tickTime(span)}
         tick={AXIS}
         tickLine={false}
         axisLine={false}
         minTickGap={40}
       />
-      <YAxis tickFormatter={(v: number) => format(v)} tick={AXIS} tickLine={false} axisLine={false} width={56} allowDecimals />
+      <YAxis tickFormatter={(v: number) => format(v)} tick={AXIS} tickLine={false} axisLine={false} width={68} allowDecimals />
       <Tooltip
         content={<ChartTooltip format={format} names={names} />}
         cursor={type === 'bar' ? { fill: 'var(--accent)' } : { stroke: 'var(--muted-foreground)', strokeDasharray: '3 3' }}
@@ -251,6 +252,7 @@ export function HistogramChart({
             dataKey="x"
             type="number"
             domain={['dataMin', 'dataMax']}
+            padding={{ left: 12, right: 12 }}
             tickFormatter={format}
             tick={AXIS}
             tickLine={false}

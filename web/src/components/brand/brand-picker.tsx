@@ -85,7 +85,8 @@ export function BrandPicker<T extends string>({
             onClick={() => onChange(o.value)}
             onKeyDown={(e) => move(e, i)}
             className={cn(
-              'group/tile relative flex items-center gap-2.5 rounded-lg border border-border-strong bg-card text-left outline-none',
+              'group/tile relative flex gap-2.5 rounded-lg border border-border-strong bg-card text-left outline-none',
+              layout === 'grid' ? 'items-start' : 'items-center',
               'transition-[transform,border-color,background-color,box-shadow] duration-150 ease-out',
               'hover:border-palm hover:bg-palm-soft/60 hover:shadow-[0_4px_14px_-6px_rgb(0_0_0/0.6)] motion-safe:hover:-translate-y-px',
               'focus-visible:border-brand focus-visible:ring-[3px] focus-visible:ring-ring/40',

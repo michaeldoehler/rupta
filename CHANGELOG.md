@@ -8,8 +8,53 @@ changelog says when and how to migrate.
 
 ## [Unreleased]
 
+### Added
+
+- An organization can have an icon: when an admin saves a website domain
+  in *Organization settings → General*, the server fetches the site's
+  favicon and shows it in the organization menu. `PATCH
+  /api/v1/orgs/{org}` takes `domain`; organizations and the session's
+  organizations carry `domain` and `icon_url`; `GET
+  /api/v1/orgs/{org}/icon` serves the image. Migration 6000 adds the
+  columns.
+
 ### Changed
 
+- Projects show the mark of their platform (React, Next.js, Node.js,
+  Python, Django, Flask, FastAPI, PHP, Laravel, Symfony, Go, Java, .NET,
+  Ruby, Rust, JavaScript, Vue) instead of a two-letter badge, and Slack and
+  Microsoft Teams channels show their logos instead of a letter. The marks
+  are bundled from simple-icons (CC0); see
+  `web/src/components/brand/NOTICE.md`.
+- The settings pages use more of the screen width; the project header and
+  the page content share one left edge, and the project tabs wrap instead
+  of scrolling.
+- The channel type picker is wider so that names and descriptions fit.
+- All service marks (trackers, channels) sit on the same light tile, and
+  picker tiles line up their titles.
+- The top bar's logo is centred; avatars from identity providers keep
+  their aspect ratio and fit their circle.
+
+### Fixed
+
+- Release lists showed a placeholder instead of each project's platform
+  icon: the API now returns `platform` with a release's projects.
+- Counts read "1 events", "1 users", "1 values" and "1 need attention";
+  ages of 360 to 364 days read "0y ago".
+- On phones the settings navigation drew labels on top of each other; it
+  now scrolls sideways and keeps the current page in view. Tab rows fade
+  out at the edge when more follows.
+- The event highlights grid left a cell without borders; the status
+  buttons of an issue did not line up with the controls below them.
+- Sortable table headers lost their capitals; chart axis labels wrapped
+  or collided with the first bar.
+- Smaller layout fixes: the event JSON dialog no longer opens with a
+  tooltip over the event id; the keyboard shortcut list fits; the
+  Activity tab, alert rules, the alert rule editor and feedback start at
+  the page edge like their headers; a disabled client key says
+  "Disabled"; a disabled cron monitor's check-ins are grey; an
+  integration's last error is not shown twice; disabled primary buttons
+  look disabled rather than dim; profiles use the project's platform.
 - The embedded database (squad) is updated to c85aa97. It adds row-level
   security and read-only logins, and fixes parameter types of the
   backend and advisory lock functions. rupta's schema and behaviour are

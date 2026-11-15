@@ -1,3 +1,4 @@
+import { plural } from '@/lib/format'
 import { useQueries } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Clock } from 'lucide-react'
@@ -29,7 +30,7 @@ export function CronsPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-3 sm:px-5">
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b px-3 py-3 sm:px-5">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Crons</h1>
           {!pending && (
@@ -37,7 +38,10 @@ export function CronsPage() {
               {monitors.length} monitors
               {failing > 0 && (
                 <>
-                  , <span className="font-medium text-destructive">{failing} need attention</span>
+                  ,{' '}
+                  <span className="font-medium text-destructive">
+                    {failing} {plural(failing, 'needs', 'need')} attention
+                  </span>
                 </>
               )}
             </p>
@@ -87,7 +91,7 @@ export function CronsPage() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <CheckinTimeline checkins={m.recent_checkins} max={30} />
+                  <CheckinTimeline checkins={m.recent_checkins} max={30} muted={m.status === 'disabled'} />
                 </TableCell>
                 <TableCell className="hidden text-muted-foreground lg:table-cell">
                   {m.last_checkin ? <RelativeTime date={m.last_checkin} suffix /> : '—'}

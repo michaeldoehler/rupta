@@ -90,18 +90,23 @@ export function DashboardsPage() {
                 <Link
                   to="/$org/dashboards/$dashboardId"
                   params={{ org, dashboardId: d.id }}
-                  className="group block h-full rounded-lg border bg-card p-4 transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="group flex h-full flex-col rounded-lg border bg-card p-4 transition-colors hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h2 className="font-semibold group-hover:text-brand">{d.title}</h2>
-                    <ChevronRight className="size-4 text-muted-foreground" />
+                    <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   </div>
                   {d.description && <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">{d.description}</p>}
-                  <div className="mt-3 grid grid-cols-4 gap-1" aria-hidden>
+                  <div className="mt-auto grid grid-cols-4 gap-1 pt-3" aria-hidden>
                     {d.widgets.slice(0, 8).map((w) => (
                       <span
                         key={w.id}
-                        className={cn('h-5 rounded-sm bg-muted', w.width >= 2 && 'col-span-2', w.width >= 3 && 'col-span-3', w.width >= 4 && 'col-span-4')}
+                        className={cn(
+                          'h-5 rounded-sm bg-palm-soft/70',
+                          w.width >= 2 && 'col-span-2',
+                          w.width >= 3 && 'col-span-3',
+                          w.width >= 4 && 'col-span-4',
+                        )}
                       />
                     ))}
                   </div>
@@ -394,13 +399,13 @@ export function DashboardPage({ dashboardId }: { dashboardId: string }) {
       <ExploreHeader
         title={d?.title ?? 'Dashboard'}
         description={
-          <span className="flex items-center gap-1.5">
-            <Link to="/$org/dashboards" params={{ org }} className="hover:text-foreground">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Link to="/$org/dashboards" params={{ org }} className="shrink-0 hover:text-foreground">
               Dashboards
             </Link>
             {d?.description && (
               <>
-                <ChevronRight className="size-3" />
+                <span aria-hidden>·</span>
                 <span className="truncate">{d.description}</span>
               </>
             )}

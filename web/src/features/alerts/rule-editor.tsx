@@ -160,7 +160,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
   if (existing.isError) return <ErrorState error={existing.error} className="min-h-[60vh]" />
   if (!isNew && existing.isPending)
     return (
-      <div className="mx-auto max-w-3xl space-y-4 p-6">
+      <div className="max-w-3xl space-y-4 p-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40" />
         <Skeleton className="h-40" />
@@ -180,7 +180,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
         <h1 className="mt-2 text-xl font-semibold tracking-tight">{isNew ? 'New alert rule' : 'Edit alert rule'}</h1>
       </header>
       <form
-        className="mx-auto max-w-3xl space-y-4 px-4 pt-5 sm:px-6"
+        className="max-w-3xl space-y-4 px-4 pt-5 sm:px-6"
         onSubmit={(e) => {
           e.preventDefault()
           void save()
@@ -325,7 +325,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
           </Button>
         </Block>
 
-        <Block step="THEN" title="Actions" description="Who gets notified">
+        <Block step="THEN" title="Actions" description="Notify people or create tickets">
           {rule.actions.map((a, i) => (
             <div key={i}>
               <Row onRemove={() => removeAt('actions', i)} label="action">
@@ -371,8 +371,8 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
                     <Input
                       value={a.target ?? ''}
                       onChange={(e) => setAt('actions', i, { ...a, target: e.target.value || undefined })}
-                      placeholder="project default"
-                      className="h-7 w-40 font-mono text-[12.5px]"
+                      placeholder="Project default"
+                      className="h-7 w-40 font-mono text-[12.5px] placeholder:font-sans"
                       aria-label="Ticket target (optional)"
                       title="Optional: Jira project key, Linear team id, owner/repo or GitLab path; empty uses the project's default"
                     />
@@ -416,6 +416,9 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
             <Link to="/$org/settings/channels" params={{ org }} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
               Manage notification channels
             </Link>
+            <span aria-hidden className="text-xs text-subtle-foreground">
+              ·
+            </span>
             <Link to="/$org/settings/integrations" params={{ org }} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
               Issue trackers
             </Link>
@@ -449,7 +452,7 @@ export function RuleEditor({ org, project: projectSlug, ruleId }: { org: string;
           </div>
         </div>
 
-        <div className="sticky bottom-0 -mx-4 flex items-center gap-2 border-t bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+        <div className="sticky bottom-0 flex items-center gap-2 border-t bg-background/95 py-3 backdrop-blur">
           {!isNew && (
             <Button variant="ghost" className="text-destructive" onClick={() => setConfirmDelete(true)}>
               <Trash2 /> Delete

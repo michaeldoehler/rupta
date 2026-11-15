@@ -207,8 +207,8 @@ export function ProjectLayout({ org, project, children }: { org: string; project
   const q = useProject(org, project)
   return (
     <div>
-      <div className="border-b px-4 pt-5 sm:px-8">
-        <div className="mx-auto max-w-4xl">
+      <div className="border-b">
+        <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-8">
           <div className="flex items-center gap-3">
             <PlatformIcon platform={q.data?.platform} size="lg" />
             <div>
@@ -216,14 +216,14 @@ export function ProjectLayout({ org, project, children }: { org: string; project
               <p className="font-mono text-xs text-muted-foreground">{project}</p>
             </div>
           </div>
-          <nav aria-label="Project settings" className="mt-4 -mb-px flex gap-1 overflow-x-auto">
+          <nav aria-label="Project settings" className="mt-4 -mb-px -ml-2.5 no-scrollbar flex gap-x-1 overflow-x-auto sm:flex-wrap sm:overflow-visible">
             {PROJECT_TABS.map(([to, label]) => (
               <Link
                 key={to}
                 to={to}
                 params={{ org, project }}
                 activeOptions={{ exact: true, includeSearch: false }}
-                className="shrink-0 border-b-2 border-transparent px-2.5 pb-2 text-[13px] font-medium text-muted-foreground hover:text-foreground"
+                className="shrink-0 border-b-2 border-transparent px-2.5 pb-2 text-[13px] font-medium text-muted-foreground/85 hover:text-foreground"
                 activeProps={{ className: 'border-brand! text-foreground', 'aria-current': 'page' }}
               >
                 {label}
@@ -404,7 +404,6 @@ function KeyCard({ k, org, project, canManage }: { k: ProjectKey; org: string; p
     <section className={cn('rounded-lg border bg-card', !k.is_active && 'opacity-70')}>
       <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5">
         <h3 className="text-[13px] font-semibold">{k.label}</h3>
-        {!k.is_active && <Badge variant="outline">disabled</Badge>}
         {k.rate_limit_per_min && <Badge variant="secondary">{k.rate_limit_per_min.toLocaleString()} events/min</Badge>}
         <span className="text-xs text-muted-foreground">
           created <RelativeTime date={k.created_at} suffix />
@@ -417,7 +416,7 @@ function KeyCard({ k, org, project, canManage }: { k: ProjectKey; org: string; p
                 onCheckedChange={(v) => update.mutate({ is_active: v })}
                 aria-label={`${k.is_active ? 'Disable' : 'Enable'} key ${k.label}`}
               />{' '}
-              Active
+              {k.is_active ? 'Active' : 'Disabled'}
             </label>
             <Button variant="ghost" size="icon-xs" aria-label={`Delete key ${k.label}`} onClick={() => setConfirm(true)}>
               <Trash2 />

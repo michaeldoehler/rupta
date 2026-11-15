@@ -172,7 +172,7 @@ export const SearchBar = forwardRef<SearchBarHandle, Props>(function SearchBar(
             aria-label={label}
             spellCheck={false}
             autoComplete="off"
-            className="relative h-full w-full bg-transparent px-2 font-mono text-[13px] text-transparent caret-foreground outline-none selection:bg-brand/25 selection:text-foreground placeholder:font-sans placeholder:text-muted-foreground"
+            className="relative h-full w-full bg-transparent px-2 font-mono text-[13px] text-ellipsis text-transparent caret-foreground outline-none selection:bg-brand/25 selection:text-foreground placeholder:font-sans placeholder:text-muted-foreground"
             placeholder={placeholder}
             value={draft}
             onChange={(e) => {

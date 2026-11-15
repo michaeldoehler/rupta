@@ -25,7 +25,7 @@ export function EmptyState({
       {icon && <div className="flex size-11 items-center justify-center rounded-xl border bg-card text-muted-foreground shadow-xs [&_svg]:size-5">{icon}</div>}
       <div className="space-y-1">
         <p className="text-sm font-semibold">{title}</p>
-        {description && <p className="mx-auto max-w-md text-[13px] text-muted-foreground">{description}</p>}
+        {description && <p className="mx-auto max-w-md text-[13px] text-balance text-muted-foreground">{description}</p>}
       </div>
       {action}
     </div>

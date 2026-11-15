@@ -12,7 +12,7 @@ import { RelativeTime } from '@/components/common/time'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/components/ui/kbd'
 import { Skeleton } from '@/components/ui/skeleton'
-import { thousands } from '@/lib/format'
+import { thousands, plural } from '@/lib/format'
 import { EventView } from '@/features/event/event-view'
 import { IssueChart } from '@/features/issue-detail/issue-chart'
 import { LinkedTickets } from '@/features/integrations/linked-tickets'
@@ -50,7 +50,8 @@ export default function IssuePreview({ org, issueId }: { org: string; issueId: s
               <LevelBadge level={d.level} />
               <StatusBadge issue={d} />
               <span className="text-xs text-muted-foreground">
-                {thousands(d.count)} events · {thousands(d.user_count)} users · last <RelativeTime date={d.last_seen} suffix plain />
+                {thousands(d.count)} {plural(d.count, 'event')} · {thousands(d.user_count)} {plural(d.user_count, 'user')} · last{' '}
+                <RelativeTime date={d.last_seen} suffix plain />
               </span>
             </div>
             <h2 className="text-lg leading-snug font-semibold tracking-tight break-words">

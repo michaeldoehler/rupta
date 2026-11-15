@@ -203,7 +203,7 @@ describe('service marks', () => {
     expect(within(linked.closest('li')!).getByRole('img', { name: 'Jira Cloud' })).toBeInTheDocument()
   })
 
-  it('shows channel marks, with monograms for Slack and Microsoft Teams', async () => {
+  it('shows the channel marks', async () => {
     const user = userEvent.setup()
     renderApp('/acme/settings/channels')
     await user.click(await screen.findByRole('button', { name: /Add channel/ }))
@@ -214,7 +214,7 @@ describe('service marks', () => {
         .getAllByRole('radio')
         .map((r) => r.getAttribute('aria-checked')),
     ).toEqual(['true', 'false', 'false', 'false', 'false', 'false'])
-    expect(within(dialog).getByRole('img', { name: 'Slack' }).querySelector('[data-monogram]')).toHaveTextContent('S')
+    expect(within(dialog).getByRole('img', { name: 'Slack' }).querySelector('[data-mark]')).toHaveAttribute('data-mark', 'Slack')
     await user.click(within(picker).getByRole('radio', { name: 'Opsgenie' }))
     expect(within(dialog).getByRole('img', { name: 'Opsgenie' }).querySelector('[data-mark]')).toHaveAttribute('data-mark', 'Opsgenie')
   })

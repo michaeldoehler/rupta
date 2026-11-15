@@ -28,7 +28,12 @@ export function relShort(v: string | number | Date, now: Date = new Date()): str
   if (d < 30) return `${d}d`
   const mo = Math.floor(d / 30)
   if (mo < 12) return `${mo}mo`
-  return `${Math.floor(d / 365)}y`
+  return `${Math.max(1, Math.floor(d / 365))}y`
+}
+
+/** `1 event`, `3 events`; `word` is the singular, `many` the plural if it is irregular. */
+export function plural(n: number, word: string, many = `${word}s`): string {
+  return n === 1 ? word : many
 }
 
 export function relLong(v: string | number | Date): string {

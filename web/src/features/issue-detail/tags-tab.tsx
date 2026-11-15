@@ -8,7 +8,7 @@ import { CardsSkeleton, EmptyState, ErrorState } from '@/components/common/state
 import { RelativeTime } from '@/components/common/time'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { compact, percent, thousands } from '@/lib/format'
+import { compact, percent, thousands, plural } from '@/lib/format'
 import { formatFilter } from '@/lib/search/parse'
 
 const BAR_COLORS = ['bg-palm', 'bg-series-2', 'bg-series-3', 'bg-series-4', 'bg-subtle-foreground']
@@ -40,7 +40,9 @@ function TagCard({ tag, org, issueId }: { tag: TagDistribution; org: string; iss
           {tag.key}
           <ChevronRight className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
         </Link>
-        <span className="text-xs text-muted-foreground tabular">{compact(tag.unique_values)} values</span>
+        <span className="text-xs text-muted-foreground tabular">
+          {compact(tag.unique_values)} {plural(tag.unique_values, 'value')}
+        </span>
       </div>
       <DistributionBar tag={tag} />
       <ul className="mt-2.5 space-y-1">

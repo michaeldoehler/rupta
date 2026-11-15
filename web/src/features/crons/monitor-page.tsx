@@ -59,7 +59,7 @@ export function MonitorPage({ org, project, slug }: { org: string; project: stri
                   <PlatformIcon platform={d.project.platform} size="sm" /> {d.project.slug}
                 </span>
                 <span>{describeSchedule(d.schedule)}</span>
-                <span className="font-mono text-xs">{d.schedule.type === 'crontab' ? d.schedule.value : `${d.schedule.value} ${d.schedule.unit}`}</span>
+                {d.schedule.type === 'crontab' && <span className="font-mono text-xs">{d.schedule.value}</span>}
                 <span>{d.timezone}</span>
               </p>
             </div>

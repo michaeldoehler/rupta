@@ -332,10 +332,18 @@ the server lists the replay's issues without times.
   tokens and notification choices. Timezone, clock, issue alert, workflow
   and weekly report choices are saved on the server (no weekly report is
   sent yet); deploy notifications only in the browser.
-- **Organization:** name and slug, members and invitations with roles
-  (owner, admin, member, viewer), teams, single sign-on, API tokens,
+- **Organization:** name, slug and website, members and invitations with
+  roles (owner, admin, member, viewer), teams, single sign-on, API tokens,
   issue trackers (see [Issue trackers](#issue-trackers)), notification
-  channels and the audit log.
+  channels and the audit log. When you save a website domain (for example
+  `example.com`), the server fetches the site's favicon once and uses it as
+  the organization's icon in the organization menu. It reads the icons the
+  start page links to (an SVG or the largest image first) and falls back to
+  `/favicon.ico`; images over 256 KiB, files that are not PNG, ICO, GIF,
+  JPEG, WebP or SVG, and internal hosts are refused, and the form shows why.
+  Saving the same domain again fetches the icon anew; an empty field
+  removes domain and icon. Without an icon the menu shows the first letter
+  of the name.
 - **Notification channels:** Slack, Microsoft Teams, email, webhook,
   PagerDuty (integration key, US or EU region) and Opsgenie (API key, US or
   EU region), each with a test button. PagerDuty and Opsgenie keys are
@@ -353,7 +361,9 @@ the server lists the replay's issues without times.
   server to load the provider's discovery document and lists any problems.
 - **API tokens** are shown once when created. Choose scopes and an
   expiry.
-- **Projects:** each project has general settings, client keys (DSN) with
+- **Projects:** each project shows the mark of its platform (React,
+  Laravel, Node.js and the other platforms with SDK instructions; a letter
+  for others). Each project has general settings, client keys (DSN) with
   setup instructions for the Sentry SDKs on 14 platforms,
   inbound filters, data scrubbing, allowed origins and the CSP report URI,
   rate limit and retention, source maps with the upload CLI commands, and

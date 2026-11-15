@@ -43,8 +43,9 @@ type Shot = {
 }
 
 async function ready(page: Page, streaming = false) {
-  // A live tail keeps a request open, so the network never goes idle.
-  if (!streaming) await page.waitForLoadState('networkidle')
+  // A live tail keeps a request open, so the network never goes idle; a
+  // replay player can keep it busy too, so the wait is bounded.
+  if (!streaming) await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => undefined)
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: 10_000 })
   await page.waitForTimeout(400)
 }
@@ -242,7 +243,11 @@ const shots: Shot[] = [
     n: '30',
     screen: 'org-settings',
     state: 'sso-zitadel',
-    go: async (p) => void (await p.goto('/acme/settings/sso'), await p.getByLabel('Issuer URL').fill('https://acme.zitadel.cloud')),
+    go: async (p) => {
+      await p.goto('/acme/settings/sso')
+      await p.getByRole('button', { name: /organization provider/ }).click()
+      await p.getByLabel('Issuer URL').fill('https://acme.zitadel.cloud')
+    },
   },
   {
     n: '31',
@@ -1015,6 +1020,7 @@ shots.push(
     note: 'SSO presets: the ZITADEL mark on the Zitadel preset, a key for the others; pointer on Keycloak',
     go: async (p) => {
       await p.goto('/acme/settings/sso')
+      await p.getByRole('button', { name: /organization provider/ }).click()
       await p.getByRole('radio', { name: 'Keycloak' }).hover()
     },
   },

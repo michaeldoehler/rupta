@@ -402,6 +402,8 @@ async fn releases_and_health() {
     );
     assert_eq!(first["last_deploy"]["environment"], "production");
     assert_eq!(first["new_issues"], 2);
+    // Projects come with their platform, for the platform icons.
+    assert_eq!(first["projects"][0]["platform"], "javascript", "{:?}", first["projects"]);
     let page = app.get("/api/v1/orgs/acme/releases?limit=1", &who).await;
     assert!(page.body["next_cursor"].is_string());
     let q = app.get("/api/v1/orgs/acme/releases?query=1.0.0", &who).await;

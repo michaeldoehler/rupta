@@ -26,6 +26,7 @@ pub fn routes() -> OpenApiRouter<ApiState> {
     OpenApiRouter::new()
         .routes(routes!(list_orgs, create_org))
         .routes(routes!(get_org, update_org, delete_org))
+        .routes(routes!(get_org_icon))
         .routes(routes!(list_members, invite_member))
         .routes(routes!(update_member, remove_member))
         .routes(routes!(list_invites))
@@ -46,6 +47,15 @@ pub struct Org {
     /// The caller's role.
     pub role: String,
     pub created_at: DateTime<Utc>,
+    /// Website domain the icon was taken from.
+    pub domain: Option<String>,
+    /// URL of the organization's icon (its website's favicon), when it has one.
+    pub icon_url: Option<String>,
+}
+
+/// Versioned URL of an organization's icon, so that browsers may cache it.
+pub(crate) fn icon_url(slug: &str, updated_at: Option<DateTime<Utc>>) -> Option<String> {
+    updated_at.map(|t| format!("/api/v1/orgs/{slug}/icon?v={}", t.timestamp()))
 }
 
 pub(crate) fn check_name(field: &str, name: &str, max: usize) -> ApiResult<String> {
@@ -73,16 +83,16 @@ async fn list_orgs(State(state): State<ApiState>, auth: Auth) -> ApiResult<axum:
         .db(move |c| {
             let rows = match (&auth.principal.token, auth.principal.user_id) {
                 (Some(t), _) if t.org_id.is_some() => c.query(
-                    "SELECT id, slug, name, 'admin', created_at FROM organizations WHERE id = $1",
+                    "SELECT id, slug, name, 'admin', created_at, domain, icon_updated_at FROM organizations WHERE id = $1",
                     &[&t.org_id],
                 )?,
                 (_, Some(uid)) if auth.principal.is_superuser => c.query(
-                    "SELECT o.id, o.slug, o.name, coalesce(m.role, 'owner'), o.created_at FROM organizations o
+                    "SELECT o.id, o.slug, o.name, coalesce(m.role, 'owner'), o.created_at, o.domain, o.icon_updated_at FROM organizations o
                      LEFT JOIN members m ON m.org_id = o.id AND m.user_id = $1 ORDER BY o.name, o.id",
                     &[&uid],
                 )?,
                 (_, Some(uid)) => c.query(
-                    "SELECT o.id, o.slug, o.name, m.role, o.created_at FROM members m JOIN organizations o ON o.id = m.org_id
+                    "SELECT o.id, o.slug, o.name, m.role, o.created_at, o.domain, o.icon_updated_at FROM members m JOIN organizations o ON o.id = m.org_id
                      WHERE m.user_id = $1 ORDER BY o.name, o.id",
                     &[&uid],
                 )?,
@@ -96,7 +106,18 @@ async fn list_orgs(State(state): State<ApiState>, auth: Auth) -> ApiResult<axum:
         .await?;
     Ok(axum::Json(
         rows.iter()
-            .map(|r| Org { id: Id(r.get(0)), slug: r.get(1), name: r.get(2), role: r.get(3), created_at: r.get(4) })
+            .map(|r| {
+                let slug: String = r.get(1);
+                Org {
+                    id: Id(r.get(0)),
+                    icon_url: icon_url(&slug, r.get(6)),
+                    slug,
+                    name: r.get(2),
+                    role: r.get(3),
+                    created_at: r.get(4),
+                    domain: r.get(5),
+                }
+            })
             .collect(),
     ))
 }
@@ -143,7 +164,7 @@ async fn create_org(State(state): State<ApiState>, auth: Auth, Json(req): Json<C
             let created_at: DateTime<Utc> =
                 txn.query_one("SELECT created_at FROM organizations WHERE id = $1", &[&id])?.get(0);
             txn.commit()?;
-            Ok(Org { id: Id(id), slug, name, role: "owner".into(), created_at })
+            Ok(Org { id: Id(id), slug, name, role: "owner".into(), created_at, domain: None, icon_url: None })
         })
         .await?;
     Ok((StatusCode::CREATED, axum::Json(org)).into_response())
@@ -156,9 +177,17 @@ async fn get_org(State(state): State<ApiState>, auth: Auth, Path(org): Path<Stri
     let o = state
         .db(move |c| {
             let o = org_sync(c, &auth, &org, Permission::ReadOrg)?;
-            let created_at: DateTime<Utc> =
-                c.query_one("SELECT created_at FROM organizations WHERE id = $1", &[&o.id])?.get(0);
-            Ok(Org { id: Id(o.id), slug: o.slug, name: o.name, role: o.role.as_str().into(), created_at })
+            let row =
+                c.query_one("SELECT created_at, domain, icon_updated_at FROM organizations WHERE id = $1", &[&o.id])?;
+            Ok(Org {
+                id: Id(o.id),
+                icon_url: icon_url(&o.slug, row.get(2)),
+                slug: o.slug,
+                name: o.name,
+                role: o.role.as_str().into(),
+                created_at: row.get(0),
+                domain: row.get(1),
+            })
         })
         .await?;
     Ok(axum::Json(o))
@@ -168,11 +197,18 @@ async fn get_org(State(state): State<ApiState>, auth: Auth, Path(org): Path<Stri
 pub struct UpdateOrg {
     pub name: Option<String>,
     pub slug: Option<String>,
+    /// Website domain (for example `example.com`). Setting it fetches the
+    /// site's favicon as the organization's icon; an empty string removes
+    /// the domain and the icon. Setting the same domain again fetches the
+    /// icon anew.
+    pub domain: Option<String>,
 }
 
-/// Renames an organization or changes its slug.
+/// Renames an organization, changes its slug, or sets its website domain
+/// and with it the icon. A domain whose icon cannot be fetched is refused
+/// (422) and nothing is changed.
 #[utoipa::path(patch, path = "/api/v1/orgs/{org}", tag = "orgs", params(("org" = String, Path)), request_body = UpdateOrg,
-    responses((status = 200, body = Org)))]
+    responses((status = 200, body = Org), (status = 422, body = crate::error::ErrorBody)))]
 async fn update_org(
     State(state): State<ApiState>,
     auth: Auth,
@@ -183,21 +219,99 @@ async fn update_org(
     if let Some(s) = &req.slug {
         check_slug("slug", s)?;
     }
+    // None: unchanged; Some(None): removed; Some(Some(..)): new domain and icon.
+    let domain: Option<Option<(String, Vec<u8>, &'static str)>> = match req.domain.as_deref().map(str::trim) {
+        None => None,
+        Some("") => Some(None),
+        Some(d) => {
+            let domain = crate::favicon::normalize_domain(d).map_err(|e| ApiError::invalid("domain", e))?;
+            // Check the caller may change the organization before fetching anything.
+            let (a, o) = (auth.clone(), org.clone());
+            state.db(move |c| org_sync(c, &a, &o, Permission::ManageOrg).map(|_| ())).await?;
+            let (icon, kind) = crate::favicon::fetch(&state.outbound, &domain)
+                .await
+                .map_err(|e| ApiError::invalid("domain", format!("could not fetch an icon from {domain}: {e}")))?;
+            Some(Some((domain, icon, kind)))
+        }
+    };
     let o = state
         .db(move |c| {
             let o = org_sync(c, &auth, &org, Permission::ManageOrg)?;
-            let row = c.query_one(
-                "UPDATE organizations SET name = coalesce($1, name), slug = coalesce($2, slug) WHERE id = $3 RETURNING slug, name, created_at",
+            let txn = c.transaction()?;
+            let row = txn.query_one(
+                "UPDATE organizations SET name = coalesce($1, name), slug = coalesce($2, slug) WHERE id = $3
+                 RETURNING slug, name, created_at",
                 &[&name, &req.slug, &o.id],
             )?;
+            match &domain {
+                None => {}
+                Some(None) => {
+                    txn.execute(
+                        "UPDATE organizations SET domain = NULL, icon = NULL, icon_type = NULL, icon_updated_at = NULL WHERE id = $1",
+                        &[&o.id],
+                    )?;
+                }
+                Some(Some((d, icon, kind))) => {
+                    txn.execute(
+                        "UPDATE organizations SET domain = $1, icon = $2, icon_type = $3, icon_updated_at = now() WHERE id = $4",
+                        &[d, icon, kind, &o.id],
+                    )?;
+                }
+            }
+            let icon_row = txn.query_one("SELECT domain, icon_updated_at FROM organizations WHERE id = $1", &[&o.id])?;
+            let domain_audit = domain.as_ref().map(|d| d.as_ref().map(|(d, _, _)| d.clone()));
             audit::record(
-                c,
-                &audit::Entry { target_type: Some("org"), target_id: Some(o.id.to_string()), data: json!({"name": name, "slug": req.slug}), ..auth.audit(Some(o.id), action::ORG_UPDATE) },
+                &txn,
+                &audit::Entry {
+                    target_type: Some("org"),
+                    target_id: Some(o.id.to_string()),
+                    data: json!({"name": name, "slug": req.slug, "domain": domain_audit}),
+                    ..auth.audit(Some(o.id), action::ORG_UPDATE)
+                },
             )?;
-            Ok(Org { id: Id(o.id), slug: row.get(0), name: row.get(1), role: o.role.as_str().into(), created_at: row.get(2) })
+            txn.commit()?;
+            let slug: String = row.get(0);
+            Ok(Org {
+                id: Id(o.id),
+                icon_url: icon_url(&slug, icon_row.get(1)),
+                slug,
+                name: row.get(1),
+                role: o.role.as_str().into(),
+                created_at: row.get(2),
+                domain: icon_row.get(0),
+            })
         })
         .await?;
     Ok(axum::Json(o))
+}
+
+/// The organization's icon, as fetched from its website. SVG icons are
+/// served with a policy that keeps scripts in them from running.
+#[utoipa::path(get, path = "/api/v1/orgs/{org}/icon", tag = "orgs", params(("org" = String, Path)),
+    responses((status = 200, description = "The image", content_type = "image/*"), (status = 404, body = crate::error::ErrorBody)))]
+async fn get_org_icon(State(state): State<ApiState>, auth: Auth, Path(org): Path<String>) -> ApiResult<Response> {
+    let (icon, kind) = state
+        .db(move |c| {
+            let o = org_sync(c, &auth, &org, Permission::ReadOrg)?;
+            let row = c.query_one("SELECT icon, icon_type FROM organizations WHERE id = $1", &[&o.id])?;
+            let icon: Option<Vec<u8>> = row.get(0);
+            let kind: Option<String> = row.get(1);
+            icon.zip(kind).ok_or_else(ApiError::not_found)
+        })
+        .await?;
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, kind),
+            (axum::http::header::CACHE_CONTROL, "private, max-age=604800, immutable".to_string()),
+            (
+                axum::http::header::CONTENT_SECURITY_POLICY,
+                "default-src 'none'; style-src 'unsafe-inline'; sandbox".to_string(),
+            ),
+            (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string()),
+        ],
+        icon,
+    )
+        .into_response())
 }
 
 /// Deletes an organization with all its projects and data. Owners only.
