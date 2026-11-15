@@ -94,7 +94,10 @@ pub struct Config {
     pub local_login: bool,
     pub oidc: Option<OidcConfig>,
     pub smtp_url: Option<String>,
+    /// `RUPTA_MAIL_FROM`, or `RUPTA_SMTP_FROM` as before.
     pub smtp_from: Option<String>,
+    pub camelmailer_api_key: Option<String>,
+    pub camelmailer_url: Option<String>,
     pub ingest_workers: usize,
     pub ingest_queue: usize,
     pub durability: Durability,
@@ -132,6 +135,8 @@ impl std::fmt::Debug for Config {
             .field("local_login", &self.local_login)
             .field("oidc", &self.oidc)
             .field("smtp_url", &self.smtp_url.as_ref().map(|u| redact_url(u)))
+            .field("camelmailer_api_key", &self.camelmailer_api_key.as_ref().map(|_| "<set>"))
+            .field("camelmailer_url", &self.camelmailer_url)
             .field("ingest_workers", &self.ingest_workers)
             .field("ingest_queue", &self.ingest_queue)
             .field("durability", &self.durability)
@@ -314,7 +319,9 @@ impl Config {
             local_login: r.bool("RUPTA_LOCAL_LOGIN", true)?,
             oidc,
             smtp_url: r.secret("RUPTA_SMTP_URL")?,
-            smtp_from: r.raw("RUPTA_SMTP_FROM"),
+            smtp_from: r.raw("RUPTA_MAIL_FROM").or_else(|| r.raw("RUPTA_SMTP_FROM")),
+            camelmailer_api_key: r.secret("RUPTA_CAMELMAILER_API_KEY")?,
+            camelmailer_url: r.raw("RUPTA_CAMELMAILER_URL"),
             ingest_workers: r.number("RUPTA_INGEST_WORKERS", cores)?.max(1),
             ingest_queue: r.number("RUPTA_INGEST_QUEUE", 100_000)?.max(1),
             durability,
@@ -334,6 +341,17 @@ impl Config {
         };
         if !config.local_login && config.oidc.is_none() {
             bail!("RUPTA_LOCAL_LOGIN=false needs single sign-on (RUPTA_OIDC_ISSUER), or nobody could log in");
+        }
+        if config.smtp_url.is_some() && config.camelmailer_api_key.is_some() {
+            bail!("set either RUPTA_SMTP_URL or RUPTA_CAMELMAILER_API_KEY, not both");
+        }
+        if (config.smtp_url.is_some() || config.camelmailer_api_key.is_some()) && config.smtp_from.is_none() {
+            bail!("RUPTA_MAIL_FROM is required with RUPTA_SMTP_URL or RUPTA_CAMELMAILER_API_KEY");
+        }
+        if let Some(url) = &config.camelmailer_url
+            && !(url.starts_with("https://") || url.starts_with("http://"))
+        {
+            bail!("RUPTA_CAMELMAILER_URL must start with https:// or http://, got {url:?}");
         }
         if config.admin_email.is_some() != config.admin_password.is_some() {
             bail!("RUPTA_ADMIN_EMAIL and RUPTA_ADMIN_PASSWORD must be set together");
@@ -400,6 +418,33 @@ mod tests {
     fn a_secret_key_is_required() {
         assert!(Config::from_env(&env(&[])).unwrap_err().to_string().contains("RUPTA_SECRET_KEY"));
         assert!(Config::from_env(&env(&[("RUPTA_SECRET_KEY", "short")])).is_err());
+    }
+
+    #[test]
+    fn mail_transports() {
+        let c = Config::from_env(&env(&[
+            KEY,
+            ("RUPTA_CAMELMAILER_API_KEY", "cm_secret"),
+            ("RUPTA_CAMELMAILER_URL", "https://mail.example.com"),
+            ("RUPTA_MAIL_FROM", "rupta <rupta@example.com>"),
+        ]))
+        .unwrap();
+        assert_eq!(c.camelmailer_api_key.as_deref(), Some("cm_secret"));
+        assert_eq!(c.smtp_from.as_deref(), Some("rupta <rupta@example.com>"));
+        assert!(!format!("{c:?}").contains("cm_secret"));
+        // RUPTA_SMTP_FROM still works as the sender.
+        let c = Config::from_env(&env(&[KEY, ("RUPTA_SMTP_URL", "smtp://h:25"), ("RUPTA_SMTP_FROM", "a@example.com")]))
+            .unwrap();
+        assert_eq!(c.smtp_from.as_deref(), Some("a@example.com"));
+        let both = Config::from_env(&env(&[
+            KEY,
+            ("RUPTA_SMTP_URL", "smtp://h:25"),
+            ("RUPTA_CAMELMAILER_API_KEY", "cm"),
+            ("RUPTA_MAIL_FROM", "a@example.com"),
+        ]));
+        assert!(both.unwrap_err().to_string().contains("not both"));
+        let no_from = Config::from_env(&env(&[KEY, ("RUPTA_CAMELMAILER_API_KEY", "cm")]));
+        assert!(no_from.unwrap_err().to_string().contains("RUPTA_MAIL_FROM"));
     }
 
     #[test]

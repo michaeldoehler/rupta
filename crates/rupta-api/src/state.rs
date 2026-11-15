@@ -30,8 +30,14 @@ pub struct ApiConfig {
     pub default_org: String,
     /// `RUPTA_SMTP_URL`.
     pub smtp_url: Option<String>,
-    /// `RUPTA_SMTP_FROM`.
+    /// `RUPTA_MAIL_FROM` (or `RUPTA_SMTP_FROM`): the sender of all email.
     pub smtp_from: Option<String>,
+    /// `RUPTA_CAMELMAILER_API_KEY`: send email through a Camelmailer server
+    /// instead of SMTP.
+    pub camelmailer_api_key: Option<String>,
+    /// `RUPTA_CAMELMAILER_URL`: the Camelmailer server; the hosted service
+    /// if unset.
+    pub camelmailer_url: Option<String>,
     /// Origins allowed to call the API from browsers (CORS).
     pub cors_allowed_origins: Vec<String>,
     /// Proxies whose `X-Forwarded-For` is trusted (IPs or CIDR ranges).
@@ -58,6 +64,8 @@ impl ApiConfig {
             default_org: "default".into(),
             smtp_url: None,
             smtp_from: None,
+            camelmailer_api_key: None,
+            camelmailer_url: None,
             cors_allowed_origins: Vec::new(),
             trusted_proxies: Vec::new(),
             max_body_bytes: 1 << 20,
@@ -186,20 +194,30 @@ pub struct ApiState {
 
 impl ApiState {
     pub fn new(store: Store, config: ApiConfig) -> ApiState {
-        let mailer = match (&config.smtp_url, &config.smtp_from) {
-            (Some(url), Some(from)) => match Mailer::from_url(url, from) {
+        let mailer = match (&config.camelmailer_api_key, &config.smtp_url, &config.smtp_from) {
+            (Some(key), _, Some(from)) => match Mailer::camelmailer(key, config.camelmailer_url.as_deref(), from) {
                 Ok(m) => Some(m),
                 Err(e) => {
-                    tracing::error!(error = %e, "invalid RUPTA_SMTP_URL or RUPTA_SMTP_FROM; email is disabled");
+                    tracing::error!(error = %e, "invalid Camelmailer settings; email is disabled");
                     None
                 }
             },
-            (Some(_), None) => {
-                tracing::warn!("RUPTA_SMTP_URL is set without RUPTA_SMTP_FROM; email is disabled");
+            (None, Some(url), Some(from)) => match Mailer::from_url(url, from) {
+                Ok(m) => Some(m),
+                Err(e) => {
+                    tracing::error!(error = %e, "invalid RUPTA_SMTP_URL or RUPTA_MAIL_FROM; email is disabled");
+                    None
+                }
+            },
+            (Some(_), _, None) | (None, Some(_), None) => {
+                tracing::warn!("an email transport is configured without RUPTA_MAIL_FROM; email is disabled");
                 None
             }
             _ => None,
         };
+        if let Some(m) = &mailer {
+            tracing::info!(transport = m.transport_name(), "email enabled");
+        }
         let trusted_proxies = config.trusted_proxies.iter().filter_map(|p| parse_cidr(p)).collect();
         let http = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())

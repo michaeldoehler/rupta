@@ -82,8 +82,10 @@ their own provider in the settings in addition; see [single sign-on](sso.md).
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `RUPTA_SMTP_URL` | empty (*secret*) | SMTP server for invitations, alert emails and workflow emails (an issue assigned to you, a comment on an issue assigned to you; each user can turn these off in their preferences): `smtps://user:password@host:465` (TLS) or `smtp://user:password@host:587` (STARTTLS). Without it, emails are not sent and invitations show a link to copy. |
-| `RUPTA_SMTP_FROM` | — | Sender, e.g. `rupta <rupta@example.com>`. Required with `RUPTA_SMTP_URL`. |
+| `RUPTA_SMTP_URL` | empty (*secret*) | SMTP server for invitations, alert emails and workflow emails (an issue assigned to you, a comment on an issue assigned to you; each user can turn these off in their preferences): `smtps://user:password@host:465` (TLS) or `smtp://user:password@host:587` (STARTTLS). Without it (and without `RUPTA_CAMELMAILER_API_KEY`), emails are not sent and invitations show a link to copy. Set either this or `RUPTA_CAMELMAILER_API_KEY`, not both. |
+| `RUPTA_CAMELMAILER_API_KEY` | empty (*secret*) | Send the same emails through the HTTP API of a Camelmailer server instead of SMTP: the server API key (`cm_…`). |
+| `RUPTA_CAMELMAILER_URL` | the hosted service | Base URL of a self-hosted Camelmailer server, e.g. `https://mail.example.com`. |
+| `RUPTA_MAIL_FROM` | — | Sender of all emails, e.g. `rupta <rupta@example.com>`. Required with `RUPTA_SMTP_URL` or `RUPTA_CAMELMAILER_API_KEY`. `RUPTA_SMTP_FROM` is still read when this is not set. |
 
 ## Ingestion
 

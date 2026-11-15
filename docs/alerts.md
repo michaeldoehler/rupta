@@ -9,7 +9,7 @@ channels belong to an organization and decide *where*. Admins manage both.
 
 | Kind | Configuration | Delivery |
 | --- | --- | --- |
-| `email` | `{"to": ["ops@example.com", ...]}` (1–50 addresses) | One message per recipient over SMTP (`RUPTA_SMTP_URL`, `RUPTA_SMTP_FROM`), plain text and HTML |
+| `email` | `{"to": ["ops@example.com", ...]}` (1–50 addresses) | One message per recipient over SMTP (`RUPTA_SMTP_URL`) or a Camelmailer server (`RUPTA_CAMELMAILER_API_KEY`), from `RUPTA_MAIL_FROM`, plain text and HTML |
 | `slack` | `{"webhook_url": "https://hooks.slack.com/services/..."}` | Slack incoming webhook, message with blocks |
 | `teams` | `{"webhook_url": "https://..."}` | Microsoft Teams webhook (Workflows "post to a channel when a webhook request is received", or a legacy connector), Adaptive Card |
 | `webhook` | `{"url": "https://...", "secret": "..."}` | JSON `POST`, signed when a secret is set |

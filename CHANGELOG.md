@@ -10,6 +10,11 @@ changelog says when and how to migrate.
 
 ### Added
 
+- Email through the HTTP API of a Camelmailer server as an alternative to
+  SMTP (`RUPTA_CAMELMAILER_API_KEY`, `RUPTA_CAMELMAILER_URL`), for
+  invitations, alert emails and workflow emails. `RUPTA_MAIL_FROM` names
+  the sender for both; `RUPTA_SMTP_FROM` still works.
+
 - **MCP server** at `/mcp` (Model Context Protocol, Streamable HTTP,
   stateless, official Rust SDK): 29 tools to list organizations, projects,
   members and teams; search issues with the query language; read issues,

@@ -176,6 +176,8 @@ fn api_config(config: &Config) -> rupta_api::ApiConfig {
         default_org: config.default_org.clone(),
         smtp_url: config.smtp_url.clone(),
         smtp_from: config.smtp_from.clone(),
+        camelmailer_api_key: config.camelmailer_api_key.clone(),
+        camelmailer_url: config.camelmailer_url.clone(),
         cors_allowed_origins: config.cors_allowed_origins.clone(),
         trusted_proxies: config.trusted_proxies.clone(),
         sso_allow_private_issuers: config.sso_allow_private_issuers,
