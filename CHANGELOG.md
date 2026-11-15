@@ -6,7 +6,7 @@ uses [semantic versioning](https://semver.org/). Before 1.0, minor versions
 may change the API, the configuration and the storage format; the
 changelog says when and how to migrate.
 
-## [Unreleased]
+## [0.2.0] - 2026-11-15
 
 ### Added
 

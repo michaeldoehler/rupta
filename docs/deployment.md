@@ -47,7 +47,7 @@ nothing: rupta restores itself from the bucket at the next start.
 ```sh
 docker run -d --name rupta -p 8080:8080 -v rupta-data:/data \
   -e RUPTA_SECRET_KEY=$(openssl rand -hex 32) \
-  ghcr.io/michaeldoehler/rupta:0.1.1
+  ghcr.io/michaeldoehler/rupta:0.2.0
 ```
 
 The first visitor completes the setup screen. Without a bucket, the volume

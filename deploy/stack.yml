@@ -11,7 +11,7 @@ version: "3.9"
 
 services:
   rupta:
-    image: ghcr.io/michaeldoehler/rupta:0.1.1
+    image: ghcr.io/michaeldoehler/rupta:0.2.0
     environment:
       RUPTA_PUBLIC_URL: https://errors.example.com
       RUPTA_SECRET_KEY_FILE: /run/secrets/rupta_secret_key
