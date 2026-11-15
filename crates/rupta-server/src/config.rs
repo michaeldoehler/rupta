@@ -116,6 +116,8 @@ pub struct Config {
     /// `RUPTA_METRICS_PROJECT_LABELS`: projects with their own label in the
     /// per-project metrics; the rest are counted as `project="other"`.
     pub metrics_project_labels: usize,
+    /// `RUPTA_MCP`: serve the Model Context Protocol endpoint `/mcp`.
+    pub mcp: bool,
 }
 
 impl std::fmt::Debug for Config {
@@ -134,6 +136,7 @@ impl std::fmt::Debug for Config {
             .field("ingest_queue", &self.ingest_queue)
             .field("durability", &self.durability)
             .field("retention_days", &self.retention_days)
+            .field("mcp", &self.mcp)
             .finish_non_exhaustive()
     }
 }
@@ -327,6 +330,7 @@ impl Config {
             sso_allow_private_issuers: r.bool("RUPTA_SSO_ALLOW_PRIVATE_ISSUERS", false)?,
             integrations_allow_private_hosts: r.bool("RUPTA_INTEGRATIONS_ALLOW_PRIVATE_HOSTS", false)?,
             metrics_project_labels: r.number::<usize>("RUPTA_METRICS_PROJECT_LABELS", 50)?,
+            mcp: r.bool("RUPTA_MCP", true)?,
         };
         if !config.local_login && config.oidc.is_none() {
             bail!("RUPTA_LOCAL_LOGIN=false needs single sign-on (RUPTA_OIDC_ISSUER), or nobody could log in");
@@ -370,6 +374,13 @@ mod tests {
         assert!(c.oidc.is_none());
         assert!(!c.integrations_allow_private_hosts);
         assert_eq!(c.metrics_project_labels, 50);
+        assert!(c.mcp);
+    }
+
+    #[test]
+    fn the_mcp_endpoint_can_be_turned_off() {
+        assert!(!Config::from_env(&env(&[KEY, ("RUPTA_MCP", "false")])).unwrap().mcp);
+        assert!(Config::from_env(&env(&[KEY, ("RUPTA_MCP", "maybe")])).unwrap_err().to_string().contains("RUPTA_MCP"));
     }
 
     #[test]

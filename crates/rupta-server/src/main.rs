@@ -120,11 +120,13 @@ async fn serve(config: Config) -> Result<()> {
     let escalation = ingest.spawn_escalation();
     let app = Arc::new(App::new(config.clone(), store.clone(), ingest.clone(), api_state.clone()));
 
+    let mcp = rupta_mcp::router(api_state.clone(), config.mcp);
     let api = rupta_api::router(api_state);
     let router = Router::new()
         .merge(ops::router(app.clone()))
         .merge(ingest.router())
         .merge(api)
+        .merge(mcp)
         .fallback(web::serve)
         .layer(axum::middleware::from_fn_with_state(app.http_metrics.clone(), http_metrics::track))
         .layer(CompressionLayer::new())

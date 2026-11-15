@@ -18,6 +18,7 @@ rupta-store.workspace = true
 rupta-ingest.workspace = true
 rupta-auth.workspace = true
 rupta-api.workspace = true
+rupta-mcp.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 tokio.workspace = true

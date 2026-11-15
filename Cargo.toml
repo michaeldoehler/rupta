@@ -6,6 +6,7 @@ members = [
     "crates/rupta-ingest",
     "crates/rupta-auth",
     "crates/rupta-api",
+    "crates/rupta-mcp",
     "crates/rupta-server",
 ]
 
@@ -22,6 +23,7 @@ rupta-store = { path = "crates/rupta-store" }
 rupta-ingest = { path = "crates/rupta-ingest" }
 rupta-auth = { path = "crates/rupta-auth" }
 rupta-api = { path = "crates/rupta-api" }
+rupta-mcp = { path = "crates/rupta-mcp" }
 
 squad = { git = "https://github.com/michaeldoehler/squad", rev = "84cac0876f7d003b54fa0eb0fbbb5da770bb01d5", features = ["s3"] }
 
@@ -60,6 +62,10 @@ zip = { version = "9", default-features = false, features = ["deflate"] }
 flate2 = "1"
 url = "2"
 form_urlencoded = "1"
+
+# Model Context Protocol
+rmcp = { version = "3.10", default-features = false }
+schemars = "1"
 
 [profile.release]
 lto = "thin"
