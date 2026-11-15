@@ -3670,7 +3670,7 @@ dependencies = [
 [[package]]
 name = "squad"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=84cac0876f7d003b54fa0eb0fbbb5da770bb01d5#84cac0876f7d003b54fa0eb0fbbb5da770bb01d5"
+source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -3690,7 +3690,7 @@ dependencies = [
 [[package]]
 name = "squad-columnar"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=84cac0876f7d003b54fa0eb0fbbb5da770bb01d5#84cac0876f7d003b54fa0eb0fbbb5da770bb01d5"
+source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
 dependencies = [
  "crc32c",
  "lz4_flex",
@@ -3699,7 +3699,7 @@ dependencies = [
 [[package]]
 name = "squad-kv"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=84cac0876f7d003b54fa0eb0fbbb5da770bb01d5#84cac0876f7d003b54fa0eb0fbbb5da770bb01d5"
+source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
 dependencies = [
  "parking_lot",
  "squad-storage",
@@ -3709,7 +3709,7 @@ dependencies = [
 [[package]]
 name = "squad-object"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=84cac0876f7d003b54fa0eb0fbbb5da770bb01d5#84cac0876f7d003b54fa0eb0fbbb5da770bb01d5"
+source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
 dependencies = [
  "hmac 0.12.1",
  "parking_lot",
@@ -3721,7 +3721,7 @@ dependencies = [
 [[package]]
 name = "squad-storage"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=84cac0876f7d003b54fa0eb0fbbb5da770bb01d5#84cac0876f7d003b54fa0eb0fbbb5da770bb01d5"
+source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
 dependencies = [
  "crc32c",
  "fs2",

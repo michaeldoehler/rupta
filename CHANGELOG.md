@@ -6,6 +6,15 @@ uses [semantic versioning](https://semver.org/). Before 1.0, minor versions
 may change the API, the configuration and the storage format; the
 changelog says when and how to migrate.
 
+## [Unreleased]
+
+### Changed
+
+- The embedded database (squad) is updated to c85aa97. It adds row-level
+  security and read-only logins, and fixes parameter types of the
+  backend and advisory lock functions. rupta's schema and behaviour are
+  unchanged.
+
 ## [0.2.0] - 2026-11-15
 
 ### Added
