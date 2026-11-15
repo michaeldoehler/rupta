@@ -75,6 +75,10 @@ test('setup, sign out and in, triage an issue, read its details and change setti
   await page.getByRole('tab', { name: /Django/ }).click()
   await expect(page.getByText('pip install --upgrade "sentry-sdk[django]"')).toBeVisible()
   await page.getByRole('link', { name: 'Single sign-on' }).click()
+  // Instance-wide SSO from the environment is shown first; the
+  // organization's own provider is an optional, collapsed section.
+  await expect(page.getByText('Single sign-on for this instance')).toBeVisible()
+  await page.getByRole('button', { name: /organization provider/ }).click()
   await page.getByRole('radio', { name: 'Zitadel' }).click()
   await page.getByLabel('Issuer URL').fill('https://acme.zitadel.cloud')
   await page.getByRole('button', { name: 'Test connection' }).click()
