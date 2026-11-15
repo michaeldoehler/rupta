@@ -94,7 +94,7 @@ Grouped as in the OpenAPI document.
 | Events | `GET /issues/{id}/events`, `GET /issues/{id}/events/{latest\|oldest\|recommended\|event_id}`, `GET /orgs/{org}/events/{project}/{event_id}`, `GET /issues/{id}/tags`, `GET /issues/{id}/tags/{key}/values`, `GET /issues/{id}/stats`, `GET /orgs/{org}/events` |
 | Feedback and files | `GET /issues/{id}/feedback`, `GET /projects/{org}/{project}/feedback`, `GET /issues/{id}/attachments`, `GET /attachments/{id}/download` |
 | Releases | `GET /orgs/{org}/releases`, `GET /orgs/{org}/releases/{version}`, `GET /projects/{org}/{project}/health` |
-| Alerts | `GET/POST /projects/{org}/{project}/alert-rules`, `GET/PATCH/DELETE .../alert-rules/{id}`, `GET/POST /orgs/{org}/channels`, `PATCH/DELETE /orgs/{org}/channels/{id}`, `POST /orgs/{org}/channels/{id}/test` |
+| Alerts | `GET/POST /projects/{org}/{project}/alert-rules`, `GET/PATCH/DELETE .../alert-rules/{id}`, `GET /projects/{org}/{project}/alert-fires`, `GET/POST /orgs/{org}/channels`, `PATCH/DELETE /orgs/{org}/channels/{id}`, `POST /orgs/{org}/channels/{id}/test` |
 | Integrations | `GET/POST /orgs/{org}/integrations`, `GET/PATCH/DELETE /orgs/{org}/integrations/{id}`, `POST .../integrations/{id}/test`, `GET .../integrations/{id}/targets`, `GET /projects/{org}/{project}/integrations`, `PUT/DELETE /projects/{org}/{project}/integrations/{integration_id}`, `GET/POST /issues/{id}/links`, `DELETE /issues/{id}/links/{link_id}`, `POST /issues/{id}/links/{link_id}/refresh`, `GET /issues/{id}/ticket-draft`; tracker webhooks `POST /api/integrations/{kind}/{integration_id}/webhook` (not under `/api/v1`, no session or token) ([integrations](integrations.md)) |
 | Annotations | `GET /orgs/{org}/annotations` ([monitoring](monitoring.md#annotations-in-grafana)) |
 | Cron monitors | `GET/POST /projects/{org}/{project}/monitors`, `GET/PATCH/DELETE .../monitors/{slug}`, `GET .../monitors/{slug}/checkins` |
@@ -174,6 +174,12 @@ Notes on some of them:
   with `details.reason` (`network`, `unauthorized`, `not_found`,
   `rate_limited`, `error_response`) or `422 integration_error`
   (`blocked_host`, `invalid`).
+- **Alert firings**: `GET /projects/{org}/{project}/alert-fires` lists the
+  times the project's alert rules fired, newest first: `{rule: {id, name},
+  issue: {id, short_id, title, level, status}, fired_at}` (`issue` is `null`
+  when the issue was deleted since). `?rule=` limits to one rule. Firings
+  are kept for 31 days; a rule fires at most once per issue within its
+  `frequency_minutes`.
 - **Issue links**: `POST /issues/{id}/links` with `{integration_id,
   mode: "create"}` (optional `target`, `issue_type`, `project`, `labels`,
   `title`, `description`) or `{integration_id, mode: "link", reference}`

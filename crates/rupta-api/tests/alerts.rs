@@ -307,3 +307,73 @@ async fn channels_to_internal_addresses_are_refused_by_default() {
     }
     assert!(got.0.lock().unwrap().is_empty(), "nothing reached the internal receiver");
 }
+
+#[tokio::test]
+async fn alert_fires_are_listed_newest_first_per_project() {
+    let app = TestApp::new();
+    let org = app.org("acme");
+    let web = app.project(org, "web");
+    let api = app.project(org, "api");
+    let (_, viewer) = app.member(org, "viewer@example.com", Role::Viewer);
+    let other = app.org("other");
+    let (_, outsider) = app.member(other, "outsider@example.com", Role::Owner);
+    let rid = |name: &str, project: i64| -> i64 {
+        app.conn()
+            .query_one("INSERT INTO alert_rules (project_id, name) VALUES ($1, $2) RETURNING id", &[&project, &name])
+            .unwrap()
+            .get(0)
+    };
+    let (r1, r2, r3) = (rid("New errors", web), rid("Regressions", web), rid("API", api));
+    let i1 = app.issue(web, "TypeError: a", "error");
+    let i2 = app.issue(web, "TypeError: b", "warning");
+    let i3 = app.issue(api, "TypeError: c", "error");
+    let now = Utc::now();
+    for (rule, issue, minutes) in [(r1, i1, 30), (r2, i1, 20), (r1, i2, 10), (r3, i3, 5)] {
+        app.conn()
+            .execute(
+                "INSERT INTO alert_fires (rule_id, issue_id, fired_at) VALUES ($1, $2, $3)",
+                &[&rule, &issue, &(now - chrono::Duration::minutes(minutes))],
+            )
+            .unwrap();
+    }
+    // An issue deleted since.
+    app.conn()
+        .execute(
+            "INSERT INTO alert_fires (rule_id, issue_id, fired_at) VALUES ($1, 999999, $2)",
+            &[&r2, &(now - chrono::Duration::hours(2))],
+        )
+        .unwrap();
+
+    let r = app.get("/api/v1/projects/acme/web/alert-fires?limit=2", &viewer).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    let data = r.body["data"].as_array().unwrap();
+    assert_eq!(data.len(), 2);
+    assert_eq!(data[0]["rule"]["name"], "New errors");
+    assert_eq!(data[0]["issue"]["id"], i2.to_string());
+    assert_eq!(data[0]["issue"]["short_id"], "WEB-2");
+    assert_eq!(data[0]["issue"]["level"], "warning");
+    assert_eq!(data[1]["rule"]["name"], "Regressions");
+    let next = r.body["next_cursor"].as_str().unwrap();
+    let r = app.get(&format!("/api/v1/projects/acme/web/alert-fires?limit=2&cursor={next}"), &viewer).await;
+    let data = r.body["data"].as_array().unwrap();
+    assert_eq!(data.len(), 2);
+    assert_eq!(data[0]["issue"]["id"], i1.to_string());
+    assert_eq!(data[0]["rule"]["id"], r1.to_string());
+    assert!(data[1]["issue"].is_null(), "deleted issue: {}", data[1]);
+    assert!(r.body["next_cursor"].is_null());
+
+    let r = app.get(&format!("/api/v1/projects/acme/web/alert-fires?rule={r1}"), &viewer).await;
+    assert_eq!(r.body["data"].as_array().unwrap().len(), 2);
+    let r = app.get(&format!("/api/v1/projects/acme/web/alert-fires?rule={r3}"), &viewer).await;
+    assert_eq!(r.body["data"].as_array().unwrap().len(), 0, "another project's rule");
+    assert_eq!(
+        app.get("/api/v1/projects/acme/web/alert-fires?rule=x", &viewer).await.status,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(app.get("/api/v1/projects/acme/web/alert-fires", &outsider).await.status, StatusCode::NOT_FOUND);
+    let token = app.org_token(org, &["member:read"]);
+    assert_eq!(
+        app.get("/api/v1/projects/acme/web/alert-fires", &common::As::token(&token)).await.status,
+        StatusCode::FORBIDDEN
+    );
+}

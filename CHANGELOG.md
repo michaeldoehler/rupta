@@ -6,6 +6,13 @@ uses [semantic versioning](https://semver.org/). Before 1.0, minor versions
 may change the API, the configuration and the storage format; the
 changelog says when and how to migrate.
 
+## [Unreleased]
+
+### Added
+
+- `GET /api/v1/projects/{org}/{project}/alert-fires`: the recent firings of
+  a project's alert rules (rule, issue, time), newest first, paginated.
+
 ## [0.1.1] - 2026-11-14
 
 The first published release. The `v0.1.0` tag was not published: its

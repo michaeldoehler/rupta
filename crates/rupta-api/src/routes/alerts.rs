@@ -10,13 +10,13 @@ use rupta_core::ids::Id;
 use rupta_store::squad::{Connection, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
 
 use crate::access::{org_sync, project_sync};
 use crate::error::{ApiError, ApiResult};
-use crate::extract::{Auth, Json, Path};
+use crate::extract::{Auth, Json, Page, PageParams, Path, Query};
 use crate::notify::{self, Notification};
 use crate::routes::orgs::check_name;
 use crate::state::ApiState;
@@ -28,6 +28,7 @@ pub fn routes() -> OpenApiRouter<ApiState> {
         .routes(routes!(test_channel))
         .routes(routes!(list_rules, create_rule))
         .routes(routes!(get_rule, update_rule, delete_rule))
+        .routes(routes!(list_fires))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -663,4 +664,111 @@ async fn delete_rule(
         })
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// The rule of an alert firing.
+#[derive(Serialize, ToSchema)]
+pub struct FiredRule {
+    #[schema(value_type = String)]
+    pub id: Id,
+    pub name: String,
+}
+
+/// The issue of an alert firing.
+#[derive(Serialize, ToSchema)]
+pub struct FiredIssue {
+    #[schema(value_type = String)]
+    pub id: Id,
+    /// `PROJECT-12`.
+    pub short_id: String,
+    pub title: String,
+    pub level: String,
+    /// The issue's current status.
+    pub status: String,
+}
+
+/// An alert rule that fired for an issue.
+#[derive(Serialize, ToSchema)]
+pub struct AlertFire {
+    pub rule: FiredRule,
+    /// `null` when the issue has been deleted since.
+    pub issue: Option<FiredIssue>,
+    pub fired_at: DateTime<Utc>,
+    /// For the cursor.
+    #[serde(skip)]
+    #[schema(ignore)]
+    issue_id: i64,
+}
+
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct FireListParams {
+    /// Only firings of this rule (id).
+    pub rule: Option<String>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
+}
+
+/// Recent firings of the project's alert rules, newest first. Firings are
+/// kept for 31 days.
+#[utoipa::path(get, path = "/api/v1/projects/{org}/{project}/alert-fires", tag = "alerts",
+    params(("org" = String, Path), ("project" = String, Path), FireListParams),
+    responses((status = 200, body = Page<AlertFire>)))]
+async fn list_fires(
+    State(state): State<ApiState>,
+    auth: Auth,
+    Path((org, project)): Path<(String, String)>,
+    Query(q): Query<FireListParams>,
+) -> ApiResult<axum::Json<Page<AlertFire>>> {
+    let page = PageParams { cursor: q.cursor.clone(), limit: q.limit };
+    let limit = page.limit();
+    let before: Option<(i64, i64, i64)> = page.cursor()?;
+    let rule: Option<i64> = match q.rule.as_deref().map(str::trim).filter(|r| !r.is_empty()) {
+        None => None,
+        Some(r) => Some(r.parse().map_err(|_| ApiError::invalid("rule", "an alert rule id"))?),
+    };
+    let rows = state
+        .db(move |c| {
+            let p = project_sync(c, &auth, &org, &project, Permission::ReadProject)?;
+            let (ts, rid, iid) = match before {
+                Some((micros, rid, iid)) => (
+                    Some(
+                        DateTime::from_timestamp_micros(micros)
+                            .ok_or_else(|| ApiError::bad_request("invalid cursor"))?,
+                    ),
+                    Some(rid),
+                    Some(iid),
+                ),
+                None => (None, None, None),
+            };
+            Ok(c.query(
+                "SELECT r.id, r.name, f.issue_id, i.short_id, i.title, i.level, i.status, f.fired_at
+                 FROM alert_fires f JOIN alert_rules r ON r.id = f.rule_id
+                 LEFT JOIN issues i ON i.id = f.issue_id AND i.project_id = r.project_id
+                 WHERE r.project_id = $1 AND ($2::bigint IS NULL OR r.id = $2)
+                   AND ($3::timestamptz IS NULL OR f.fired_at < $3
+                        OR (f.fired_at = $3 AND (r.id < $4 OR (r.id = $4 AND f.issue_id < $5))))
+                 ORDER BY f.fired_at DESC, r.id DESC, f.issue_id DESC LIMIT $6",
+                &[&p.id, &rule, &ts, &rid, &iid, &(limit + 1)],
+            )?
+            .iter()
+            .map(|r| {
+                let issue_id: i64 = r.get(2);
+                AlertFire {
+                    rule: FiredRule { id: Id(r.get(0)), name: r.get(1) },
+                    issue: r.get::<Option<i64>>(3).map(|n| FiredIssue {
+                        id: Id(issue_id),
+                        short_id: format!("{}-{n}", p.slug.to_uppercase()),
+                        title: r.get(4),
+                        level: r.get(5),
+                        status: r.get(6),
+                    }),
+                    fired_at: r.get(7),
+                    issue_id,
+                }
+            })
+            .collect::<Vec<_>>())
+        })
+        .await?;
+    Ok(axum::Json(Page::from_rows(rows, limit, |f| (f.fired_at.timestamp_micros(), f.rule.id.0, f.issue_id))))
 }

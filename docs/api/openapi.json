@@ -5177,6 +5177,71 @@
         }
       }
     },
+    "/api/v1/projects/{org}/{project}/alert-fires": {
+      "get": {
+        "tags": [
+          "alerts"
+        ],
+        "summary": "Recent firings of the project's alert rules, newest first. Firings are\nkept for 31 days.",
+        "operationId": "list_fires",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rule",
+            "in": "query",
+            "description": "Only firings of this rule (id).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AlertFire"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{org}/{project}/alert-rules": {
       "get": {
         "tags": [
@@ -6628,6 +6693,34 @@
           }
         }
       },
+      "AlertFire": {
+        "type": "object",
+        "description": "An alert rule that fired for an issue.",
+        "required": [
+          "rule",
+          "fired_at"
+        ],
+        "properties": {
+          "fired_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "issue": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FiredIssue",
+                "description": "`null` when the issue has been deleted since."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rule": {
+            "$ref": "#/components/schemas/FiredRule"
+          }
+        }
+      },
       "AlertRule": {
         "type": "object",
         "description": "An alert rule.",
@@ -7670,6 +7763,52 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "FiredIssue": {
+        "type": "object",
+        "description": "The issue of an alert firing.",
+        "required": [
+          "id",
+          "short_id",
+          "title",
+          "level",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "short_id": {
+            "type": "string",
+            "description": "`PROJECT-12`."
+          },
+          "status": {
+            "type": "string",
+            "description": "The issue's current status."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "FiredRule": {
+        "type": "object",
+        "description": "The rule of an alert firing.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -9331,6 +9470,53 @@
                       "type": "null"
                     }
                   ]
+                }
+              }
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor of the next page; `null` on the last page."
+          }
+        }
+      },
+      "Page_AlertFire": {
+        "type": "object",
+        "description": "A page of results.",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "An alert rule that fired for an issue.",
+              "required": [
+                "rule",
+                "fired_at"
+              ],
+              "properties": {
+                "fired_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "issue": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/FiredIssue",
+                      "description": "`null` when the issue has been deleted since."
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "rule": {
+                  "$ref": "#/components/schemas/FiredRule"
                 }
               }
             }

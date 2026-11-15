@@ -180,7 +180,9 @@ with `notifications.workflow`.
 
 `frequency_minutes` (1–43200, default 30) limits notifications to one per
 rule and issue within that many minutes. Fires are recorded in
-`alert_fires`.
+`alert_fires` and kept for 31 days; `GET
+/api/v1/projects/{org}/{project}/alert-fires` lists them, newest first
+(`?rule=` for one rule).
 
 Notifications link to `{RUPTA_PUBLIC_URL}/organizations/{org}/issues/{id}`.
 
