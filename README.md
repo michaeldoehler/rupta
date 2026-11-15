@@ -87,6 +87,9 @@ Kafka, no ClickHouse, no Redis, no PostgreSQL to operate.
   → [data scrubbing](docs/data-scrubbing.md)
 - **A complete REST API** with an OpenAPI 3.1 description.
   → [API](docs/api.md)
+- **MCP server** at `/mcp`: agents and other Model Context Protocol
+  clients search issues, read stack traces, traces, logs and releases, and
+  triage, with an API token and its permissions. → [MCP](docs/mcp.md)
 - **Fast.** Ingestion acknowledges tens of thousands of events per second
   and stores about 10,000 per second on four cores; issue lists and
   aggregations over a million rows answer in milliseconds.
@@ -188,6 +191,7 @@ Start with [getting started](docs/getting-started.md); the
 | [Performance](docs/performance.md), [Logs](docs/logs.md), [Metrics](docs/metrics.md), [Profiling](docs/profiling.md), [Session replay](docs/session-replay.md) | the monitoring features |
 | [Ingestion](docs/ingestion.md), [Grouping](docs/grouping.md), [Data scrubbing](docs/data-scrubbing.md) | how events are processed |
 | [API](docs/api.md) | REST API overview; [OpenAPI](docs/api/openapi.json) |
+| [MCP server](docs/mcp.md) | connect MCP clients, tools, permissions, limits |
 | [Architecture](docs/architecture.md) | the parts and the reasons behind them |
 | [Security](docs/security.md) | threat model and hardening |
 | [Comparison](docs/comparison.md) | rupta compared with other self-hosted options |

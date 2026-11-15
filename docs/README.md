@@ -51,11 +51,14 @@ what you need from the other sections.
 - [Integrations](integrations.md): Jira, Linear, GitHub and GitLab tickets
   with status sync.
 - [REST API](api.md) and the [OpenAPI description](api/openapi.json).
+- [MCP server](mcp.md): connect agents and other MCP clients with an API
+  token.
 
 ## Reference
 
 - [Ingestion](ingestion.md): the pipeline, durability, rate limits,
   issue states, retention, throughput.
+- [Event fields](event-fields.md): the event document of the API.
 - [Architecture](architecture.md): the parts and the reasons behind them.
 - [Comparison](comparison.md): rupta, Sentry (self-hosted) and GlitchTip.
 - [Changelog](../CHANGELOG.md), [contributing](../CONTRIBUTING.md),

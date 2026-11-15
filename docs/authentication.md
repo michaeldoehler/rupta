@@ -73,6 +73,8 @@ A superuser acts as owner of every organization and sees all of them.
   any time. `last_used_at` is updated at most once a minute.
 - Tokens cannot create tokens, and cannot change passwords; these need a
   browser session.
+- The [MCP endpoint](mcp.md) `/mcp` accepts API tokens only (no session
+  cookie), with the same scopes and roles.
 
 | Scope | Grants |
 | --- | --- |

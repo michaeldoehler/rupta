@@ -10,6 +10,22 @@ changelog says when and how to migrate.
 
 ### Added
 
+- **MCP server** at `/mcp` (Model Context Protocol, Streamable HTTP,
+  stateless, official Rust SDK): 29 tools to list organizations, projects,
+  members and teams; search issues with the query language; read issues,
+  tag distributions, events with readable stack traces, activity,
+  releases and release health, transactions, traces, spans, logs,
+  metrics, cron monitors, alert rules and firings, and integrations; and
+  to resolve, ignore, assign, bookmark and comment on issues and create or
+  link tickets. Tools call the REST API in process as the caller, so token
+  scopes, roles and organizations apply unchanged. Resources for the query
+  language, event fields and grouping, issue and event resource templates,
+  and three prompts (triage, investigation, release check). API tokens
+  only (`Authorization: Bearer`), `401` with a `WWW-Authenticate`
+  challenge and OAuth protected resource metadata (RFC 9728) at
+  `/.well-known/oauth-protected-resource`, browser origin checks.
+  `RUPTA_MCP=false` turns it off. See `docs/mcp.md`.
+- `docs/event-fields.md`: the fields of the event document.
 - `GET /api/v1/projects/{org}/{project}/alert-fires`: the recent firings of
   a project's alert rules (rule, issue, time), newest first, paginated.
 

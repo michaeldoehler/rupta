@@ -7,7 +7,9 @@ repository as [`docs/api/openapi.json`](api/openapi.json). A test fails when
 the committed copy differs from the code.
 
 A small part of a second API, under `/api/0`, exists only for the source map
-upload CLI; see [source map upload](sourcemap-upload.md).
+upload CLI; see [source map upload](sourcemap-upload.md). Agents and other
+Model Context Protocol clients use `/mcp`, which offers the same data as
+tools; see [MCP server](mcp.md).
 
 ## Conventions
 
@@ -192,7 +194,8 @@ Notes on some of them:
   discovery document and answers `{ok, issuer, authorization_endpoint,
   token_endpoint, userinfo_endpoint, jwks_uri, scopes_supported,
   problems}`. Nothing is saved; see [single sign-on](sso.md#testing-the-connection).
-- **Event documents** are the normalized events as stored by ingestion,
+- **Event documents** are the normalized events as stored by ingestion
+  ([event fields](event-fields.md)),
   plus `previous_event_id` and `next_event_id` within the issue, and
   `replay_id` and `trace_id` (from the replay and trace contexts, `null`
   when the event has none). Event ids

@@ -24,11 +24,12 @@ mebibytes (`_MB`). Underscores in numbers are ignored (`100_000`).
 | `RUPTA_PUBLIC_URL` | `http://localhost:<port>` | The URL users and SDKs reach rupta under, without trailing slash. DSNs, single sign-on redirect URIs and links in notifications are built from it. Session cookies are marked `Secure` when it starts with `https://`. |
 | `RUPTA_SECRET_KEY` | — (**required**, *secret*) | At least 32 characters. Signs cookies and encrypts secrets stored in the database (for example SSO client secrets). Changing it logs everybody out and makes stored secrets unreadable. Generate with `openssl rand -hex 32`. |
 | `RUPTA_TRUSTED_PROXIES` | empty | Comma-separated IP addresses or CIDR ranges of reverse proxies. `X-Forwarded-For` is honoured only for requests from them, for the client IP shown on events and used for rate limits and audit logs. |
-| `RUPTA_CORS_ALLOWED_ORIGINS` | empty | Origins allowed to call the REST API from browsers other than the web app itself. SDK ingest endpoints have their own per-project setting. |
+| `RUPTA_CORS_ALLOWED_ORIGINS` | empty | Origins allowed to call the REST API from browsers other than the web app itself; browser requests to `/mcp` from other origins are refused. SDK ingest endpoints have their own per-project setting. |
 | `RUPTA_SHUTDOWN_TIMEOUT_SECS` | `30` | On SIGTERM, how long to wait for queued events to be written. |
 | `RUPTA_LOG` | `info` | Log filter (`error`, `warn`, `info`, `debug`, or per module, e.g. `info,rupta_ingest=debug`). |
 | `RUPTA_LOG_FORMAT` | `text` (`json` in the image) | `text` or `json` (one object per line). |
 | `RUPTA_METRICS_TOKEN` | empty (*secret*) | If set, `GET /metrics` requires `Authorization: Bearer <token>`. See [monitoring](monitoring.md). |
+| `RUPTA_MCP` | `true` | Serve the Model Context Protocol endpoint `/mcp` and its OAuth protected resource metadata under `/.well-known/oauth-protected-resource`. `false` answers `404` there. See [MCP server](mcp.md). |
 | `RUPTA_METRICS_PROJECT_LABELS` | `50` | Projects with their own labels in `rupta_project_events_total` and `rupta_project_new_issues_total`: the first ones that receive events after the start. All others are counted as `project="other"`. `0` puts every project in `other`. |
 
 ## Storage

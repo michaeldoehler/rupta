@@ -4,11 +4,11 @@ rupta is a single Rust binary that embeds its web app and its database.
 This chapter explains the parts and the reasons behind them.
 
 ```text
-  Sentry SDKs (browser, Node, PHP, Python, …)   users, sentry-cli, scripts
-        │ POST /api/{project}/envelope/                │ /api/v1, /api/0, web app
+  Sentry SDKs (browser, Node, PHP, Python, …)   users, sentry-cli, scripts, MCP clients
+        │ POST /api/{project}/envelope/                │ /api/v1, /api/0, /mcp, web app
         ▼                                              ▼
  ┌────────────────────────────┐            ┌────────────────────────────┐
- │ ingest endpoints           │            │ REST API + auth            │
+ │ ingest endpoints           │            │ REST API, MCP + auth       │
  │ DSN auth, limits, decode   │            │ sessions, SSO, tokens,     │
  │ → bounded queue            │            │ roles, OpenAPI             │
  └──────────────┬─────────────┘            └──────────────┬─────────────┘
@@ -36,6 +36,7 @@ This chapter explains the parts and the reasons behind them.
 | `rupta-ingest` | The SDK protocol endpoints, the processing pipeline and the batch writer, source map symbolication, retention. |
 | `rupta-auth` | Accounts, password hashing, sessions, CSRF, OpenID Connect, API tokens, role checks, audit log. |
 | `rupta-api` | REST API, the upload-CLI subset, alert rules and notification channels. |
+| `rupta-mcp` | The Model Context Protocol endpoint `/mcp`. Its tools call the REST routes in process as the caller, so the API's authorization applies unchanged. |
 | `rupta-server` | Configuration, wiring, HTTP server, embedded web app, operational endpoints, graceful shutdown. |
 
 ## Why an embedded database

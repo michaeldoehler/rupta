@@ -44,6 +44,10 @@ require authentication and enforce roles.
 - Single sign-on uses OpenID Connect with PKCE, state and nonce, and
   validates ID tokens against the provider's published keys. Organizations
   can enforce SSO for their members.
+- The MCP endpoint `/mcp` accepts API tokens only, checks browser origins
+  against DNS rebinding, and runs every tool through the REST API's
+  authorization. Its results contain data sent by your applications, which
+  an agent must treat as untrusted input; see [MCP server](mcp.md#security-notes).
 - Security-relevant actions are recorded in the audit log: logins and
   failed logins, role and membership changes, token and key changes, SSO
   configuration, project deletion.
@@ -82,6 +86,8 @@ require authentication and enforce roles.
 - Expose only port 8080 through the proxy. `/metrics` should be internal or
   protected with `RUPTA_METRICS_TOKEN`.
 - Give the bucket key access to the rupta bucket only.
+- Give agents and other MCP clients their own API tokens with the fewest
+  scopes and an expiry, or turn the endpoint off with `RUPTA_MCP=false`.
 - Enable SSO and disable local login (`RUPTA_LOCAL_LOGIN=false`) once SSO
   works, keeping one owner account for emergencies if your policy allows.
 - The container runs as an unprivileged user (uid 10001) on a minimal
