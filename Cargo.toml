@@ -25,7 +25,7 @@ rupta-auth = { path = "crates/rupta-auth" }
 rupta-api = { path = "crates/rupta-api" }
 rupta-mcp = { path = "crates/rupta-mcp" }
 
-squad = { git = "https://github.com/michaeldoehler/squad", rev = "c85aa9788c7820beec74971586978b4300eaea96", features = ["s3"] }
+squad = { git = "https://github.com/michaeldoehler/squad", rev = "93ef7820808135e3fe8780e79d61ada5ee5fca80", features = ["s3"] }
 
 anyhow = "1"
 thiserror = "2"
