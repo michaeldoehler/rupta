@@ -10,6 +10,12 @@ ignore = [
     # the identity provider's public keys (via openidconnect); private RSA
     # keys exist only in tests. No fixed version of the crate exists yet.
     { id = "RUSTSEC-2023-0071", reason = "only public-key signature verification in production" },
+    # chrono and chrono-tz were declared unmaintained on 2026-11-17 (no
+    # vulnerability, no maintained release to move to). rupta, squad,
+    # openidconnect, oauth2, rmcp and schemars use them; replacing them is a
+    # change of its own.
+    { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained; no replacement in the dependency tree yet" },
+    { id = "RUSTSEC-2026-0555", reason = "chrono-tz unmaintained; no replacement in the dependency tree yet" },
 ]
 
 [licenses]

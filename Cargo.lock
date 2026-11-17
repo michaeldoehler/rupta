@@ -2870,7 +2870,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-api"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -2917,7 +2917,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-auth"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -2946,7 +2946,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chrono",
  "regex",
@@ -2958,7 +2958,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-ingest"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -2989,7 +2989,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-mcp"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axum",
  "chrono",
@@ -3017,11 +3017,12 @@ dependencies = [
 
 [[package]]
 name = "rupta-server"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "axum",
  "http",
+ "mimalloc",
  "mime_guess",
  "reqwest 0.13.5",
  "rupta-api",
@@ -3043,7 +3044,7 @@ dependencies = [
 
 [[package]]
 name = "rupta-store"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chrono",
  "serde",
@@ -3670,7 +3671,7 @@ dependencies = [
 [[package]]
 name = "squad"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
+source = "git+https://github.com/michaeldoehler/squad?rev=ce03f0f3df1ffb06cf83a38ec2fb3d379195629a#ce03f0f3df1ffb06cf83a38ec2fb3d379195629a"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -3690,7 +3691,7 @@ dependencies = [
 [[package]]
 name = "squad-columnar"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
+source = "git+https://github.com/michaeldoehler/squad?rev=ce03f0f3df1ffb06cf83a38ec2fb3d379195629a#ce03f0f3df1ffb06cf83a38ec2fb3d379195629a"
 dependencies = [
  "crc32c",
  "lz4_flex",
@@ -3699,7 +3700,7 @@ dependencies = [
 [[package]]
 name = "squad-kv"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
+source = "git+https://github.com/michaeldoehler/squad?rev=ce03f0f3df1ffb06cf83a38ec2fb3d379195629a#ce03f0f3df1ffb06cf83a38ec2fb3d379195629a"
 dependencies = [
  "parking_lot",
  "squad-storage",
@@ -3709,7 +3710,7 @@ dependencies = [
 [[package]]
 name = "squad-object"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
+source = "git+https://github.com/michaeldoehler/squad?rev=ce03f0f3df1ffb06cf83a38ec2fb3d379195629a#ce03f0f3df1ffb06cf83a38ec2fb3d379195629a"
 dependencies = [
  "hmac 0.12.1",
  "parking_lot",
@@ -3721,10 +3722,11 @@ dependencies = [
 [[package]]
 name = "squad-storage"
 version = "0.1.0"
-source = "git+https://github.com/michaeldoehler/squad?rev=c85aa9788c7820beec74971586978b4300eaea96#c85aa9788c7820beec74971586978b4300eaea96"
+source = "git+https://github.com/michaeldoehler/squad?rev=ce03f0f3df1ffb06cf83a38ec2fb3d379195629a#ce03f0f3df1ffb06cf83a38ec2fb3d379195629a"
 dependencies = [
  "crc32c",
  "fs2",
+ "log",
  "parking_lot",
  "sha2 0.10.9",
  "squad-object",

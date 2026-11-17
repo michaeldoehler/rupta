@@ -92,6 +92,7 @@ pub struct Config {
     pub storage_url: Option<String>,
     pub remote_sync: bool,
     pub cache_bytes: usize,
+    pub columnar_cache_bytes: u64,
     pub secret_key: Vec<u8>,
     pub admin_email: Option<String>,
     pub admin_password: Option<String>,
@@ -324,6 +325,7 @@ impl Config {
             storage_url,
             remote_sync,
             cache_bytes: r.number::<usize>("RUPTA_CACHE_MB", 256)? << 20,
+            columnar_cache_bytes: r.number::<u64>("RUPTA_COLUMNAR_CACHE_MB", 128)? << 20,
             secret_key,
             admin_email: r.raw("RUPTA_ADMIN_EMAIL"),
             admin_password: r.secret("RUPTA_ADMIN_PASSWORD")?,
@@ -405,6 +407,16 @@ mod tests {
         assert!(!c.integrations_allow_private_hosts);
         assert_eq!(c.metrics_project_labels, 50);
         assert!(c.mcp);
+        assert_eq!(c.cache_bytes, 256 << 20);
+        assert_eq!(c.columnar_cache_bytes, 128 << 20);
+    }
+
+    #[test]
+    fn the_columnar_cache_is_configurable() {
+        let c = Config::from_env(&env(&[KEY, ("RUPTA_COLUMNAR_CACHE_MB", "32")])).unwrap();
+        assert_eq!(c.columnar_cache_bytes, 32 << 20);
+        let err = Config::from_env(&env(&[KEY, ("RUPTA_COLUMNAR_CACHE_MB", "lots")])).unwrap_err();
+        assert!(err.to_string().contains("RUPTA_COLUMNAR_CACHE_MB"), "{err}");
     }
 
     #[test]

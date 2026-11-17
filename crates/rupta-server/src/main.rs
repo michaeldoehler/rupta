@@ -18,6 +18,11 @@ use tower_http::trace::TraceLayer;
 
 use crate::config::{Config, LogFormat, ProcessEnv};
 
+// glibc's allocator keeps memory freed by many threads in per-thread arenas
+// and returns little of it; mimalloc returns freed pages to the system.
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
@@ -88,6 +93,7 @@ async fn serve(config: Config) -> Result<()> {
         remote_url: config.storage_url.clone(),
         remote_sync: config.remote_sync,
         cache_bytes: config.cache_bytes,
+        columnar_cache_bytes: config.columnar_cache_bytes,
     };
     let store = tokio::task::spawn_blocking(move || Store::open(&opts)).await?.context("opening the database")?;
 

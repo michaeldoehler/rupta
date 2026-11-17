@@ -6,6 +6,35 @@ uses [semantic versioning](https://semver.org/). Before 1.0, minor versions
 may change the API, the configuration and the storage format; the
 changelog says when and how to migrate.
 
+## [0.3.1] - 2026-11-17
+
+### Fixed
+
+- **Memory no longer grows until the container is killed.** The embedded
+  database rewrote every columnar table about every 100 seconds, kept the
+  directories of up to 4096 replaced segments in memory and started new
+  threads for every parallel read; with glibc's allocator the process
+  grew by about 500 MiB per hour under steady ingest. The database update
+  (squad) merges segments by size tier, bounds its caches in bytes and
+  drops deleted segments from them, and rupta now uses mimalloc as its
+  allocator.
+- **Restores after a move to another node are short again.** Snapshots
+  of the database in the object store are now taken by time and by the
+  number of log objects too, and the counter no longer starts at zero on
+  every start; a restore loads snapshot chunks and log objects in
+  parallel and logs its progress.
+- **The database's own messages reach rupta's log.** Restore progress
+  (every 5 s) and snapshots (with their trigger) are
+  logged by squad and now appear in rupta's log output, so a long start is
+  no longer silent.
+
+### Added
+
+- `RUPTA_COLUMNAR_CACHE_MB` (default 128): memory for cached data of the
+  columnar tables. Before, the database's default of 512 MiB applied.
+- Metrics `rupta_storage_columnar_cache_bytes{cache}` and
+  `rupta_storage_columnar_retired_segments`.
+
 ## [0.3.0] - 2026-11-15
 
 ### Added

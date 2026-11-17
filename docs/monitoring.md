@@ -216,6 +216,8 @@ deleted one shows as `org="unknown", project="id-<id>"`.
 | `rupta_storage_database_bytes` | gauge | Size of the database pages (page count × 8 KiB). |
 | `rupta_storage_wal_bytes` | gauge | Size of the local write-ahead log. |
 | `rupta_storage_cached_pages` | gauge | Pages in the page cache (`RUPTA_CACHE_MB`). |
+| `rupta_storage_columnar_cache_bytes` | gauge | Memory of the caches of columnar tables, by `cache`: `chunks` (segment data, `RUPTA_COLUMNAR_CACHE_MB`), `blocks` (rows not yet compacted), `segments` (segment directories). |
+| `rupta_storage_columnar_retired_segments` | gauge | Replaced segment objects waiting to be deleted (they are kept 10 minutes for read replicas). |
 | `rupta_storage_cache_hits_total`, `rupta_storage_cache_misses_total` | counter | Page reads served from the cache and from disk. |
 | `rupta_storage_cache_hit_ratio` | gauge | Hits ÷ reads since the start (use the counters for a recent ratio). |
 | `rupta_storage_fsyncs_total`, `rupta_storage_checkpoints_total` | counter | fsync calls and checkpoints. |

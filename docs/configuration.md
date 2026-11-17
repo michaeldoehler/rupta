@@ -47,6 +47,7 @@ is restored automatically. See [deployment](deployment.md).
 | `RUPTA_S3_SECRET_ACCESS_KEY` | empty (*secret*) | Secret key for the bucket; added to the URL. |
 | `RUPTA_REMOTE_SYNC` | `sync` | `sync`: a write is acknowledged only after it is in the bucket, so losing the machine loses nothing that was stored. `async`: upload once per second; up to about a second of writes can be lost with the machine. |
 | `RUPTA_CACHE_MB` | `256` | Memory for the database page cache. |
+| `RUPTA_COLUMNAR_CACHE_MB` | `128` | Memory for cached data of the columnar tables (events, transactions, spans, logs, metrics). The database adds a quarter of it for rows not yet compacted and a sixteenth for segment directories. |
 | `RUPTA_RETENTION_DAYS` | `90` | Days events, attachments and statistics are kept. Projects can set a shorter period. |
 
 ## Accounts and single sign-on

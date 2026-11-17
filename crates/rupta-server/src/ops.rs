@@ -168,6 +168,19 @@ pub async fn render(app: &App) -> String {
         stats.page_count as f64 * 8192.0,
     );
     e.single("rupta_storage_wal_bytes", "gauge", "Size of the local write-ahead log.", stats.wal_bytes as f64);
+    let columnar = app.store.database().columnar_memory();
+    e.family("rupta_storage_columnar_cache_bytes", "gauge", "Memory held by the caches of columnar tables.");
+    for (cache, bytes) in
+        [("chunks", columnar.chunk_bytes), ("segments", columnar.segment_bytes), ("blocks", columnar.block_bytes)]
+    {
+        e.sample("rupta_storage_columnar_cache_bytes", &[("cache", cache)], bytes as f64);
+    }
+    e.single(
+        "rupta_storage_columnar_retired_segments",
+        "gauge",
+        "Replaced segment objects of columnar tables waiting to be deleted.",
+        columnar.retired_segments as f64,
+    );
     e.single("rupta_storage_cached_pages", "gauge", "Pages in the page cache.", stats.cached_pages as f64);
     e.single("rupta_storage_fsyncs_total", "counter", "fsync calls of the database.", stats.fsyncs as f64);
     e.single("rupta_storage_checkpoints_total", "counter", "Checkpoints of the database.", stats.checkpoints as f64);
@@ -370,6 +383,8 @@ mod tests {
             ("rupta_integration_sync_total", "counter"),
             ("rupta_integration_webhooks_total", "counter"),
             ("rupta_storage_database_bytes", "gauge"),
+            ("rupta_storage_columnar_cache_bytes", "gauge"),
+            ("rupta_storage_columnar_retired_segments", "gauge"),
             ("rupta_storage_cache_hit_ratio", "gauge"),
             ("rupta_storage_remote_configured", "gauge"),
             ("rupta_build_info", "gauge"),

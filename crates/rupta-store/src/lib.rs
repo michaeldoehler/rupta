@@ -58,11 +58,29 @@ pub struct StoreOptions {
     pub remote_sync: bool,
     /// Bytes of memory for the row store's page cache.
     pub cache_bytes: usize,
+    /// Bytes of memory for cached segment data of columnar tables (events,
+    /// transactions, spans, logs, metrics). squad adds a quarter of it for
+    /// decoded delta blocks and a sixteenth for opened segments.
+    pub columnar_cache_bytes: u64,
 }
 
 impl StoreOptions {
     pub fn local(dir: impl Into<PathBuf>) -> StoreOptions {
-        StoreOptions { data_dir: dir.into(), remote_url: None, remote_sync: true, cache_bytes: 256 << 20 }
+        StoreOptions {
+            data_dir: dir.into(),
+            remote_url: None,
+            remote_sync: true,
+            cache_bytes: 256 << 20,
+            columnar_cache_bytes: 128 << 20,
+        }
+    }
+}
+
+fn squad_config(opts: &StoreOptions) -> SquadConfig {
+    SquadConfig {
+        cache_size: opts.cache_bytes,
+        columnar: squad::ColumnarConfig { cache_bytes: opts.columnar_cache_bytes, ..Default::default() },
+        ..SquadConfig::default()
     }
 }
 
@@ -89,12 +107,11 @@ impl Store {
                     RemoteSync::Async { interval: std::time::Duration::from_secs(1) }
                 };
                 let remote = RemoteConfig { restore: true, ..RemoteConfig::new(store.clone(), mode) };
-                let config =
-                    SquadConfig { cache_size: opts.cache_bytes, remote: Some(remote), ..SquadConfig::default() };
+                let config = SquadConfig { remote: Some(remote), ..squad_config(opts) };
                 (Database::open(&db_dir, config)?, store)
             }
             None => {
-                let config = SquadConfig { cache_size: opts.cache_bytes, ..SquadConfig::default() };
+                let config = squad_config(opts);
                 let objects: Arc<dyn squad::object::ObjectStore> = Arc::new(
                     squad::object::LocalStore::new(opts.data_dir.join("objects"))
                         .map_err(|e| StoreError::Object(e.to_string()))?,
