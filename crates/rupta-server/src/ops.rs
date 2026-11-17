@@ -383,6 +383,8 @@ mod tests {
             ("rupta_integration_sync_total", "counter"),
             ("rupta_integration_webhooks_total", "counter"),
             ("rupta_storage_database_bytes", "gauge"),
+            ("rupta_storage_columnar_cache_bytes", "gauge"),
+            ("rupta_storage_columnar_retired_segments", "gauge"),
             ("rupta_storage_cache_hit_ratio", "gauge"),
             ("rupta_storage_remote_configured", "gauge"),
             ("rupta_build_info", "gauge"),

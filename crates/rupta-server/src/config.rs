@@ -407,6 +407,16 @@ mod tests {
         assert!(!c.integrations_allow_private_hosts);
         assert_eq!(c.metrics_project_labels, 50);
         assert!(c.mcp);
+        assert_eq!(c.cache_bytes, 256 << 20);
+        assert_eq!(c.columnar_cache_bytes, 128 << 20);
+    }
+
+    #[test]
+    fn the_columnar_cache_is_configurable() {
+        let c = Config::from_env(&env(&[KEY, ("RUPTA_COLUMNAR_CACHE_MB", "32")])).unwrap();
+        assert_eq!(c.columnar_cache_bytes, 32 << 20);
+        let err = Config::from_env(&env(&[KEY, ("RUPTA_COLUMNAR_CACHE_MB", "lots")])).unwrap_err();
+        assert!(err.to_string().contains("RUPTA_COLUMNAR_CACHE_MB"), "{err}");
     }
 
     #[test]
