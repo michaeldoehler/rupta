@@ -6,7 +6,7 @@ uses [semantic versioning](https://semver.org/). Before 1.0, minor versions
 may change the API, the configuration and the storage format; the
 changelog says when and how to migrate.
 
-## [Unreleased]
+## [0.3.1] - 2026-11-17
 
 ### Fixed
 
@@ -23,6 +23,10 @@ changelog says when and how to migrate.
   number of log objects too, and the counter no longer starts at zero on
   every start; a restore loads snapshot chunks and log objects in
   parallel and logs its progress.
+- **The database's own messages reach rupta's log.** Restore progress
+  (every 5 s) and snapshots (with their trigger) are
+  logged by squad and now appear in rupta's log output, so a long start is
+  no longer silent.
 
 ### Added
 
