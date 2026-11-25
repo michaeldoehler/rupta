@@ -6,6 +6,27 @@ uses [semantic versioning](https://semver.org/). Before 1.0, minor versions
 may change the API, the configuration and the storage format; the
 changelog says when and how to migrate.
 
+## [0.3.2] - 2026-11-25
+
+### Security
+
+- **Mail notifications: lettre 0.11.24.** Fixes RUSTSEC-2026-0560 to
+  -0565: a man-in-the-middle could forge SMTP replies after STARTTLS, a
+  bare CR or LF could inject SMTP commands, a quoted local part sent the
+  message to a different address, and malformed replies or display names
+  could crash or exhaust memory.
+- url 2.5.9 (RUSTSEC-2026-0592, stack overflow on nested `blob:` URLs).
+
+### Changed
+
+- **The container image runs on distroless Debian 13** instead of
+  debian:bookworm-slim: glibc, CA certificates and tzdata, no shell or
+  package manager. Scanners reported 1 critical and 19 high findings in
+  the old base image, all in packages rupta does not use. It still runs as
+  uid 10001, so existing `/data` volumes need no change. `docker exec ... sh`
+  no longer works; use `rupta` subcommands instead.
+- Dependency updates (Rust and web).
+
 ## [0.3.1] - 2026-11-17
 
 ### Fixed
