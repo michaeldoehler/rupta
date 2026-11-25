@@ -94,7 +94,7 @@ jobs:
           ref="ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}"
           docker buildx imagetools inspect "$ref"
           echo "digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.inspect.outputs.digest }}
