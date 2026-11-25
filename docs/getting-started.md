@@ -44,7 +44,7 @@ Only want a quick look, without the bucket? One container is enough:
 ```sh
 docker run -d -p 8080:8080 -v rupta-data:/data \
   -e RUPTA_SECRET_KEY=$(openssl rand -hex 32) \
-  ghcr.io/michaeldoehler/rupta:0.3.1
+  ghcr.io/michaeldoehler/rupta:0.3.2
 ```
 
 Then the first visitor of <http://localhost:8080> creates the

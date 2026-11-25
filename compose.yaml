@@ -10,7 +10,7 @@ name: rupta
 
 services:
   rupta:
-    image: ghcr.io/michaeldoehler/rupta:${RUPTA_VERSION:-0.3.1}
+    image: ghcr.io/michaeldoehler/rupta:${RUPTA_VERSION:-0.3.2}
     build: .
     restart: unless-stopped
     ports:
