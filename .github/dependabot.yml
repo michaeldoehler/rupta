@@ -18,6 +18,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Its tag is a Rust version: ci.yml pins @1.89 to test the MSRV
+      # (rust-version in Cargo.toml), which moves with that, not with
+      # whatever toolchain is newest. The other uses follow @stable.
+      - dependency-name: dtolnay/rust-toolchain
   - package-ecosystem: docker
     directory: /
     schedule:
