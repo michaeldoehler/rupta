@@ -33,5 +33,5 @@ export async function startMockWorker() {
   }
 
   const worker = setupWorker(...handlers)
-  await worker.start({ onUnhandledRequest: 'bypass', quiet: true, serviceWorker: { url: '/mockServiceWorker.js' } })
+  await worker.start({ onUnhandledFrame: 'bypass', quiet: true, serviceWorker: { url: '/mockServiceWorker.js' } })
 }
