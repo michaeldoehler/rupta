@@ -32,7 +32,7 @@ Element.prototype.releasePointerCapture ??= () => {}
 
 beforeAll(() => {
   setMockLatency(0)
-  server.listen({ onUnhandledRequest: 'error' })
+  server.listen({ onUnhandledFrame: 'error' })
 })
 afterEach(() => {
   cleanup()
