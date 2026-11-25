@@ -146,7 +146,11 @@ if command -v python3 >/dev/null; then
   if [ ! -x "$SDK_DIR/py/venv/bin/python" ]; then
     log "installing the Python SDK"
     python3 -m venv "$SDK_DIR/py/venv"
-    "$SDK_DIR/py/venv/bin/pip" install --quiet --disable-pip-version-check "sentry-sdk${PYTHON_SDK_VERSION:+==$PYTHON_SDK_VERSION}"
+    # Latest 2.x unless pinned: sentry-sdk 3.0 (2026-11) dropped
+    # send_default_pii and profiles_sample_rate, which the example uses.
+    # Moving it to 3.x is its own change.
+    py_spec="${PYTHON_SDK_VERSION:+==$PYTHON_SDK_VERSION}"
+    "$SDK_DIR/py/venv/bin/pip" install --quiet --disable-pip-version-check "sentry-sdk${py_spec:-<3}"
   fi
   log "running the Python SDK example"
   "$SDK_DIR/py/venv/bin/python" "$EXAMPLES/python.py" || fail "Python example failed"
